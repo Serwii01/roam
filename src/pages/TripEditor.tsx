@@ -13,6 +13,7 @@ import type { Stop, TransportMode, TripStyle, TripWithStops } from '../lib/db'
 import { haversine } from '../lib/geo'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
 import { nearestAirportLocal, preloadAirports } from '../lib/airportIndex'
+import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
 import { useAirportMap, useCountries, useInvalidateTravel, useTrip } from '../lib/hooks'
 import { formatKm, legKm, tripKm } from '../lib/stats'
 import { TRANSPORT, TRANSPORT_MODES, TRIP_STYLES } from '../lib/transport'
@@ -150,8 +151,25 @@ export function TripEditorPage() {
 
   const uploadFiles = (files: FileList | File[], stopId?: string | null) =>
     run('Subiendo fotogramas', async () => {
+      const all = [...files]
+      const images = all.filter(looksLikeImage).slice(0, 10)
+      const rejected = all.filter((f) => !looksLikeImage(f)).map((f) => f.name)
       const t = await ensureTrip()
-      for (const f of [...files].filter((f) => f.type.startsWith('image/')).slice(0, 10)) await api.uploadPhoto(t.id, f, stopId)
+      const failed: string[] = []
+      for (const [i, f] of images.entries()) {
+        setBusy(`Subiendo foto ${i + 1} de ${images.length}${/.(heic|heif)$/i.test(f.name) ? ' (convirtiendo HEIC)' : ''}`)
+        try {
+          await api.uploadPhoto(t.id, f, stopId)
+        } catch (e) {
+          failed.push(e instanceof Error ? e.message : f.name)
+        }
+      }
+      const problems = [
+        ...(rejected.length ? [`No son imágenes: ${rejected.join(', ')}.`] : []),
+        ...(all.length > 10 ? ['Solo se suben 10 fotos cada vez.'] : []),
+        ...failed,
+      ]
+      if (problems.length) throw new Error(problems.join(' '))
     })
 
   if (id && trip.isLoading) return <Spinner label="Abriendo manifiesto" />
@@ -626,7 +644,7 @@ function RecuerdosStep({
             />
             <label className="btn btn-ghost cursor-pointer">
               <Icon name="add_photo_alternate" size={18} /> Fotos de esta parada
-              <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && onUpload(e.target.files, s.id)} />
+              <input type="file" accept={IMAGE_ACCEPT} multiple hidden onChange={(e) => e.target.files && onUpload(e.target.files, s.id)} />
             </label>
           </div>
           {trip.photos.some((p) => p.stop_id === s.id) && (
@@ -715,7 +733,7 @@ function PhotoStrip({ trip, onUpload }: { trip: TripWithStops | undefined | null
         >
           <Icon name="upload_file" />
           <span className="label-stamp">Soltar archivo{photos.length > 2 ? ` · +${photos.length - 2}` : ''}</span>
-          <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && onUpload(e.target.files)} />
+          <input type="file" accept={IMAGE_ACCEPT} multiple hidden onChange={(e) => e.target.files && onUpload(e.target.files)} />
         </label>
       </div>
     </div>

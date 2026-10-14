@@ -234,6 +234,7 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Avatares por defecto', who: '«Croodles» de Vijay Verma, vía DiceBear', license: 'CC BY 4.0', url: 'https://www.dicebear.com/styles/croodles/', note: 'Modificados: colores de fondo y de pelo.' },
   { what: 'Iconos', who: 'Material Symbols (Google)', license: 'Apache 2.0', url: 'https://fonts.google.com/icons' },
   { what: 'Tipografías', who: 'Space Grotesk y Plus Jakarta Sans', license: 'SIL Open Font License 1.1', url: 'https://fontsource.org' },
+  { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
   { what: 'Música', who: 'Spotify (reproductor embebido)', license: 'Términos de Spotify', url: 'https://developer.spotify.com/terms' },
 ]

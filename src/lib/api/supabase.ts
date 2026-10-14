@@ -1,28 +1,11 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
 import type { Airport, Photo, Stop, TripWithStops } from '../db'
+import { prepareImage } from '../images'
 import { must, supabase } from '../supabase'
 import type { Api } from './types'
 
 const BUCKET = 'trip-photos'
-
-/** Reduce una imagen a `max` px de lado (JPEG 0,82). Si ya es pequeña o no se puede leer, devuelve el original. */
-async function shrinkImage(file: File, max = 2000): Promise<Blob> {
-  try {
-    const bitmap = await createImageBitmap(file)
-    const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height))
-    if (scale === 1 && file.size < 1_500_000) return file
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bitmap.width * scale)
-    canvas.height = Math.round(bitmap.height * scale)
-    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    bitmap.close()
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.82))
-    return blob && blob.size < file.size ? blob : file
-  } catch {
-    return file
-  }
-}
 
 // ── Enlaces firmados de fotos (bucket privado) ──
 const SIGNED_TTL = 6 * 3600 // segundos
@@ -141,11 +124,10 @@ export const supabaseApi: Api = {
   async uploadPhoto(tripId, file, stopId) {
     const { data: auth } = await supabase.auth.getUser()
     if (!auth.user) throw new Error('Sin sesión')
-    // Las fotos del móvil pesan 5-10 MB: se reducen antes de subirlas (menos espera y menos espacio en el plan gratuito).
-    const small = await shrinkImage(file)
-    const ext = small.type === 'image/jpeg' ? 'jpg' : file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${auth.user.id}/${tripId}/${crypto.randomUUID()}.${ext}`
-    const up = await supabase.storage.from(BUCKET).upload(path, small, { contentType: small.type, upsert: false, cacheControl: '31536000' })
+    // HEIC → JPEG, máx. 2000 px y sin EXIF/GPS: una foto de móvil de 5-10 MB queda en unos cientos de KB.
+    const small = await prepareImage(file)
+    const path = `${auth.user.id}/${tripId}/${crypto.randomUUID()}.jpg`
+    const up = await supabase.storage.from(BUCKET).upload(path, small, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
     if (up.error) throw new Error(up.error.message)
     return must(await supabase.from('photos').insert({ trip_id: tripId, stop_id: stopId ?? null, path }).select().single())
   },

@@ -2,6 +2,7 @@
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
 import type { Airport, Country, Photo, Stop, Subdivision, Trip, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
+import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
 import type { Api } from './types'
 
@@ -64,20 +65,14 @@ function withRelations(t: Trip): TripWithStops {
   }
 }
 
-function resizeToDataUrl(file: File, max = 1200): Promise<string> {
+/** Foto preparada (HEIC admitido, sin EXIF) como data URL pequeña para caber en localStorage. */
+async function toDataUrl(file: File): Promise<string> {
+  const jpeg = await prepareImage(file, 1200)
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, max / Math.max(img.width, img.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(img.src)
-      resolve(canvas.toDataURL('image/jpeg', 0.72))
-    }
-    img.onerror = reject
-    img.src = URL.createObjectURL(file)
+    const r = new FileReader()
+    r.onload = () => resolve(r.result as string)
+    r.onerror = reject
+    r.readAsDataURL(jpeg)
   })
 }
 
@@ -208,7 +203,7 @@ export const demoApi: Api = {
       user_id: DEMO_USER_ID,
       trip_id: tripId,
       stop_id: stopId ?? null,
-      path: await resizeToDataUrl(file),
+      path: await toDataUrl(file),
       caption: null,
       created_at: now(),
     }

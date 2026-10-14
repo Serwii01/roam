@@ -15,6 +15,7 @@ ROAM incluye o redistribuye los siguientes datos y componentes. Los textos de li
 | Avatares | `public/avatars/*.svg` | «Croodles» de Vijay Verma, generados con DiceBear | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). **Modificados:** colores de fondo y de pelo. |
 | Iconos | `public/fonts/material-symbols.woff2` | Material Symbols (Google) | Apache 2.0 ([texto](licenses/material-symbols-Apache-2.0.txt)). Subconjunto con los iconos usados. |
 | Tipografías | dentro de `dist/assets` | Space Grotesk, Plus Jakarta Sans | SIL OFL 1.1 ([Space Grotesk](licenses/space-grotesk-OFL-1.1.txt), [Plus Jakarta Sans](licenses/plus-jakarta-sans-OFL-1.1.txt)) |
+| Conversión de fotos HEIC | `dist/assets/heic-to-*.js` (se carga solo al elegir una foto HEIC) | heic-to, con libheif (© struktur AG) y libde265 | LGPL-3.0 ([licencia](licenses/heic-to-libheif-LGPL-3.0.txt), [aviso](licenses/heic-to-NOTICE.txt)). Se usa sin modificar, como módulo independiente que puede sustituirse. Fuente: https://github.com/hoppergee/heic-to y https://github.com/strukturag/libheif |
 | Motor de mapas | dentro de `dist/assets` | MapLibre GL JS | BSD-3-Clause ([texto](licenses/maplibre-gl-BSD-3-Clause.txt)) |
 
 ## Servicios externos que usa la app (no se redistribuyen)
