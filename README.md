@@ -36,6 +36,26 @@ npx supabase db push --include-seed
 
 Para activar OAuth: habilita el proveedor en Supabase → Authentication → Providers y añádelo a `VITE_OAUTH_PROVIDERS` (por ejemplo, `google,github`).
 
+## Publicar en Vercel
+
+1. En [vercel.com](https://vercel.com) → **Add New → Project** → importa el repositorio `Serwii01/roam` de GitHub. Vercel lee `vercel.json` (Vite, `npm run build`, carpeta `dist`, Node 22) y no hay que tocar nada más.
+2. Antes de pulsar **Deploy**, abre **Environment Variables** y añade (para *Production* y *Preview*):
+
+   | Variable | Valor |
+   | --- | --- |
+   | `VITE_SUPABASE_URL` | `https://xrjalgaekawkuhmcrmmm.supabase.co` |
+   | `VITE_SUPABASE_ANON_KEY` | tu clave `sb_publishable_…` (nunca la *secret*) |
+   | `VITE_LEGAL_NAME` | tu nombre |
+   | `VITE_LEGAL_EMAIL` | tu email de contacto |
+   | `VITE_CONTACT_EMAIL` | el mismo email (lo recibe Nominatim) |
+
+   Si falta alguna de las dos de Supabase, la web muestra «ROAM no está configurado» en vez de arrancar en modo demo.
+3. **Deploy.** Al terminar tendrás una URL como `https://roam-xxxx.vercel.app`.
+4. En Supabase → **Authentication → URL Configuration**: pon esa URL como **Site URL** y añade en **Redirect URLs** `https://roam-xxxx.vercel.app/**`.
+5. Cada `git push` a `main` vuelve a desplegar automáticamente.
+
+> El plan gratuito *Hobby* de Vercel es para uso no comercial: perfecto para la beta. Si algún día cobras, pasa a *Pro* o muévelo a Cloudflare Pages (el proyecto ya incluye `public/_headers` y `_redirects`).
+
 ## Antes de publicar (legal y privacidad)
 
 - **Supabase en la UE:** al crear el proyecto, elige la región *Frankfurt (eu-central-1)*. La política de privacidad lo da por hecho.
