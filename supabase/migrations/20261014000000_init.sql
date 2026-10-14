@@ -2,7 +2,9 @@
 -- Datos de referencia (países, regiones/provincias ISO 3166-2, aeropuertos) de lectura pública,
 -- y datos de cada usuario (perfil, pasaportes, viajes, paradas, lugares marcados) protegidos con RLS.
 
-create extension if not exists pg_trgm;
+-- En Supabase las extensiones van en el esquema `extensions` (no en `public`).
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
 
 -- ───────────────────────────── Referencia ─────────────────────────────
 
@@ -37,7 +39,7 @@ create table public.airports (
   size               text not null check (size in ('large', 'medium', 'small'))
 );
 create index airports_country_idx on public.airports (country_code);
-create index airports_search_idx on public.airports using gin ((iata || ' ' || name || ' ' || coalesce(city, '')) gin_trgm_ops);
+create index airports_search_idx on public.airports using gin ((iata || ' ' || name || ' ' || coalesce(city, '')) extensions.gin_trgm_ops);
 
 -- ───────────────────────────── Usuarios ─────────────────────────────
 
