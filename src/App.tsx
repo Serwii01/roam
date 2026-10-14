@@ -19,6 +19,10 @@ const PassportPage = page(() => import('./pages/Passport'), 'PassportPage')
 const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage')
 const TripEditorPage = page(() => import('./pages/TripEditor'), 'TripEditorPage')
 const TripLogPage = page(() => import('./pages/TripLog'), 'TripLogPage')
+const PrivacyPage = page(() => import('./pages/Legal'), 'PrivacyPage')
+const LegalNoticePage = page(() => import('./pages/Legal'), 'LegalNoticePage')
+const TermsPage = page(() => import('./pages/Legal'), 'TermsPage')
+const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -41,6 +45,10 @@ export default function App() {
         <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/privacidad" element={<PrivacyPage />} />
+        <Route path="/aviso-legal" element={<LegalNoticePage />} />
+        <Route path="/terminos" element={<TermsPage />} />
+        <Route path="/creditos" element={<CreditsPage />} />
         <Route path="/entrar" element={<GuestOnly><AuthPage mode="login" /></GuestOnly>} />
         <Route path="/registro" element={<GuestOnly><AuthPage mode="register" /></GuestOnly>} />
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>

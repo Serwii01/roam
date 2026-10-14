@@ -168,7 +168,15 @@ export function LandingPage() {
       <footer className="bg-surface-low">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 md:px-12">
           <span className="label-stamp text-ink-soft">ROAM · Kinetic travel tracker</span>
-          <span className="text-xs text-ink-soft">Mapas © OpenFreeMap, OpenStreetMap · Datos: OurAirports, ISO 3166-2, Natural Earth</span>
+          <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
+            <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              © colaboradores de OpenStreetMap
+            </a>
+            <Link to="/creditos" className="underline">Créditos y licencias</Link>
+            <Link to="/privacidad" className="underline">Privacidad</Link>
+            <Link to="/aviso-legal" className="underline">Aviso legal</Link>
+            <Link to="/terminos" className="underline">Términos</Link>
+          </span>
         </div>
       </footer>
     </div>

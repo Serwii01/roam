@@ -270,6 +270,21 @@ language sql stable set search_path = public as $$
   limit n
 $$;
 
+-- Derecho de supresión (RGPD): el usuario borra su propia cuenta. El borrado en cascada desde auth.users
+-- elimina perfil, pasaportes, viajes, paradas, fotos (filas), marcas y deseos. Los archivos de Storage
+-- los borra antes la app (la API de Storage es la única forma segura de eliminarlos).
+create function public.delete_my_account() returns void
+language plpgsql security definer set search_path = public, auth as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sin sesión';
+  end if;
+  delete from auth.users where id = auth.uid();
+end $$;
+
+revoke execute on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;
+
 -- ───────────────────────────── Vistas ─────────────────────────────
 
 -- Países visitados por usuario: los de las paradas de viajes hechos más los marcados a mano.

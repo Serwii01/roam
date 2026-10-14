@@ -254,6 +254,12 @@ export const demoApi: Api = {
   async listWishlist() {
     return delay(state.wishlist)
   },
+  async exportMyData() {
+    return structuredClone(state) as unknown as Record<string, unknown>
+  },
+  async deleteMyAccount() {
+    resetDemo()
+  },
   async setWish(code, wished, note) {
     state.wishlist = state.wishlist.filter((w) => w.country_code !== code)
     if (wished) state.wishlist.push({ user_id: DEMO_USER_ID, country_code: code, note: note ?? null, created_at: now() })

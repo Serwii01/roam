@@ -3,12 +3,12 @@ import { KIND_LABEL, isShortSpotifyLink, parseSpotify, spotifyMeta, type Spotify
 import { Icon } from './Icon'
 
 /**
- * Reproductor de Spotify. Primero muestra una fachada ligera (portada y título por oEmbed) y solo carga
- * el reproductor real (~1 MB) al pulsarla. `compact` = barra de 80 px (canción de una parada).
+ * Reproductor de Spotify. Hasta que se pulsa solo se ve una fachada propia: no se hace ninguna petición
+ * a Spotify (ni título, ni portada, ni reproductor), así no se envía la IP del visitante sin que lo
+ * pida (RGPD). Al pulsar se carga el reproductor real. `compact` = barra de 80 px (canción de una parada).
  */
 export function SpotifyPlayer({ url, compact = false, className = '' }: { url: string | null | undefined; compact?: boolean; className?: string }) {
   const ref = parseSpotify(url)
-  const meta = useSpotifyMeta(url)
   const [active, setActive] = useState(false)
   if (!ref) return null
   const height = compact || ref.kind === 'track' || ref.kind === 'episode' ? 80 : 152
@@ -19,18 +19,15 @@ export function SpotifyPlayer({ url, compact = false, className = '' }: { url: s
         onClick={() => setActive(true)}
         style={{ height }}
         className={`group flex w-full items-center gap-3 rounded-[12px] bg-[#121212] p-3 text-left text-white ${className}`}
-        aria-label={`Escuchar ${meta?.title ?? 'en Spotify'}`}
+        aria-label={`Escuchar ${KIND_LABEL[ref.kind].toLowerCase()} en Spotify`}
       >
-        {meta?.thumbnail ? (
-          <img src={meta.thumbnail} alt="" className="aspect-square h-full rounded-md object-cover" />
-        ) : (
-          <span className="grid aspect-square h-full place-items-center rounded-md bg-white/10">
-            <SpotifyLogo className="h-6 w-6 text-[#1DB954]" />
-          </span>
-        )}
+        <span className="grid aspect-square h-full place-items-center rounded-md bg-white/10">
+          <SpotifyLogo className="h-6 w-6 text-[#1DB954]" />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="label-stamp block text-white/60">{KIND_LABEL[ref.kind]} · Spotify</span>
-          <span className="block truncate font-display font-semibold">{meta?.title ?? 'Escuchar en Spotify'}</span>
+          <span className="block truncate font-display font-semibold">Escuchar en Spotify</span>
+          {!compact && <span className="block truncate text-xs text-white/50">Al pulsar se carga el reproductor de Spotify</span>}
         </span>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black transition group-hover:scale-105">
           <Icon name="play_arrow" filled size={24} />

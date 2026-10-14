@@ -16,6 +16,7 @@ export function PlaceSearch({
   const [results, setResults] = useState<Place[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (q.trim().length < 2) {
@@ -35,7 +36,7 @@ export function PlaceSearch({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [q])
+  }, [q, attempt])
 
   return (
     <div className="relative">
@@ -52,7 +53,14 @@ export function PlaceSearch({
       </div>
       {(results.length > 0 || error) && (
         <ul className="card absolute z-30 mt-1 max-h-72 w-full overflow-auto p-1">
-          {error && <li className="px-3 py-2 text-sm text-red-700">No se pudo buscar. Revisa tu conexión.</li>}
+          {error && (
+            <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-red-700">
+              El buscador de lugares no responde.
+              <button type="button" className="font-semibold underline" onClick={() => setAttempt((n) => n + 1)}>
+                Reintentar
+              </button>
+            </li>
+          )}
           {results.map((p, i) => (
             <li key={i}>
               <button

@@ -53,4 +53,10 @@ export interface Api {
   setSubdivisionMarked(code: string, marked: boolean): Promise<void>
   listWishlist(): Promise<Wish[]>
   setWish(code: string, wished: boolean, note?: string): Promise<void>
+
+  // Derechos RGPD
+  /** Todos los datos del usuario en un objeto serializable (derecho de acceso y portabilidad). */
+  exportMyData(userId: string): Promise<Record<string, unknown>>
+  /** Borra la cuenta, sus datos y sus fotos (derecho de supresión). */
+  deleteMyAccount(userId: string): Promise<void>
 }

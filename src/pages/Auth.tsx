@@ -15,6 +15,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState(false)
   const isLogin = mode === 'login'
 
   async function submit(e: React.FormEvent) {
@@ -100,7 +101,23 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
-              <button className="btn btn-accent w-full py-3!" disabled={busy}>
+              {!isLogin && (
+                <label className="flex items-start gap-2 text-sm text-ink-soft">
+                  <input type="checkbox" className="mt-1" required checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+                  <span>
+                    Tengo 14 años o más y acepto los{' '}
+                    <Link to="/terminos" target="_blank" className="text-accent-deep underline">
+                      términos de uso
+                    </Link>{' '}
+                    y la{' '}
+                    <Link to="/privacidad" target="_blank" className="text-accent-deep underline">
+                      política de privacidad
+                    </Link>
+                    .
+                  </span>
+                </label>
+              )}
+              <button className="btn btn-accent w-full py-3!" disabled={busy || (!isLogin && !accepted)}>
                 {busy ? 'Un momento…' : isLogin ? 'Entrar' : 'Crear cuenta'}
               </button>
             </form>

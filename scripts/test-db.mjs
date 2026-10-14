@@ -120,6 +120,28 @@ await as(B, async () => {
   assert.equal(await count(`select count(*) n from passports`), 0)
 })
 
+// Fotos (bucket privado): cada uno sube solo a su carpeta; un perfil privado no deja ver sus fotos.
+await db.exec(`grant select, insert, delete on storage.objects to anon, authenticated; grant usage on schema storage to anon, authenticated;`)
+await as(A, () => db.query(`update profiles set is_public = false where id = $1`, [A]))
+await as(A, () => db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/viaje/foto.jpg`]))
+await as(B, async () => {
+  await assert.rejects(db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/viaje/intruso.jpg`]), /row-level security/)
+  assert.equal(await count(`select count(*) n from storage.objects`), 0, 'Berto no ve fotos de un perfil privado')
+})
+await as(A, async () => assert.equal(await count(`select count(*) n from storage.objects`), 1, 'Ana ve las suyas'))
+await as(A, () => db.query(`update profiles set is_public = true where id = $1`, [A]))
+await as(B, async () => assert.equal(await count(`select count(*) n from storage.objects`), 1, 'con perfil público sí se ven'))
+
+// Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
+await as(A, () => db.query('select public.delete_my_account()'))
+assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)
+for (const t of ['profiles', 'trips', 'stops', 'photos', 'passports', 'user_countries', 'user_subdivisions', 'wishlist'])
+  assert.equal(await count(`select count(*) n from ${t} where ${t === 'profiles' ? 'id' : 'user_id'} = $1`, [A]), 0, `${t} borrado`)
+assert.equal(await count('select count(*) n from profiles where id = $1', [B]), 1, 'el otro usuario sigue')
+await db.exec('set role anon')
+await assert.rejects(db.query('select public.delete_my_account()'), /permission denied/, 'sin sesión no se puede')
+await db.exec('reset role')
+
 // Los visitantes sin sesión leen la referencia pero no los perfiles privados.
 await db.exec(`set role anon`)
 assert.ok((await count(`select count(*) n from airports`)) > 5000)

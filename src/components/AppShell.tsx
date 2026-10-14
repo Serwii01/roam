@@ -114,7 +114,14 @@ export function AppShell() {
             <Link to="/app/pasaporte">Pasaporte</Link>
             <Link to="/app/deseos">Deseos</Link>
           </nav>
-          <span className="text-xs text-ink-soft">Mapas © OpenFreeMap, OpenStreetMap · Datos: OurAirports, Natural Earth</span>
+          <span className="text-xs text-ink-soft">
+            Datos ©{' '}
+            <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              colaboradores de OpenStreetMap
+            </a>{' '}
+            · <Link to="/creditos" className="underline">Créditos</Link> · <Link to="/privacidad" className="underline">Privacidad</Link> ·{' '}
+            <Link to="/aviso-legal" className="underline">Aviso legal</Link>
+          </span>
         </div>
       </footer>
     </div>

@@ -7,13 +7,8 @@
     <meta name="description" content="ROAM: registra tus viajes, rutas, países, regiones y aeropuertos en un mapa del mundo." />
     <meta name="theme-color" content="#f9f9fa" />
     <title>ROAM · Kinetic Travel Tracker</title>
-    <!-- Fuentes: conexión anticipada y hojas de estilo en el HTML (antes iban por @import en el CSS y se descubrían tarde). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" />
-    <!-- Solo los iconos que usa la app (lo genera `npm run icons`). -->
-    <link id="icons" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&amp;icon_names=ac_unit,account_balance,add,add_circle,add_location_alt,add_photo_alternate,ads_click,all_inclusive,approval,arrow_back,arrow_downward,arrow_forward,arrow_upward,backpack,badge,beach_access,bookmark,bookmark_add,calendar_month,casino,check,check_circle,close,cloud_done,delete,directions_boat,directions_bus,directions_car,edit,edit_note,event_upcoming,explore,flight,flight_takeoff,hiking,insights,landscape,language,layers,local_airport,location_on,lock,logout,map,menu_book,military_tech,music_note,my_location,pedal_bike,person,person_add,person_pin_circle,photo_camera,picture_as_pdf,pin_drop,play_arrow,polyline,public,qr_code_2,remove,restart_alt,route,sailing,search,search_off,settings,share,south,spa,speed,star,task_alt,tips_and_updates,train,travel_explore,upload_file,verified,work&amp;display=block" />
+    <!-- Todas las fuentes se sirven desde la propia app: los visitantes no contactan con Google (RGPD). -->
+    <link rel="preload" href="/fonts/material-symbols.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

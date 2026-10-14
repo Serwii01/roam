@@ -24,6 +24,20 @@ async function shrinkImage(file: File, max = 2000): Promise<Blob> {
   }
 }
 
+// ── Enlaces firmados de fotos (bucket privado) ──
+const SIGNED_TTL = 6 * 3600 // segundos
+const signed = new Map<string, { url: string; expires: number }>()
+
+/** Firma de golpe las fotos que aún no tienen un enlace vigente (≥30 min de margen). */
+async function signPhotos(paths: string[]) {
+  const now = Date.now()
+  const missing = [...new Set(paths)].filter((p) => (signed.get(p)?.expires ?? 0) - now < 30 * 60_000)
+  if (!missing.length) return
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(missing, SIGNED_TTL)
+  if (error) throw new Error(error.message)
+  for (const d of data ?? []) if (d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, expires: now + SIGNED_TTL * 1000 })
+}
+
 const sortTrip = (t: TripWithStops): TripWithStops => ({
   ...t,
   stops: [...(t.stops ?? [])].sort((a, b) => a.position - b.position),
@@ -90,10 +104,12 @@ export const supabaseApi: Api = {
         .eq('user_id', userId)
         .order('start_date', { ascending: false, nullsFirst: true }),
     ) as TripWithStops[]
+    await signPhotos(rows.flatMap((t) => (t.photos ?? []).map((p) => p.path)))
     return rows.map(sortTrip)
   },
   async getTrip(id) {
     const row = must(await supabase.from('trips').select('*, stops(*), photos(*)').eq('id', id).maybeSingle()) as TripWithStops | null
+    if (row) await signPhotos((row.photos ?? []).map((p) => p.path))
     return row && sortTrip(row)
   },
   async createTrip(fields) {
@@ -135,10 +151,12 @@ export const supabaseApi: Api = {
   },
   async deletePhoto(photo) {
     await supabase.storage.from(BUCKET).remove([photo.path])
+    signed.delete(photo.path)
     must(await supabase.from('photos').delete().eq('id', photo.id))
   },
   photoUrl(path) {
-    return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    // Las fotos se firman al cargar los viajes (listTrips/getTrip); aquí solo se lee el enlace vigente.
+    return signed.get(path)?.url ?? ''
   },
 
   async getVisited(userId) {
@@ -170,6 +188,34 @@ export const supabaseApi: Api = {
   },
   async listWishlist() {
     return must(await supabase.from('wishlist').select('*').order('created_at'))
+  },
+  async exportMyData(userId) {
+    const [profile, passports, trips, countries, subdivisions, wishlist] = await Promise.all([
+      supabaseApi.getProfile(userId),
+      supabaseApi.listPassports(),
+      supabaseApi.listTrips(userId),
+      supabase.from('user_countries').select('country_code').eq('user_id', userId),
+      supabase.from('user_subdivisions').select('subdivision_code').eq('user_id', userId),
+      supabaseApi.listWishlist(),
+    ])
+    return {
+      profile,
+      passports,
+      trips,
+      marked_countries: must(countries),
+      marked_subdivisions: must(subdivisions),
+      wishlist,
+    }
+  },
+  async deleteMyAccount(userId) {
+    // Primero los archivos (Storage no se vacía con el borrado en cascada de la base de datos).
+    const photos = must(await supabase.from('photos').select('path').eq('user_id', userId)) as Pick<Photo, 'path'>[]
+    for (let i = 0; i < photos.length; i += 100) {
+      const { error } = await supabase.storage.from(BUCKET).remove(photos.slice(i, i + 100).map((p) => p.path))
+      if (error) throw new Error(error.message)
+    }
+    must(await supabase.rpc('delete_my_account'))
+    await supabase.auth.signOut()
   },
   async setWish(code, wished, note) {
     must(

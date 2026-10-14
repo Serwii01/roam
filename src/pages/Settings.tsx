@@ -130,6 +130,92 @@ export function SettingsPage() {
           <Icon name="logout" size={18} /> Cerrar sesión
         </button>
       </div>
+
+      <MyData userId={user.id} username={profile.data?.username ?? ''} onDeleted={async () => {
+        await signOut()
+        qc.clear()
+        navigate('/', { replace: true })
+      }} />
+    </div>
+  )
+}
+
+/** Derechos RGPD: descargar todos los datos (acceso y portabilidad) y borrar la cuenta (supresión). */
+function MyData({ userId, username, onDeleted }: { userId: string; username: string; onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
+
+  const download = async () => {
+    setBusy('Preparando')
+    setError(null)
+    try {
+      const data = await api.exportMyData(userId)
+      const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), app: 'ROAM', ...data }, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `roam-mis-datos-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const remove = async () => {
+    setBusy('Borrando')
+    setError(null)
+    try {
+      await api.deleteMyAccount(userId)
+      onDeleted()
+    } catch (e) {
+      setError(e)
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="card mt-6 space-y-4 p-6">
+      <div>
+        <div className="font-display font-semibold">Tus datos</div>
+        <p className="text-sm text-ink-soft">
+          Descarga una copia de todo lo que has guardado (perfil, pasaportes, viajes, paradas, países marcados y deseos) o borra tu cuenta.
+        </p>
+      </div>
+      <ErrorNote error={error} />
+      <div className="flex flex-wrap gap-2">
+        <button className="btn btn-ghost" onClick={download} disabled={!!busy}>
+          <Icon name="download" size={18} /> {busy === 'Preparando' ? 'Preparando…' : 'Descargar mis datos (JSON)'}
+        </button>
+        {!confirming && (
+          <button className="btn text-red-700 hover:bg-red-50" onClick={() => setConfirming(true)} disabled={!!busy}>
+            <Icon name="delete_forever" size={18} /> Borrar mi cuenta
+          </button>
+        )}
+      </div>
+      {confirming && (
+        <div className="rounded-sm border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <p>
+            Se borrarán para siempre tu cuenta, tus viajes, tus fotos y todo lo demás. <b>No se puede deshacer.</b> Si quieres conservar algo,
+            descarga antes tus datos.
+          </p>
+          <label className="mt-3 block">
+            Escribe tu nombre de usuario (<b>{username}</b>) para confirmar:
+            <input className="field mt-2 bg-white!" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+          </label>
+          <div className="mt-3 flex gap-2">
+            <button className="btn bg-red-700 text-white hover:bg-red-800" disabled={typed !== username || !!busy} onClick={remove}>
+              {busy === 'Borrando' ? 'Borrando…' : 'Borrar definitivamente'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => (setConfirming(false), setTyped(''))} disabled={!!busy}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

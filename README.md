@@ -36,9 +36,20 @@ npx supabase db push --include-seed
 
 Para activar OAuth: habilita el proveedor en Supabase → Authentication → Providers y añádelo a `VITE_OAUTH_PROVIDERS` (por ejemplo, `google,github`).
 
+## Antes de publicar (legal y privacidad)
+
+- **Supabase en la UE:** al crear el proyecto, elige la región *Frankfurt (eu-central-1)*. La política de privacidad lo da por hecho.
+- **Datos del titular:** rellena `VITE_LEGAL_NAME` y `VITE_LEGAL_EMAIL` (y `VITE_LEGAL_NIF` y `VITE_LEGAL_ADDRESS` si es una actividad económica) en el entorno de producción. Mientras falten, las páginas legales muestran un aviso de plantilla.
+- **Revisión:** `/privacidad`, `/aviso-legal` y `/terminos` son plantillas razonables para un servicio gratuito en España; conviene que las revise un profesional antes de un lanzamiento comercial.
+- **Marca:** comprueba el nombre «ROAM» en la OEPM y la EUIPO antes de usarlo públicamente.
+- **Nominatim:** pon `VITE_CONTACT_EMAIL`. Si la app crece, usa un geocodificador propio o de pago.
+- **Licencias de terceros:** en [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y en `/creditos`.
+
 ## Scripts
 
 - `npm run data`: vuelve a descargar las fuentes abiertas y regenera `supabase/seed.sql`, `public/geo/regions/*.json` y `public/data/*.json`.
+- `npm run icons`: recalcula los iconos usados y descarga la fuente recortada a `public/fonts` (se ejecuta en cada build).
+- `npm run avatars`: genera los monigotes de `public/avatars`.
 - `npm run test:db`: ejecuta la migración y el seed en un Postgres embebido (PGlite) y comprueba las políticas RLS entre usuarios.
 
 ## Estructura
