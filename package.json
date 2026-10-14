@@ -1,0 +1,47 @@
+{
+  "name": "rumbo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/icons.mjs && tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "data": "node scripts/build-data.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "icons": "node scripts/icons.mjs",
+    "avatars": "node scripts/avatars.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "@tanstack/react-query": "^5.104.2",
+    "flag-icons": "^7.5.0",
+    "i18n-iso-countries": "^7.14.0",
+    "maplibre-gl": "^6.14.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-map-gl": "^8.1.3",
+    "react-router-dom": "^7.18.4",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
+    "@electric-sql/pglite": "^0.5.9",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@types/topojson-client": "^3.1.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "mapshaper": "^0.7.86",
+    "oxlint": "^1.81.0",
+    "tailwindcss": "^4.3.3",
+    "topojson-client": "^3.1.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "world-atlas": "^2.0.2"
+  }
+}
