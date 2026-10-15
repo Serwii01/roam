@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { mergePlaces, REMOTE_PROVIDER, searchLocal, searchRemote, type Place } from '../lib/geocode'
 import { preloadPlaces } from '../lib/placesIndex'
 import { Icon } from './Icon'
@@ -14,6 +14,7 @@ export function PlaceSearch({
   autoFocus?: boolean
 }) {
   const [q, setQ] = useState('')
+  const wrap = useRef<HTMLDivElement>(null)
   const [results, setResults] = useState<Place[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -57,20 +58,26 @@ export function PlaceSearch({
   }, [q, attempt])
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-2 rounded-sm bg-surface-low px-3">
+    <div className="relative scroll-mt-28" ref={wrap}>
+      <div className="flex items-center gap-2 rounded-sm bg-card px-3 ring-1 ring-outline-soft transition focus-within:ring-2 focus-within:ring-ink">
         <Icon name="add_location_alt" size={20} className="text-accent" />
         <input
-          className="w-full bg-transparent py-2.5 text-sm outline-none"
+          className="w-full bg-transparent py-3 text-base outline-none"
           value={q}
-          autoFocus={autoFocus}
+          // En el móvil no se abre el teclado solo al entrar en la página.
+          autoFocus={autoFocus && !matchMedia('(pointer: coarse)').matches}
+          onFocus={() => {
+            // Si el buscador está en la mitad baja de la pantalla, se sube para que quepan los resultados.
+            const r = wrap.current?.getBoundingClientRect()
+            if (r && r.top > innerHeight * 0.45) wrap.current!.scrollIntoView({ block: 'start', behavior: 'smooth' })
+          }}
           onChange={(e) => setQ(e.target.value)}
           placeholder={placeholder}
         />
         {loading && <span className="label-stamp text-ink-soft">Buscando…</span>}
       </div>
       {(results.length > 0 || error) && (
-        <ul className="card absolute z-30 mt-1 max-h-72 w-full overflow-auto p-1">
+        <ul className="card absolute z-40 mt-1 max-h-72 w-full overflow-auto p-1">
           {error && (
             <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-red-700">
               El buscador de lugares no responde.

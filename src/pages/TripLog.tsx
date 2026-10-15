@@ -7,7 +7,7 @@ import { TripCrew } from '../components/TripCrew'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
-import { useAirportMap, useCountries, useTrip } from '../lib/hooks'
+import { useAirportMap, useCountries, useTravelMutation, useTrip } from '../lib/hooks'
 import { formatKm, legKm, tripCountries, tripDays, tripKm, tripModes } from '../lib/stats'
 import { tripCardData } from '../lib/shareData'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
@@ -22,6 +22,7 @@ export function TripLogPage() {
   const [copied, setCopied] = useState(false)
   const [viewer, setViewer] = useState<number | null>(null)
   const [sharing, setSharing] = useState(false)
+  const markDone = useTravelMutation(() => api.updateTrip(id!, { status: 'done' }))
 
   const t = trip.data
   // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
@@ -68,7 +69,7 @@ export function TripLogPage() {
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="label-code bg-accent px-2 py-1 text-white">EXP · {t.start_date?.slice(0, 4) ?? 'S/F'} archive</span>
-        <span className="label-code bg-surface-container px-2 py-1">Status: {t.status === 'done' ? 'completada' : 'planificada'}</span>
+        <span className={`label-code px-2 py-1 ${t.status === 'done' ? 'bg-surface-container' : 'bg-accent-soft text-accent-ink'}`}>{t.status === 'done' ? 'Realizado' : 'Planificado'}</span>
         {first && (
           <span className="label-code flex items-center gap-1.5 text-ink-soft">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" /> {coords(first.lat, first.lon)}
@@ -110,6 +111,18 @@ export function TripLogPage() {
           <button className="btn btn-ghost" onClick={() => window.print()}>
             <Icon name="picture_as_pdf" size={18} /> Exportar PDF
           </button>
+          {t.status === 'planned' && (
+            <button
+              className="btn btn-accent"
+              disabled={markDone.isPending}
+              onClick={() => {
+                const future = t.start_date && t.start_date > new Date().toISOString().slice(0, 10)
+                if (!future || confirm('Las fechas de este viaje aún no han llegado. ¿Marcarlo igualmente como realizado?')) markDone.mutate()
+              }}
+            >
+              <Icon name="task_alt" size={18} /> Ya lo hice
+            </button>
+          )}
           <Link to={`/app/viajes/${t.id}/editar`} className="btn btn-dark">
             <Icon name="edit_note" size={18} /> Editar bitácora
           </Link>

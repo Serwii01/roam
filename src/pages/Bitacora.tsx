@@ -40,6 +40,9 @@ export function BitacoraPage() {
           <button className="chip" aria-pressed={view === 'planned'} onClick={() => setView('planned')}>
             Planificadas
           </button>
+          <Link to="/app/viajes/nuevo?plan=1" className="chip">
+            <Icon name="event_upcoming" size={14} /> Planificar
+          </Link>
         </div>
       </div>
 
@@ -47,8 +50,8 @@ export function BitacoraPage() {
         <div className="space-y-10">
           {!list.length && (
             <Empty icon="route" title={view === 'done' ? 'Aún no hay expediciones' : 'Nada planificado todavía'}>
-              <Link to="/app/viajes/nuevo" className="btn btn-accent mt-4">
-                Registrar viaje
+              <Link to={view === 'done' ? '/app/viajes/nuevo' : '/app/viajes/nuevo?plan=1'} className="btn btn-accent mt-4">
+                {view === 'done' ? 'Registrar viaje' : 'Planificar viaje'}
               </Link>
             </Empty>
           )}

@@ -94,7 +94,7 @@ export function BucketPage() {
         <section>
           <div className="mb-3 flex items-end justify-between">
             <h2 className="headline-md uppercase">Expediciones planificadas</h2>
-            <Link to="/app/viajes/nuevo" className="label-code text-accent-deep">
+            <Link to="/app/viajes/nuevo?plan=1" className="label-code text-accent-deep">
               + Planificar viaje
             </Link>
           </div>
