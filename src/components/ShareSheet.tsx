@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
 import { ErrorNote } from './ui'
-import { FORMATS, canUsePhoto, canvasToBlob, renderCard, type CardData, type CardFormat, type CardTheme } from '../lib/shareCard'
+import { FORMATS, canUsePhoto, canvasToBlob, renderCard, type CardData, type CardFormat, type CardLayout, type CardTheme } from '../lib/shareCard'
 
 const THEMES: { id: CardTheme; label: string; icon: string }[] = [
   { id: 'dark', label: 'Noche', icon: 'dark_mode' },
@@ -24,6 +24,7 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
   const canvas = useRef<HTMLCanvasElement>(null)
   const [format, setFormat] = useState<CardFormat>('story')
   const [theme, setTheme] = useState<CardTheme>('dark')
+  const [layout, setLayout] = useState<CardLayout>('map')
   const [usable, setUsable] = useState<string[]>([])
   const [photo, setPhoto] = useState<string | undefined>()
   const [busy, setBusy] = useState(true)
@@ -48,14 +49,14 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
   useEffect(() => {
     let alive = true
     setBusy(true)
-    renderCard(canvas.current!, { ...data, photo }, format, theme)
+    renderCard(canvas.current!, { ...data, photo }, format, theme, layout)
       .then(() => alive && setError(null))
       .catch((e) => alive && setError(e))
       .finally(() => alive && setBusy(false))
     return () => {
       alive = false
     }
-  }, [data, photo, format, theme])
+  }, [data, photo, format, theme, layout])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -68,7 +69,7 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
     }
   }, [onClose])
 
-  const fileName = `roam-${slug(data.title)}-${format}.png`
+  const fileName = `roam-${slug(data.title)}-${layout === 'list' ? 'cifras-' : ''}${format}.png`
 
   async function file() {
     return new File([await canvasToBlob(canvas.current!)], fileName, { type: 'image/png' })
@@ -144,6 +145,27 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
                 ))}
               </div>
             </fieldset>
+
+            {!!data.highlights?.length && (
+              <fieldset>
+                <legend className="label-code mb-2 text-ink-soft">Diseño</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'map' as const, label: 'Mapa', icon: 'map' },
+                    { id: 'list' as const, label: 'Cifras', icon: 'format_list_numbered' },
+                  ].map((l) => (
+                    <button
+                      key={l.id}
+                      aria-pressed={layout === l.id}
+                      onClick={() => setLayout(l.id)}
+                      className={`flex items-center gap-2 rounded-sm border px-3 py-2.5 transition ${layout === l.id ? 'border-ink bg-ink text-white' : 'border-surface-highest hover:border-ink'}`}
+                    >
+                      <Icon name={l.icon} size={18} /> <span className="font-display font-semibold">{l.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
 
             <fieldset>
               <legend className="label-code mb-2 text-ink-soft">Estilo</legend>

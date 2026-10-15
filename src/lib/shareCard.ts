@@ -6,6 +6,8 @@ import { bendLine, greatCircle, type LngLat } from './geo'
 
 export type CardFormat = 'story' | 'post' | 'square'
 export type CardTheme = 'dark' | 'light' | 'photo' | 'clear'
+/** Mapa con la ruta, o lista de momentos en grande (resumen del año, al estilo Wrapped). */
+export type CardLayout = 'map' | 'list'
 
 export const FORMATS: Record<CardFormat, { w: number; h: number; label: string; hint: string }> = {
   story: { w: 1080, h: 1920, label: 'Story', hint: '9:16' },
@@ -20,8 +22,8 @@ export interface CardStat {
 }
 
 export interface CardData {
-  /** Viaje (encuadre en la ruta) o mapa del mundo entero. */
-  kind: 'trip' | 'world'
+  /** Viaje o año (encuadre en sus rutas), o mapa del mundo entero. */
+  kind: 'trip' | 'year' | 'world'
   eyebrow: string
   title: string
   subtitle?: string
@@ -33,6 +35,8 @@ export interface CardData {
   countries: string[]
   /** Foto de fondo para el estilo «Foto». */
   photo?: string
+  /** Momentos destacados para el diseño «Cifras». */
+  highlights?: { label: string; value: string }[]
 }
 
 interface Palette {
@@ -253,11 +257,12 @@ const loadFonts = () =>
   ]).catch(() => {}))
 
 /** Dibuja la tarjeta en el canvas (lo redimensiona al formato). */
-export async function renderCard(canvas: HTMLCanvasElement, data: CardData, format: CardFormat, theme: CardTheme) {
+export async function renderCard(canvas: HTMLCanvasElement, data: CardData, format: CardFormat, theme: CardTheme, layout: CardLayout = 'map') {
+  const list = layout === 'list' && !!data.highlights?.length
   const { w: W, h: H } = FORMATS[format]
   const P = PALETTES[theme]
   const [shapes, photo] = await Promise.all([
-    theme === 'dark' || theme === 'light' ? loadWorldShapes() : null,
+    !list && (theme === 'dark' || theme === 'light') ? loadWorldShapes() : null,
     theme === 'photo' && data.photo ? loadImage(data.photo).catch(() => null) : null,
     loadFonts(),
   ])
@@ -387,6 +392,10 @@ export async function renderCard(canvas: HTMLCanvasElement, data: CardData, form
   // ── Mapa (entre el título y las estadísticas) ──
   const mapTop = y + (story ? 50 : 30)
   const rect = { x: pad - 20, y: mapTop, w: W - (pad - 20) * 2, h: Math.max(160, statsTop - mapTop - (story ? 60 : 40)) }
+  if (list) {
+    drawHighlights(ctx, data.highlights!, { x: pad, y: mapTop, w: W - pad * 2, h: rect.h }, P, story, shadow)
+    return
+  }
   if (data.kind === 'world') {
     // El mundo entero tiene su proporción: sin estirarlo ni enseñar la Antártida, centrado en el hueco.
     const natural = (WORLD.lon[1] - WORLD.lon[0]) * RAD / (mercY(WORLD.lat[1]) - mercY(WORLD.lat[0]))
@@ -430,7 +439,7 @@ export async function renderCard(canvas: HTMLCanvasElement, data: CardData, form
   }
 
   // Ruta con halo; los vuelos, discontinuos.
-  const lw = data.kind === 'world' ? 4 : story ? 11 : 9
+  const lw = data.kind === 'world' ? 4 : data.kind === 'year' ? (story ? 7 : 6) : story ? 11 : 9
   ctx.save()
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
@@ -452,7 +461,7 @@ export async function renderCard(canvas: HTMLCanvasElement, data: CardData, form
 
   // Paradas: la primera y la última, más grandes.
   const stops = fix(data.stops)
-  const r = data.kind === 'world' ? 5 : story ? 13 : 11
+  const r = data.kind === 'world' ? 5 : data.kind === 'year' ? 8 : story ? 13 : 11
   stops.forEach((p, i) => {
     const [x, yy] = project(v, p)
     const big = data.kind === 'trip' && (i === 0 || i === stops.length - 1)
@@ -466,6 +475,42 @@ export async function renderCard(canvas: HTMLCanvasElement, data: CardData, form
     ctx.lineWidth = r * 0.45
     ctx.strokeStyle = big ? P.stopFill : P.stopStroke
     ctx.stroke()
+  })
+}
+
+/** Lista de momentos: etiqueta pequeña y valor grande, con una línea fina entre filas. */
+function drawHighlights(
+  ctx: CanvasRenderingContext2D,
+  items: { label: string; value: string }[],
+  box: { x: number; y: number; w: number; h: number },
+  P: Palette,
+  story: boolean,
+  shadow: (on: boolean) => void,
+) {
+  const rows = items.slice(0, story ? 6 : 4)
+  const rowH = Math.min(story ? 150 : 120, box.h / rows.length)
+  const top = box.y + (box.h - rowH * rows.length) / 2
+  rows.forEach((it, i) => {
+    const y = top + i * rowH
+    if (i > 0) {
+      ctx.fillStyle = P.textShadow ? 'rgba(255,255,255,0.25)' : P.muted
+      ctx.globalAlpha = P.textShadow ? 1 : 0.25
+      ctx.fillRect(box.x, y, box.w, 2)
+      ctx.globalAlpha = 1
+    }
+    shadow(true)
+    setFont(ctx, 600, story ? 24 : 21, DISPLAY, 4)
+    ctx.fillStyle = P.accent
+    ctx.fillText(it.label.toUpperCase(), box.x, y + rowH * 0.36)
+    let size = Math.round(rowH * 0.4)
+    setFont(ctx, 700, size, DISPLAY, -1)
+    while (size > 28 && ctx.measureText(it.value).width > box.w) {
+      size -= 2
+      setFont(ctx, 700, size, DISPLAY, -1)
+    }
+    ctx.fillStyle = P.text
+    ctx.fillText(it.value, box.x, y + rowH * 0.36 + size * 1.1)
+    shadow(false)
   })
 }
 

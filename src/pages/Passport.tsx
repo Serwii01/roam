@@ -3,9 +3,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { Stamp } from '../components/Stamp'
+import { YearInReview } from '../components/YearInReview'
 import { Empty, Eyebrow, Flag, Spinner, formatDate, monthShort, plural } from '../components/ui'
 import { api } from '../lib/api'
-import { computeBadges, computeStamps } from '../lib/badges'
+import { BADGE_CATEGORIES, computeBadges, computeStamps, type BadgeCategory } from '../lib/badges'
 import { alpha3 } from '../lib/countries'
 import { CONTINENT_NAMES, type ContinentCode, type Passport } from '../lib/db'
 import { useCountries, usePassports, useProfile, useTravelData } from '../lib/hooks'
@@ -28,7 +29,9 @@ export function PassportPage() {
   const chartYear = year ?? years[0] ?? new Date().getFullYear()
 
   const stamps = useMemo(() => computeStamps(trips), [trips])
-  const badges = useMemo(() => computeBadges(trips, stats, airports), [trips, stats, airports])
+  const badges = useMemo(() => computeBadges(trips, stats, airports, countries.byCode), [trips, stats, airports, countries.byCode])
+  const [badgeCat, setBadgeCat] = useState<BadgeCategory | 'all'>('all')
+  const [allBadges, setAllBadges] = useState(false)
   const months = useMemo(() => kmByMonth(trips, chartYear, airports), [trips, chartYear, airports])
 
   if (loading || profile.isLoading) return <Spinner label="Leyendo chip biométrico" />
@@ -44,6 +47,10 @@ export function PassportPage() {
   const missing = missingContinents(stats.continents)
   const unlocked = badges.filter((b) => b.progress >= 1)
   const inProgress = badges.filter((b) => b.progress < 1).sort((a, b) => b.progress - a.progress)
+  const inCat = <T extends { category: BadgeCategory }>(xs: T[]) => (badgeCat === 'all' ? xs : xs.filter((b) => b.category === badgeCat))
+  const shownUnlocked = inCat(unlocked)
+  const pending = inCat(inProgress)
+  const shownPending = allBadges ? pending : pending.slice(0, 6)
   const featured = unlocked.at(-1)
   const firstTrip = trips.filter(isDone).map((t) => t.start_date).filter(Boolean).sort()[0]
   const name = p.display_name || p.username
@@ -176,6 +183,10 @@ export function PassportPage() {
         </div>
       </div>
 
+      <div className="mt-14">
+        <YearInReview trips={trips} airports={airports} countries={countries} profile={profile.data} />
+      </div>
+
       <section className="mt-14">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -236,8 +247,18 @@ export function PassportPage() {
             Desbloqueadas: {unlocked.length} de {badges.length} ({Math.round((unlocked.length / badges.length) * 100)}%)
           </span>
         </div>
+        <div className="mb-5 flex flex-wrap items-center gap-1">
+          <button className="chip" aria-pressed={badgeCat === 'all'} onClick={() => setBadgeCat('all')}>
+            Todas ({badges.length})
+          </button>
+          {(Object.keys(BADGE_CATEGORIES) as BadgeCategory[]).map((c) => (
+            <button key={c} className="chip" aria-pressed={badgeCat === c} onClick={() => setBadgeCat(c)}>
+              {BADGE_CATEGORIES[c]} ({unlocked.filter((b) => b.category === c).length}/{badges.filter((b) => b.category === c).length})
+            </button>
+          ))}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {unlocked.map((b) => (
+          {shownUnlocked.map((b) => (
             <div key={b.id} className="card p-5">
               <div className="flex items-start justify-between">
                 <span className="grid h-10 w-10 place-items-center rounded-sm bg-surface-low">
@@ -252,7 +273,7 @@ export function PassportPage() {
           ))}
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {inProgress.slice(0, 4).map((b) => (
+          {shownPending.map((b) => (
             <div key={b.id} className="card flex items-center gap-4 p-5">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-sm bg-surface-low">
                 <Icon name={b.icon} />
@@ -273,6 +294,12 @@ export function PassportPage() {
             </div>
           ))}
         </div>
+        {pending.length > 6 && (
+          <button className="btn btn-ghost mt-4 w-full" onClick={() => setAllBadges((v) => !v)}>
+            <Icon name={allBadges ? 'expand_less' : 'expand_more'} size={18} />
+            {allBadges ? 'Ver menos' : `Ver los ${pending.length} hitos pendientes`}
+          </button>
+        )}
       </section>
 
       <div className="mt-14 grid grid-cols-1 gap-6 lg:grid-cols-2">
