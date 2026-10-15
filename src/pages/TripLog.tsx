@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { PhotoViewer, type ViewerPhoto } from '../components/PhotoViewer'
@@ -9,15 +9,19 @@ import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
 import { useAirportMap, useCountries, useTrip } from '../lib/hooks'
 import { formatKm, legKm, tripCountries, tripDays, tripKm, tripModes } from '../lib/stats'
+import { tripCardData } from '../lib/shareData'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
+
+const ShareSheet = lazy(() => import('../components/ShareSheet').then((m) => ({ default: m.ShareSheet })))
 
 export function TripLogPage() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { name } = useCountries()
+  const { name, byCode } = useCountries()
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
   const [copied, setCopied] = useState(false)
   const [viewer, setViewer] = useState<number | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   const t = trip.data
   // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
@@ -32,6 +36,9 @@ export function TripLogPage() {
         return { id: p.id, url: api.photoUrl(p.path), stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
       })
   }, [t])
+  // `name` cambia en cada render; lo que importa es `byCode`.
+  const shareData = useMemo(() => t && tripCardData(t, airports, name), [t, airports, byCode])
+  const sharePhotos = useMemo(() => [...new Set([...(t?.cover_url ? [t.cover_url] : []), ...gallery.map((g) => g.url)])], [t, gallery])
   const openPhoto = (id: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === id)))
   const legs = useMemo(() => (t ? t.stops.slice(1).map((s, j) => ({ stop: s, km: legKm(t.stops, j + 1, airports) })) : []), [t, airports])
 
@@ -93,6 +100,9 @@ export function TripLogPage() {
             }}
           >
             <Icon name="link" size={18} /> {copied ? 'Enlace copiado' : 'Copiar enlace'}
+          </button>
+          <button className="btn btn-accent" onClick={() => setSharing(true)}>
+            <Icon name="ios_share" size={18} /> Compartir imagen
           </button>
           <a href="#companeros" className="btn btn-ghost">
             <Icon name="group_add" size={18} /> {(t.member_count ?? 0) > 0 ? `${(t.member_count ?? 0) + 1} viajeros` : 'Invitar'}
@@ -299,6 +309,11 @@ export function TripLogPage() {
         </aside>
       </div>
 
+      {sharing && shareData && (
+        <Suspense fallback={null}>
+          <ShareSheet data={shareData} photos={sharePhotos} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
       {viewer !== null && gallery.length > 0 && <PhotoViewer photos={gallery} index={viewer} onIndex={setViewer} onClose={() => setViewer(null)} />}
     </div>
   )

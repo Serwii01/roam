@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import { loadWorldShapes, type Shapes } from '../lib/countries'
 import type { Stop, TransportMode, TripWithStops } from '../lib/db'
-import { bounds, greatCircle, type LngLat } from '../lib/geo'
+import { bendLine, bounds, greatCircle, type LngLat } from '../lib/geo'
 import { useCountries } from '../lib/hooks'
 import { loadModernStyle } from '../lib/mapStyle'
 import { formatKm, legEndpoints, tripCountries, tripDays, tripKm, tripModes, type AirportMap } from '../lib/stats'
@@ -535,24 +535,6 @@ function MapButton({ icon, onClick }: { icon: string; onClick: () => void }) {
       <Icon name={icon} size={20} />
     </button>
   )
-}
-
-/** Curva suave para rutas terrestres (como en el diseño), en vez de una recta. */
-function bendLine(a: LngLat, b: LngLat, steps = 24): LngLat[] {
-  const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
-  const len = Math.hypot(dx, dy)
-  if (len < 0.05) return [a, b]
-  const bend = Math.min(len * 0.12, 1.5)
-  const c: LngLat = [(a[0] + b[0]) / 2 - (dy / len) * bend, (a[1] + b[1]) / 2 + (dx / len) * bend]
-  const pts: LngLat[] = []
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    pts.push([
-      (1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t ** 2 * b[0],
-      (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t ** 2 * b[1],
-    ])
-  }
-  return pts
 }
 
 const vis = (on: boolean) => (on ? 'visible' : 'none') as 'visible' | 'none'

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
@@ -10,7 +10,10 @@ import { alpha3 } from '../lib/countries'
 import { CONTINENT_NAMES, type ContinentCode, type Passport } from '../lib/db'
 import { useCountries, usePassports, useProfile, useTravelData } from '../lib/hooks'
 import { formatKm, isDone, kmByMonth, levelFor, missingContinents } from '../lib/stats'
+import { worldCardData } from '../lib/shareData'
 import { TRANSPORT } from '../lib/transport'
+
+const ShareSheet = lazy(() => import('../components/ShareSheet').then((m) => ({ default: m.ShareSheet })))
 
 export function PassportPage() {
   const { loading, trips, stats, airports } = useTravelData()
@@ -20,6 +23,8 @@ export function PassportPage() {
   const [continent, setContinent] = useState<ContinentCode | 'all'>('all')
   const years = stats.years.map((y) => y.year)
   const [year, setYear] = useState<number | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const shareData = useMemo(() => worldCardData(profile.data, stats, trips, airports), [profile.data, stats, trips, airports])
   const chartYear = year ?? years[0] ?? new Date().getFullYear()
 
   const stamps = useMemo(() => computeStamps(trips), [trips])
@@ -58,10 +63,20 @@ export function PassportPage() {
           <h1 className="display-hero mt-3">Pasaporte & badges</h1>
           <p className="mt-3 max-w-xl text-ink-soft">Registro biométrico, sellos de control fronterizo y certificaciones de expedición continental.</p>
         </div>
-        <button className="btn btn-ghost" onClick={() => window.print()}>
-          <Icon name="menu_book" size={18} /> Libreta completa (PDF)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-accent" onClick={() => setSharing(true)}>
+            <Icon name="ios_share" size={18} /> Compartir mi mapa
+          </button>
+          <button className="btn btn-ghost" onClick={() => window.print()}>
+            <Icon name="menu_book" size={18} /> Libreta completa (PDF)
+          </button>
+        </div>
       </div>
+      {sharing && (
+        <Suspense fallback={null}>
+          <ShareSheet data={shareData} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="card p-6 md:p-8">

@@ -37,6 +37,24 @@ export function greatCircle(a: LngLat, b: LngLat, steps = 64): LngLat[] {
   return pts
 }
 
+/** Curva suave para rutas terrestres (como en el diseño), en vez de una recta. */
+export function bendLine(a: LngLat, b: LngLat, steps = 24): LngLat[] {
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+  const len = Math.hypot(dx, dy)
+  if (len < 0.05) return [a, b]
+  const bend = Math.min(len * 0.12, 1.5)
+  const c: LngLat = [(a[0] + b[0]) / 2 - (dy / len) * bend, (a[1] + b[1]) / 2 + (dx / len) * bend]
+  const pts: LngLat[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    pts.push([
+      (1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t ** 2 * b[0],
+      (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t ** 2 * b[1],
+    ])
+  }
+  return pts
+}
+
 export function bounds(points: LngLat[]): [LngLat, LngLat] | null {
   if (!points.length) return null
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
