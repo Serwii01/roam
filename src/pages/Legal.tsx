@@ -114,7 +114,7 @@ export function PrivacyPage() {
           <b>OpenFreeMap</b>, al ver el mapa moderno (teselas del mapa).
         </li>
         <li>
-          <b>Photon (komoot)</b>, al buscar un lugar, con el texto que escribes.
+          <b>Photon (komoot)</b> o, si está activado, <b>Geoapify</b>, al buscar un lugar, con el texto que escribes. Los países y las ciudades se buscan primero en la propia app, sin enviar nada.
         </li>
         <li>
           <b>Nominatim (Fundación OpenStreetMap)</b>, al elegir un lugar, con sus coordenadas, para saber su región y provincia.
@@ -227,6 +227,9 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Búsqueda de lugares', who: 'Photon (komoot)', license: 'Servicio gratuito de uso razonable', url: 'https://photon.komoot.io' },
   { what: 'Región y provincia de cada lugar', who: 'Nominatim · Fundación OpenStreetMap', license: 'Política de uso de Nominatim', url: 'https://operations.osmfoundation.org/policies/nominatim/' },
   { what: 'Fronteras de países y regiones', who: 'Natural Earth', license: 'Dominio público', url: 'https://www.naturalearthdata.com', note: 'Países vía world-atlas (ISC, Mike Bostock); simplificados.' },
+  { what: 'Poblaciones del buscador', who: 'GeoNames', license: 'CC BY 4.0', url: 'https://www.geonames.org', note: 'Poblaciones de más de 5.000 habitantes; troceadas para la búsqueda.' },
+  { what: 'Nombres de ciudades en español', who: 'Natural Earth (populated places)', license: 'Dominio público', url: 'https://www.naturalearthdata.com' },
+  { what: 'Buscador de monumentos y direcciones (si está activado)', who: 'Geoapify', license: 'Plan gratuito con atribución', url: 'https://www.geoapify.com' },
   { what: 'Aeropuertos', who: 'OurAirports', license: 'Dominio público', url: 'https://ourairports.com/data/' },
   { what: 'Regiones y provincias ISO 3166-2', who: 'Debian iso-codes (Tobias Quathamer y colaboradores)', license: 'LGPL-2.1-or-later', url: 'https://salsa.debian.org/iso-codes-team/iso-codes', note: 'Convertidas a la base de datos de la app.' },
   { what: 'Nombres de países en español', who: 'i18n-iso-countries', license: 'MIT', url: 'https://github.com/michaelwittig/node-i18n-iso-countries' },

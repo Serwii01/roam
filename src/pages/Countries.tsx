@@ -5,6 +5,7 @@ import { Eyebrow, Flag, Spinner, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
 import { UN_COUNTRY_COUNT } from '../lib/countries'
+import { matchCountries } from '../lib/exonyms'
 import { CONTINENT_NAMES, INHABITED_CONTINENTS } from '../lib/db'
 import { useInvalidateTravel, useTravelData } from '../lib/hooks'
 
@@ -30,8 +31,8 @@ export function CountriesPage() {
     invalidate()
   }
 
-  const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
-  const matches = q ? countries.list.filter((c) => fold(c.name).includes(fold(q))).slice(0, 10) : []
+  // Nombres en español, inglés y alias (Holanda, Chequia, EE. UU.…), sin tildes.
+  const matches = q ? matchCountries(q, 10).flatMap((m) => countries.byCode.get(m.code) ?? []) : []
 
   return (
     <div>

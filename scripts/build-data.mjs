@@ -229,3 +229,167 @@ console.log('public/flags: banderas copiadas')
   fs.writeFileSync(path.join(root, 'public/geo/world.json'), text)
   console.log(`public/geo/world.json: ${features.length} países, ${(text.length / 1024).toFixed(0)} KB`)
 }
+
+// ── Poblaciones con nombre en español (Natural Earth populated places, dominio público) ──
+// Catálogo propio para el buscador: Photon no entiende español («Pekín», «Ciudad del Cabo»…).
+{
+  const file = path.join(cache, 'ne_places.geojson')
+  if (!fs.existsSync(file)) {
+    console.log('Descargando poblaciones de Natural Earth')
+    const res = await fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places.geojson')
+    if (!res.ok) throw new Error(`Natural Earth places: HTTP ${res.status}`)
+    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()))
+  }
+  const ne = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const r4 = (n) => Math.round(n * 1e4) / 1e4
+  const rows = ne.features
+    .map(({ properties: p }) => {
+      const cc = /^[A-Z]{2}$/.test(p.ISO_A2) ? p.ISO_A2 : null
+      if (!cc) return null
+      const es = p.NAME_ES || p.NAME
+      // Nombres alternativos con los que también se busca (local, inglés, ASCII, alternativos).
+      const alt = [...new Set([p.NAME, p.NAME_EN, p.NAMEASCII, ...(p.NAMEALT ? String(p.NAMEALT).split('|') : [])].filter((n) => n && n !== es))]
+      return [es, alt.join('|'), cc, p.ADM1NAME || null, r4(p.LATITUDE), r4(p.LONGITUDE), Math.round(p.POP_MAX || 0)]
+    })
+    .filter(Boolean)
+    .sort((a, b) => b[6] - a[6])
+  const text = JSON.stringify({ cols: ['es', 'alt', 'cc', 'region', 'lat', 'lon', 'pop'], rows })
+  fs.writeFileSync(path.join(root, 'public/data/places.json'), text)
+  console.log(`public/data/places.json: ${rows.length} poblaciones, ${(text.length / 1024).toFixed(0)} KB`)
+}
+
+// ── Catálogo de búsqueda: poblaciones de ≥5.000 habitantes (GeoNames cities5000, CC BY 4.0) ──
+// Troceado por las dos primeras letras de cada nombre: cada búsqueda descarga solo unos KB.
+// El nombre a mostrar es el español de Natural Earth cuando la población coincide (Pekín, Múnich…).
+{
+  const zip = path.join(cache, 'cities5000.zip')
+  const txt = path.join(cache, 'cities5000.txt')
+  if (!fs.existsSync(txt)) {
+    console.log('Descargando GeoNames cities5000')
+    const res = await fetch('https://download.geonames.org/export/dump/cities5000.zip')
+    if (!res.ok) throw new Error(`GeoNames: HTTP ${res.status}`)
+    fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
+    const { execSync } = await import('node:child_process')
+    execSync(`unzip -o -q "${rel(zip)}" -d "${rel(cache)}"`, { cwd: root })
+  }
+  const admin1File = path.join(cache, 'admin1CodesASCII.txt')
+  if (!fs.existsSync(admin1File)) {
+    const res = await fetch('https://download.geonames.org/export/dump/admin1CodesASCII.txt')
+    fs.writeFileSync(admin1File, await res.text())
+  }
+  const admin1 = new Map(fs.readFileSync(admin1File, 'utf8').split('\n').map((l) => l.split('\t')).map(([k, n]) => [k, n]))
+
+  const fold = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[.()'’]/g, '').replace(/\s+/g, ' ').trim()
+  const latin = (s) => /^[\p{Script=Latin}0-9\s\-'’.]+$/u.test(s)
+
+  // Natural Earth (ya descargado arriba) para los nombres en español.
+  const ne = JSON.parse(fs.readFileSync(path.join(cache, 'ne_places.geojson'), 'utf8')).features.map((f) => f.properties)
+  const neByCc = new Map()
+  for (const p of ne) if (p.NAME_ES && /^[A-Z]{2}$/.test(p.ISO_A2)) neByCc.set(p.ISO_A2, [...(neByCc.get(p.ISO_A2) ?? []), p])
+  const spanishName = (cc, lat, lon, names) => {
+    for (const p of neByCc.get(cc) ?? []) {
+      if (Math.abs(p.LATITUDE - lat) > 0.15 || Math.abs(p.LONGITUDE - lon) > 0.2) continue
+      const keys = [p.NAME, p.NAME_EN, p.NAMEASCII, p.NAME_ES].filter(Boolean).map(fold)
+      if (names.some((n) => keys.includes(n))) return p.NAME_ES
+    }
+    return null
+  }
+
+  // Región en español: la región de Natural Earth que contiene el punto (name_es), o la que tenga el
+  // mismo código de GeoNames, o el nombre en inglés de GeoNames.
+  const neAdmin = JSON.parse(fs.readFileSync(path.join(cache, 'ne_admin1.geojson'), 'utf8')).features
+  const adminByCc = new Map()
+  const adminByGn = new Map()
+  for (const feat of neAdmin) {
+    const p = feat.properties
+    const label = p.name_es || p.name
+    if (!label || !/^[A-Z]{2}$/.test(p.iso_a2)) continue
+    if (p.gn_a1_code) adminByGn.set(p.gn_a1_code, label)
+    const polys = feat.geometry?.type === 'Polygon' ? [feat.geometry.coordinates] : feat.geometry?.type === 'MultiPolygon' ? feat.geometry.coordinates : []
+    for (const poly of polys) {
+      let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+      for (const [x, y] of poly[0]) ((x0 = Math.min(x0, x)), (y0 = Math.min(y0, y)), (x1 = Math.max(x1, x)), (y1 = Math.max(y1, y)))
+      adminByCc.set(p.iso_a2, [...(adminByCc.get(p.iso_a2) ?? []), { label, poly, bbox: [x0, y0, x1, y1] }])
+    }
+  }
+  const inRing = (x, y, ring) => {
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i]
+      const [xj, yj] = ring[j]
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+    }
+    return inside
+  }
+  const regionName = (cc, lat, lon, gnCode, fallback) => {
+    for (const a of adminByCc.get(cc) ?? []) {
+      const [x0, y0, x1, y1] = a.bbox
+      if (lon < x0 || lon > x1 || lat < y0 || lat > y1) continue
+      if (inRing(lon, lat, a.poly[0]) && !a.poly.slice(1).some((h) => inRing(lon, lat, h))) return a.label
+    }
+    return adminByGn.get(gnCode) ?? fallback
+  }
+
+  const shards = new Map()
+  let count = 0
+  for (const line of fs.readFileSync(txt, 'utf8').split('\n')) {
+    const c = line.split('\t')
+    if (c.length < 15) continue
+    const [, name, ascii, alternates, lat, lon, , , cc, , adm1, , , , pop] = c
+    if (!/^[A-Z]{2}$/.test(cc)) continue
+    const la = Number(lat), lo = Number(lon)
+    const es = spanishName(cc, la, lo, [fold(name), fold(ascii)])
+    const display = es ?? name
+    const alts = alternates.split(',').filter((a) => a && a.length <= 25 && latin(a)).slice(0, 4)
+    const keys = [...new Set([display, name, ascii, ...alts].map(fold).filter((k) => /^[a-z0-9]{2}/.test(k)))]
+    const row = [display, cc, regionName(cc, la, lo, `${cc}.${adm1}`, admin1.get(`${cc}.${adm1}`) ?? null), Math.round(la * 1e3) / 1e3, Math.round(lo * 1e3) / 1e3, Number(pop) || 0]
+    count++
+    for (const prefix of new Set(keys.map((k) => k.slice(0, 2)))) {
+      const list = shards.get(prefix) ?? []
+      list.push([...row, keys.filter((k) => k.startsWith(prefix) || k.split(' ').some((w) => w.startsWith(prefix)))])
+      shards.set(prefix, list)
+    }
+    // Que también se encuentre por palabras sueltas («york» → Nueva York).
+    for (const k of keys)
+      for (const w of k.split(' ').slice(1))
+        if (/^[a-z0-9]{2}/.test(w) && !keys.some((x) => x.startsWith(w.slice(0, 2)))) {
+          const list = shards.get(w.slice(0, 2)) ?? []
+          list.push([...row, [k]])
+          shards.set(w.slice(0, 2), list)
+        }
+  }
+  const dir = path.join(root, 'public/data/places')
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  // Los trozos de más de 60 KB («sa», «ma»…) se parten por tres letras; split.json dice cuáles.
+  let total = 0
+  let biggest = 0
+  let files = 0
+  const split = []
+  const write = (name, rows) => {
+    rows.sort((a, b) => b[5] - a[5])
+    const text = JSON.stringify(rows)
+    // Prefijo «p_»: «con», «aux», «nul» o «prn» son nombres reservados en Windows.
+    fs.writeFileSync(path.join(dir, `p_${name}.json`), text)
+    total += text.length
+    biggest = Math.max(biggest, text.length)
+    files++
+  }
+  for (const [prefix, rows] of shards) {
+    if (JSON.stringify(rows).length <= 60_000) {
+      write(prefix, rows)
+      continue
+    }
+    split.push(prefix)
+    const sub = new Map()
+    for (const row of rows) {
+      const keys = row[6]
+      for (const p3 of new Set(keys.flatMap((k) => [k, ...k.split(' ')]).filter((w) => w.startsWith(prefix) && w.length >= 3).map((w) => w.slice(0, 3)))) {
+        sub.set(p3, [...(sub.get(p3) ?? []), row])
+      }
+    }
+    for (const [p3, list] of sub) write(p3, list)
+  }
+  fs.writeFileSync(path.join(dir, 'split.json'), JSON.stringify(split.sort()))
+  console.log(`public/data/places/: ${count} poblaciones en ${files} trozos (${split.length} partidos a 3 letras), ${(total / 1e6).toFixed(1)} MB, el mayor ${(biggest / 1024).toFixed(0)} KB`)
+}

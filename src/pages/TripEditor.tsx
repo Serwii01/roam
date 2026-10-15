@@ -119,7 +119,8 @@ export function TripEditorPage() {
   const addPlace = (p: Place) =>
     run('Fijando coordenadas', async () => {
       const t = await ensureTrip()
-      const codes = await lookupPlaceCodes(p.lat, p.lon).catch(() => ({}) as Awaited<ReturnType<typeof lookupPlaceCodes>>)
+      // Un país entero no tiene región: consultar su centro marcaría una región al azar como visitada.
+      const codes = p.kind === 'country' ? {} : await lookupPlaceCodes(p.lat, p.lon).catch(() => ({}) as Awaited<ReturnType<typeof lookupPlaceCodes>>)
       const wanted = [codes.regionCode, codes.provinceCode].filter((c): c is string => !!c)
       const known = new Set((await api.getSubdivisions(wanted)).map((s) => s.code))
       const prev = t.stops.at(-1)

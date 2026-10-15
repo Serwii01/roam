@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { searchPlaces, type Place } from '../lib/geocode'
+import { mergePlaces, REMOTE_PROVIDER, searchLocal, searchRemote, type Place } from '../lib/geocode'
+import { preloadPlaces } from '../lib/placesIndex'
 import { Icon } from './Icon'
 import { Flag } from './ui'
 
@@ -18,21 +19,38 @@ export function PlaceSearch({
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
+  // El catálogo de ciudades en español se descarga en cuanto aparece el buscador.
+  useEffect(() => {
+    preloadPlaces().catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (q.trim().length < 2) {
       setResults([])
+      setError(false)
       return
     }
+    let alive = true
     const ctrl = new AbortController()
+    let local: Place[] = []
+    // Fase 1: países y ciudades del catálogo, al instante (sin red).
+    searchLocal(q).then((r) => {
+      if (!alive) return
+      local = r
+      setResults(r)
+    })
+    // Fase 2: Photon, con un pequeño retardo para no lanzar una petición por cada tecla.
     const t = setTimeout(() => {
       setLoading(true)
       setError(false)
-      searchPlaces(q, ctrl.signal)
-        .then(setResults)
-        .catch((e) => e.name !== 'AbortError' && setError(true))
-        .finally(() => setLoading(false))
-    }, 250)
+      searchRemote(q, ctrl.signal)
+        .then((remote) => alive && setResults(mergePlaces(local, remote, q)))
+        // Si Photon falla pero ya hay resultados propios, no hace falta molestar con el error.
+        .catch((e) => alive && e.name !== 'AbortError' && !local.length && setError(true))
+        .finally(() => alive && setLoading(false))
+    }, 300)
     return () => {
+      alive = false
       clearTimeout(t)
       ctrl.abort()
     }
@@ -73,10 +91,20 @@ export function PlaceSearch({
                 }}
               >
                 <Flag code={p.countryCode} className="mt-1" />
-                <span>{p.label}</span>
+                <span className="min-w-0 flex-1">{p.label}</span>
+                {p.kind !== 'place' && (
+                  <span className="label-stamp mt-0.5 shrink-0 text-ink-soft">{p.kind === 'country' ? 'País' : p.kind === 'city' ? 'Ciudad' : 'Región'}</span>
+                )}
               </button>
             </li>
           ))}
+          {REMOTE_PROVIDER === 'geoapify' && (
+            <li className="px-3 pb-1 pt-2 text-right text-[10px] text-ink-soft">
+              <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline">
+                Powered by Geoapify
+              </a>
+            </li>
+          )}
         </ul>
       )}
     </div>

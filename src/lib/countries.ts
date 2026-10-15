@@ -46,3 +46,30 @@ export function loadRegionShapes(countryCode: string): Promise<Shapes | null> {
   }
   return regionCache.get(countryCode)!
 }
+
+/**
+ * Punto representativo de un país para usarlo como parada: centroide de su polígono principal
+ * (el de mayor superficie, así Francia cae en la Francia continental y no en la Guayana).
+ */
+export async function countryCenter(code: string): Promise<[number, number] | null> {
+  const world = await loadWorldShapes()
+  const f = world.features.find((x) => x.properties.code === code)
+  if (!f) return null
+  const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : []
+  let best: { a: number; cx: number; cy: number } | null = null
+  for (const [ring] of polys as [number, number][][][]) {
+    let a = 0
+    let cx = 0
+    let cy = 0
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const k = ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
+      a += k
+      cx += (ring[j][0] + ring[i][0]) * k
+      cy += (ring[j][1] + ring[i][1]) * k
+    }
+    if (!a) continue
+    const c = { a: Math.abs(a / 2), cx: cx / (3 * a), cy: cy / (3 * a) }
+    if (!best || c.a > best.a) best = c
+  }
+  return best ? [best.cx, best.cy] : null
+}
