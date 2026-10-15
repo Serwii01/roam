@@ -91,6 +91,7 @@ export function computeBadges(trips: TripWithStops[], stats: Stats, airports: Ai
   const soundtracks = done.filter((t) => t.soundtrack_url).length
   const notes = allStops.filter((s) => s.notes?.trim()).length
   const ratings = allStops.filter((s) => s.rating).length
+  const sightsSeen = done.reduce((a, t) => a + (t.sights ?? []).filter((x) => x.done).length, 0)
   const crew = done.some((t) => (t.member_count ?? 0) > 0 || t.companions.length > 0)
 
   type Meta = Pick<Badge, 'id' | 'category' | 'icon' | 'title' | 'description'>
@@ -158,6 +159,7 @@ export function computeBadges(trips: TripWithStops[], stats: Stats, airports: Ai
     count({ id: 'photos', category: 'memories', icon: 'photo_camera', title: 'Fotógrafo', description: 'Sube 50 fotos de tus viajes.' }, photos, 50, 'fotos'),
     count({ id: 'dj', category: 'memories', icon: 'music_note', title: 'DJ de ruta', description: 'Pon banda sonora a 5 viajes.' }, soundtracks, 5, 'viajes'),
     count({ id: 'writer', category: 'memories', icon: 'edit_note', title: 'Cronista', description: 'Escribe notas en 20 paradas.' }, notes, 20, 'paradas'),
+    count({ id: 'sights', category: 'memories', icon: 'museum', title: 'Cazamonumentos', description: 'Visita 25 sitios (monumentos, museos, plazas…).' }, sightsSeen, 25, 'sitios'),
     count({ id: 'critic', category: 'memories', icon: 'star', title: 'Crítico', description: 'Valora 25 paradas con estrellas.' }, ratings, 25, 'paradas'),
   ]
 }

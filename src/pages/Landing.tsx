@@ -31,7 +31,7 @@ export function LandingPage() {
     const s = demoState()
     const trips: TripWithStops[] = s.trips
       .filter((t) => t.status === 'done')
-      .map((t) => ({ ...t, stops: s.stops.filter((x) => x.trip_id === t.id).sort((a, b) => a.position - b.position), photos: [] }))
+      .map((t) => ({ ...t, stops: s.stops.filter((x) => x.trip_id === t.id).sort((a, b) => a.position - b.position), photos: [], sights: [] }))
     return { trips, countries: [...new Set([...trips.flatMap((t) => t.stops.map((x) => x.country_code)), ...s.userCountries])] }
   }, [])
   const airports = useAirportMap(demo.trips.flatMap((t) => t.stops.flatMap((s) => [s.from_airport, s.to_airport])))

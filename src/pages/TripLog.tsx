@@ -3,6 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { PhotoViewer, type ViewerPhoto } from '../components/PhotoViewer'
 import { SpotifyLogo, SpotifyPlayer } from '../components/Spotify'
+import { StopSights } from '../components/StopSights'
+import { useAuth } from '../lib/auth'
+import type { NewSight } from '../lib/api/types'
+import type { Sight } from '../lib/db'
 import { TripCrew } from '../components/TripCrew'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
@@ -23,6 +27,10 @@ export function TripLogPage() {
   const [viewer, setViewer] = useState<number | null>(null)
   const [sharing, setSharing] = useState(false)
   const markDone = useTravelMutation(() => api.updateTrip(id!, { status: 'done' }))
+  const me = useAuth().user?.id
+  const addSight = useTravelMutation(({ stopId, sight }: { stopId: string; sight: NewSight }) => api.addSight(stopId, sight))
+  const toggleSight = useTravelMutation((x: Sight) => api.updateSight(x.id, { done: !x.done }))
+  const removeSight = useTravelMutation((x: Sight) => api.deleteSight(x.id))
 
   const t = trip.data
   // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
@@ -182,6 +190,26 @@ export function TripLogPage() {
                     </div>
                   )}
                   {s.notes ? <p className="mt-3 leading-relaxed">{s.notes}</p> : <p className="mt-3 text-ink-soft">Sin notas.</p>}
+                  {(() => {
+                    const list = t.sights.filter((x) => x.stop_id === s.id)
+                    // Solo quien participa puede editar (quien ve un perfil público no ve los compañeros: member_count 0).
+                    const canEdit = t.user_id === me || (t.member_count ?? 0) > 0
+                    const planned = t.status === 'planned'
+                    if (!list.length && !(planned && canEdit)) return null
+                    return (
+                      <div className="mt-4 rounded-sm bg-surface-low p-3">
+                        <StopSights
+                          stop={s}
+                          sights={list}
+                          planned={planned}
+                          readOnly={!canEdit || !planned}
+                          onAdd={(sight) => addSight.mutate({ stopId: s.id, sight })}
+                          onToggle={(x) => toggleSight.mutate(x)}
+                          onRemove={(x) => removeSight.mutate(x)}
+                        />
+                      </div>
+                    )
+                  })()}
                   {s.song_url && <SpotifyPlayer url={s.song_url} compact className="mt-4" />}
                   {photos.length > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-3">

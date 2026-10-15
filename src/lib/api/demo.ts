@@ -1,6 +1,6 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { Airport, Country, InvitePreview, Photo, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
+import type { Airport, Country, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
@@ -14,7 +14,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -63,6 +63,7 @@ function withRelations(t: Trip): TripWithStops {
     ...t,
     stops: state.stops.filter((s) => s.trip_id === t.id).sort((a, b) => a.position - b.position),
     photos: state.photos.filter((p) => p.trip_id === t.id),
+    sights: state.sights.filter((x) => x.trip_id === t.id).sort((a, b) => a.position - b.position),
     member_count: state.members.filter((m) => m.trip_id === t.id).length,
   }
 }
@@ -179,6 +180,7 @@ export const demoApi: Api = {
     state.stops = state.stops.filter((s) => s.trip_id !== id)
     state.photos = state.photos.filter((p) => p.trip_id !== id)
     state.members = state.members.filter((m) => m.trip_id !== id)
+    state.sights = state.sights.filter((x) => x.trip_id !== id)
     state.invites = state.invites.filter((i) => i.trip_id !== id)
     save()
   },
@@ -256,11 +258,42 @@ export const demoApi: Api = {
   async deleteStop(id) {
     state.stops = state.stops.filter((s) => s.id !== id)
     state.photos = state.photos.map((p) => (p.stop_id === id ? { ...p, stop_id: null } : p))
+    state.sights = state.sights.filter((x) => x.stop_id !== id)
     save()
   },
   async reorderStops(stops) {
     const pos = new Map(stops.map((s, i) => [s.id, i]))
     state.stops = state.stops.map((s) => (pos.has(s.id) ? { ...s, position: pos.get(s.id)! } : s))
+    save()
+  },
+
+  async addSight(stopId, input) {
+    const stop = state.stops.find((x) => x.id === stopId)
+    if (!stop) throw new Error('La parada no existe')
+    const s: Sight = {
+      id: uid(),
+      trip_id: stop.trip_id,
+      stop_id: stopId,
+      user_id: DEMO_USER_ID,
+      lat: null,
+      lon: null,
+      wiki_url: null,
+      done: false,
+      position: Date.now(),
+      created_at: now(),
+      ...input,
+    }
+    state.sights.push(s)
+    save()
+    return delay(s)
+  },
+  async updateSight(id, patch) {
+    state.sights = state.sights.map((x) => (x.id === id ? { ...x, ...patch } : x))
+    save()
+    return delay(state.sights.find((x) => x.id === id)!)
+  },
+  async deleteSight(id) {
+    state.sights = state.sights.filter((x) => x.id !== id)
     save()
   },
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { mergePlaces, REMOTE_PROVIDER, searchLocal, searchRemote, type Place } from '../lib/geocode'
+import { localeCountry, mergePlaces, REMOTE_PROVIDER, searchLocal, searchRemote, type Place } from '../lib/geocode'
 import { preloadPlaces } from '../lib/placesIndex'
 import { Icon } from './Icon'
 import { Flag } from './ui'
@@ -8,10 +8,13 @@ export function PlaceSearch({
   onPick,
   placeholder = 'Ciudad, lugar o monumento…',
   autoFocus,
+  home,
 }: {
   onPick: (p: Place) => void
   placeholder?: string
   autoFocus?: boolean
+  /** País cuyas ciudades salen antes a igual coincidencia. */
+  home?: string
 }) {
   const [q, setQ] = useState('')
   const wrap = useRef<HTMLDivElement>(null)
@@ -35,7 +38,7 @@ export function PlaceSearch({
     const ctrl = new AbortController()
     let local: Place[] = []
     // Fase 1: países y ciudades del catálogo, al instante (sin red).
-    searchLocal(q).then((r) => {
+    searchLocal(q, home ?? localeCountry()).then((r) => {
       if (!alive) return
       local = r
       setResults(r)
@@ -55,7 +58,7 @@ export function PlaceSearch({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [q, attempt])
+  }, [q, attempt, home])
 
   return (
     <div className="relative scroll-mt-28" ref={wrap}>

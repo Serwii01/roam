@@ -218,10 +218,27 @@ assert.equal(await count('select count(*) n from photos where trip_id = $1', [tr
 assert.equal(await count('select count(*) n from trip_members'), 0)
 await db.query(`insert into auth.users (id, email) values ($1, 'berto@example.com')`, [B])
 
+// ── Sitios de las paradas ──
+const stopId = (await one('select id from stops where trip_id = $1 order by position limit 1', [tripId])).id
+await as(A, async () => {
+  const s = await one(`insert into sights (stop_id, name, wiki_url, done) values ($1, 'Coliseo', 'https://es.wikipedia.org/wiki/Coliseo', true) returning trip_id`, [stopId])
+  assert.equal(s.trip_id, tripId, 'el viaje sale de la parada')
+  await assert.rejects(db.query(`insert into sights (stop_id, name, wiki_url) values ($1, 'x', 'https://evil.example/x')`, [stopId]), /check constraint/, 'solo enlaces de Wikipedia')
+  // Aunque se intente colgar de otro viaje, se corrige al de la parada.
+  const other = await one(`insert into trips (title) values ('Otro') returning id`)
+  const fixed = await one(`insert into sights (stop_id, trip_id, name) values ($1, $2, 'Fontana di Trevi') returning trip_id`, [stopId, other.id])
+  assert.equal(fixed.trip_id, tripId)
+})
+await as(C, async () => {
+  await assert.rejects(db.query(`insert into sights (stop_id, name) values ($1, 'Intruso')`, [stopId]), /row-level security/)
+  assert.equal(await count('select count(*) n from sights'), 0, 'no ve sitios de viajes ajenos privados')
+})
+await as(A, async () => assert.equal(await count('select count(*) n from sights'), 2))
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)
-for (const t of ['profiles', 'trips', 'stops', 'photos', 'passports', 'user_countries', 'user_subdivisions', 'wishlist'])
+for (const t of ['profiles', 'trips', 'stops', 'photos', 'passports', 'user_countries', 'user_subdivisions', 'wishlist', 'sights'])
   assert.equal(await count(`select count(*) n from ${t} where ${t === 'profiles' ? 'id' : 'user_id'} = $1`, [A]), 0, `${t} borrado`)
 assert.equal(await count('select count(*) n from profiles where id = $1', [B]), 1, 'el otro usuario sigue')
 await db.exec('set role anon')

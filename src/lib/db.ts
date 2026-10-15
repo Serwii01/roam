@@ -110,8 +110,23 @@ export interface Wish {
   created_at: string
 }
 
-/** Viaje con sus paradas y fotos. `member_count`: compañeros con cuenta que lo comparten (sin contar al creador). */
-export type TripWithStops = Trip & { stops: Stop[]; photos: Photo[]; member_count?: number }
+/** Sitio de una parada: visitado o, en un plan, por ver. */
+export interface Sight {
+  id: string
+  trip_id: string
+  stop_id: string
+  user_id: string | null
+  name: string
+  lat: number | null
+  lon: number | null
+  wiki_url: string | null
+  done: boolean
+  position: number
+  created_at: string
+}
+
+/** Viaje con sus paradas, sitios y fotos. `member_count`: compañeros con cuenta que lo comparten (sin contar al creador). */
+export type TripWithStops = Trip & { stops: Stop[]; photos: Photo[]; sights: Sight[]; member_count?: number }
 
 /** Participante de un viaje compartido: solo lo necesario para mostrarlo. */
 export interface TripMember {

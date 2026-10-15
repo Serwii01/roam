@@ -21,7 +21,7 @@ async function signPhotos(paths: string[]) {
   for (const d of data ?? []) if (d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, expires: now + SIGNED_TTL * 1000 })
 }
 
-const TRIP_SELECT = '*, stops(*), photos(*), trip_members(count)'
+const TRIP_SELECT = '*, stops(*), photos(*), sights(*), trip_members(count)'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type TripRow = TripWithStops & { trip_members?: { count: number }[] }
@@ -31,6 +31,7 @@ const sortTrip = ({ trip_members, ...t }: TripRow): TripWithStops => ({
   member_count: trip_members?.[0]?.count ?? 0,
   stops: [...(t.stops ?? [])].sort((a, b) => a.position - b.position),
   photos: [...(t.photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+  sights: [...(t.sights ?? [])].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at)),
 })
 
 export const supabaseApi: Api = {
@@ -160,6 +161,17 @@ export const supabaseApi: Api = {
   },
   async reorderStops(stops: Stop[]) {
     await Promise.all(stops.map((s, i) => (s.position === i ? null : supabaseApi.updateStop(s.id, { position: i }))))
+  },
+
+  async addSight(stopId, sight) {
+    // trip_id lo pone la base de datos a partir de la parada.
+    return must(await supabase.from('sights').insert({ ...sight, stop_id: stopId }).select().single())
+  },
+  async updateSight(id, patch) {
+    return must(await supabase.from('sights').update(patch).eq('id', id).select().single())
+  },
+  async deleteSight(id) {
+    must(await supabase.from('sights').delete().eq('id', id))
   },
 
   async uploadPhoto(tripId, file, stopId) {

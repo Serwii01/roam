@@ -81,15 +81,17 @@ const kindOf = (type?: string): Place['kind'] =>
  * Fase 1, instantánea y sin red: países por su nombre en español, inglés o alias (Chequia, Holanda,
  * EE. UU.…) y ciudades del catálogo propio con nombre en español (Pekín, Ciudad del Cabo…).
  */
-export async function searchLocal(q: string): Promise<Place[]> {
+export async function searchLocal(q: string, home?: string): Promise<Place[]> {
   if (q.trim().length < 2) return []
-  const out: Place[] = []
+  const countries: Place[] = []
   for (const c of matchCountries(q, 3)) {
     const center = await countryCenter(c.code)
-    if (center) out.push({ name: c.name, label: c.name, countryCode: c.code, lon: center[0], lat: center[1], kind: 'country' })
+    if (center) countries.push({ name: c.name, label: c.name, countryCode: c.code, lon: center[0], lat: center[1], kind: 'country' })
   }
-  for (const p of await searchKnownPlaces(q, 5).catch(() => [])) {
-    out.push({
+  const known = await searchKnownPlaces(q, 5, home).catch(() => [])
+  const cities: Place[] = []
+  for (const p of known) {
+    cities.push({
       name: p.es,
       // «Sevilla, Sevilla, España» → «Sevilla, España» cuando la región se llama como la ciudad.
       label: [p.es, p.region && fold(p.region) !== fold(p.es) ? p.region : null, spanishCountryName(p.cc)].filter(Boolean).join(', '),
@@ -99,7 +101,15 @@ export async function searchLocal(q: string): Promise<Place[]> {
       kind: 'city',
     })
   }
-  return out
+  // «Granada»: si hay una ciudad con ese nombre exacto en tu país, va antes que el país homónimo (Grenada).
+  const homeCityFirst = !!home && known[0]?.exact && known[0].cc === home
+  return homeCityFirst ? [...cities, ...countries] : [...countries, ...cities]
+}
+
+/** País de referencia para ordenar la búsqueda: el del idioma del navegador (es-ES → ES) si no hay otro. */
+export function localeCountry(): string | undefined {
+  const m = navigator.language.match(/-([A-Z]{2})$/i)
+  return m?.[1].toUpperCase()
 }
 
 /**

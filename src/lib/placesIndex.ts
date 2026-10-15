@@ -74,7 +74,7 @@ function loadShard(name: string): Promise<ShardRow[]> {
  * Poblaciones (≥5.000 habitantes, más el catálogo con nombre español) cuyo nombre coincide con el texto.
  * Orden: nombre exacto, que empieza igual, alguna palabra que empieza igual; a igualdad, más pobladas antes.
  */
-export async function searchKnownPlaces(q: string, limit = 5): Promise<KnownPlace[]> {
+export async function searchKnownPlaces(q: string, limit = 5, home?: string): Promise<(KnownPlace & { exact: boolean })[]> {
   const s = fold(q)
   if (s.length < 2) return []
   const name = await shardName(s)
@@ -90,11 +90,13 @@ export async function searchKnownPlaces(q: string, limit = 5): Promise<KnownPlac
     }
     if (best < Infinity) scored.push({ row, score: best })
   }
-  // Las filas vienen ordenadas por población: basta un orden estable por puntuación.
+  // Las filas vienen ordenadas por población: basta un orden estable por puntuación y, a igualdad, el
+  // país de referencia primero (Granada de España antes que una Granada de otro sitio).
+  const local = (r: ShardRow) => (home && r[1] === home ? 0 : 1)
   return scored
-    .sort((a, b) => a.score - b.score)
+    .sort((a, b) => a.score - b.score || local(a.row) - local(b.row))
     .slice(0, limit)
-    .map(({ row: [es, cc, region, lat, lon, pop] }) => ({ es, cc, region, lat, lon, pop, keys: [] }))
+    .map(({ row: [es, cc, region, lat, lon, pop], score }) => ({ es, cc, region, lat, lon, pop, keys: [], exact: score === 0 }))
 }
 
 /** Nombre en español de la población conocida más cercana (≤ `maxKm`) del mismo país, si la hay. */

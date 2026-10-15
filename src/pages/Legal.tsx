@@ -125,6 +125,10 @@ export function PrivacyPage() {
           <b>Nominatim (Fundación OpenStreetMap)</b>, al elegir un lugar, con sus coordenadas, para saber su región y provincia.
         </li>
         <li>
+          <b>Wikipedia (Fundación Wikimedia, EE. UU.)</b>, solo si pides ideas de sitios o buscas uno en una parada, con las coordenadas de la
+          parada y el texto que escribes. Como cualquier web, Wikipedia recibe tu dirección IP; la app no le envía tu nombre ni tu cuenta.
+        </li>
+        <li>
           <b>Spotify</b>, solo si pulsas un reproductor o pegas un enlace en el editor. Spotify puede usar sus propias cookies según su política.
         </li>
       </ul>
@@ -245,6 +249,7 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Tipografías', who: 'Space Grotesk y Plus Jakarta Sans', license: 'SIL Open Font License 1.1', url: 'https://fontsource.org' },
   { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
+  { what: 'Sitios para ver (ideas y búsqueda)', who: 'Wikipedia en español · Fundación Wikimedia', license: 'API pública; los títulos enlazan a los artículos (CC BY-SA)', url: 'https://es.wikipedia.org' },
   { what: 'Música', who: 'Spotify (reproductor embebido)', license: 'Términos de Spotify', url: 'https://developer.spotify.com/terms' },
 ]
 

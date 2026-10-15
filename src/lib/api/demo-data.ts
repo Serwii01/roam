@@ -1,5 +1,5 @@
 // Datos de ejemplo del modo demo (sin Supabase).
-import type { Passport, Photo, Profile, Stop, TransportMode, Trip, TripInvite, TripMember, TripStyle, Wish } from '../db'
+import type { Passport, Photo, Profile, Sight, Stop, TransportMode, Trip, TripInvite, TripMember, TripStyle, Wish } from '../db'
 
 export const DEMO_USER_ID = '00000000-0000-4000-8000-00000000demo'
 
@@ -15,6 +15,7 @@ export interface DemoState {
   /** Compañeros de viajes compartidos (el creador de todos los viajes de la demo es el usuario demo). */
   members: (TripMember & { trip_id: string })[]
   invites: TripInvite[]
+  sights: Sight[]
 }
 
 /** Compañera de ejemplo con la que se comparte el viaje a Japón. */
@@ -100,6 +101,21 @@ const MAD: S = ['Madrid', 'ES', 'ES-MD', 'ES-M', 40.4168, -3.7038, '']
 const from = (s: S, date: string): S => [s[0], s[1], s[2], s[3], s[4], s[5], date]
 /** Vuelta a casa en avión. */
 const flyHome = (s: S, date: string, fromIata: string, toIata: string): S => [s[0], s[1], s[2], s[3], s[4], s[5], date, 'plane', fromIata, toIata]
+
+let sightSeq = 0
+const sight = (stopId: string, tripId: string, name: string, lat: number, lon: number, wiki: string | null): Sight => ({
+  id: `sight${++sightSeq}`,
+  trip_id: tripId,
+  stop_id: stopId,
+  user_id: DEMO_USER_ID,
+  name,
+  lat,
+  lon,
+  wiki_url: wiki,
+  done: true,
+  position: sightSeq,
+  created_at: '2024-10-20T10:00:00Z',
+})
 
 export function demoState(): DemoState {
   const trips = [
@@ -228,5 +244,10 @@ export function demoState(): DemoState {
     ],
     members: [{ ...DEMO_FRIEND, trip_id: 'kioto' }],
     invites: [],
+    sights: [
+      sight('kioto-s2', 'kioto', 'Fushimi Inari-taisha', 34.9671, 135.7727, 'https://es.wikipedia.org/wiki/Fushimi_Inari-taisha'),
+      sight('kioto-s2', 'kioto', 'Kinkaku-ji', 35.0394, 135.7292, 'https://es.wikipedia.org/wiki/Kinkaku-ji'),
+      sight('kioto-s1', 'kioto', 'Cruce de Shibuya', 35.6595, 139.7005, null),
+    ],
   }
 }

@@ -1,7 +1,9 @@
-import type { Airport, Country, InvitePreview, Passport, Photo, Profile, Stop, Subdivision, Trip, TripInvite, TripMember, TripWithStops, Wish } from '../db'
+import type { Airport, Country, InvitePreview, Passport, Photo, Profile, Sight, Stop, Subdivision, Trip, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
+
+export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position'>>
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 
@@ -54,6 +56,11 @@ export interface Api {
   updateStop(id: string, patch: Partial<Stop>): Promise<Stop>
   deleteStop(id: string): Promise<void>
   reorderStops(stops: Stop[]): Promise<void>
+
+  // Sitios de cada parada
+  addSight(stopId: string, sight: NewSight): Promise<Sight>
+  updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position'>>): Promise<Sight>
+  deleteSight(id: string): Promise<void>
 
   // Fotos
   uploadPhoto(tripId: string, file: File, stopId?: string | null): Promise<Photo>
