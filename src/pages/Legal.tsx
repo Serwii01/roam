@@ -95,6 +95,11 @@ export function PrivacyPage() {
           Mostrar tu perfil a otras personas, solo si activas «Perfil público»: tu consentimiento (art. 6.1.a), que puedes retirar desactivándolo.
           Los pasaportes nunca se muestran.
         </li>
+        <li>
+          Viajes compartidos, solo si invitas a alguien o aceptas una invitación: los participantes de ese viaje ven y editan su contenido (paradas,
+          notas, fotos y música) y ven el nombre y el avatar de los demás participantes, nada más de sus cuentas. Es parte del servicio que pides
+          (art. 6.1.b). Puedes salir del viaje, quitar a alguien o anular el enlace cuando quieras.
+        </li>
         <li>Seguridad y prevención de abusos: interés legítimo (art. 6.1.f).</li>
       </ul>
 
@@ -151,7 +156,7 @@ export function PrivacyPage() {
       <h2>9. Seguridad</h2>
       <p>
         Las comunicaciones van cifradas (HTTPS). En la base de datos, cada usuario solo puede leer y modificar sus propios datos, salvo lo que haga
-        público. Las fotos se guardan en un almacenamiento privado y se muestran con enlaces temporales.
+        público y los viajes que comparta con sus compañeros. Las fotos se guardan en un almacenamiento privado y se muestran con enlaces temporales.
       </p>
     </LegalLayout>
   )
@@ -203,7 +208,8 @@ export function TermsPage() {
       <h2>3. Tu contenido</h2>
       <p>
         Lo que subes (textos, fotos, enlaces) es tuyo. Nos das permiso solo para guardarlo y mostrártelo, y para mostrarlo a otros si haces tu
-        perfil público. Debes tener derecho a lo que subes y no publicar datos de otras personas sin su permiso.
+        perfil público o a los participantes de los viajes que compartes. En un viaje compartido, lo que añades se queda en el viaje aunque salgas
+        de él; tus fotos se borran si eliminas tu cuenta. Debes tener derecho a lo que subes y no publicar datos de otras personas sin su permiso.
       </p>
       <h2>4. Usos no permitidos</h2>
       <ul>

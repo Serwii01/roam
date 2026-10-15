@@ -1,11 +1,24 @@
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import type { TripWithStops } from '../lib/db'
 import { useCountries } from '../lib/hooks'
 import { formatKm, tripDays, tripKm, tripMainCountry, tripModes, type AirportMap } from '../lib/stats'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
 import { Icon } from './Icon'
 import { Stars, formatDate } from './ui'
+
+/** Marca de viaje compartido con el número de viajeros (creador + compañeros); nada si es solo tuyo. */
+export function SharedBadge({ trip, size = 15 }: { trip: TripWithStops; size?: number }) {
+  const me = useAuth().user?.id
+  const crew = (trip.member_count ?? 0) + 1
+  if (crew < 2 && (!me || trip.user_id === me)) return null
+  return (
+    <span className="flex items-center gap-1 text-accent-deep" title="Viaje compartido">
+      <Icon name="group" size={size} /> {crew}
+    </span>
+  )
+}
 
 /** Tarjeta de expedición con portada, como en "Expediciones recientes". */
 export function TripCard({ trip, airports }: { trip: TripWithStops; airports: AirportMap }) {
@@ -50,6 +63,7 @@ export function TripCard({ trip, airports }: { trip: TripWithStops; airports: Ai
               <Icon name="photo_camera" size={15} /> {trip.photos.length} capturas
             </span>
             {trip.soundtrack_url && <Icon name="music_note" size={15} className="text-accent" />}
+            <SharedBadge trip={trip} />
           </span>
           <span className="text-accent-deep">{formatKm(tripKm(trip, airports))} km</span>
         </div>

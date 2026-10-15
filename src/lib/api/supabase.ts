@@ -1,6 +1,6 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
-import type { Airport, Photo, Stop, TripWithStops } from '../db'
+import type { Airport, InvitePreview, Photo, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage } from '../images'
 import { must, supabase } from '../supabase'
 import type { Api } from './types'
@@ -21,8 +21,14 @@ async function signPhotos(paths: string[]) {
   for (const d of data ?? []) if (d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, expires: now + SIGNED_TTL * 1000 })
 }
 
-const sortTrip = (t: TripWithStops): TripWithStops => ({
+const TRIP_SELECT = '*, stops(*), photos(*), trip_members(count)'
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+type TripRow = TripWithStops & { trip_members?: { count: number }[] }
+
+const sortTrip = ({ trip_members, ...t }: TripRow): TripWithStops => ({
   ...t,
+  member_count: trip_members?.[0]?.count ?? 0,
   stops: [...(t.stops ?? [])].sort((a, b) => a.position - b.position),
   photos: [...(t.photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at)),
 })
@@ -80,18 +86,20 @@ export const supabaseApi: Api = {
   },
 
   async listTrips(userId) {
+    // Los suyos y los compartidos en los que participa (RLS solo deja ver los que puede ver quien consulta).
+    const shared = (must(await supabase.from('trip_members').select('trip_id').eq('user_id', userId)) as { trip_id: string }[]).map((m) => m.trip_id)
+    const query = supabase.from('trips').select(TRIP_SELECT)
     const rows = must(
-      await supabase
-        .from('trips')
-        .select('*, stops(*), photos(*)')
-        .eq('user_id', userId)
-        .order('start_date', { ascending: false, nullsFirst: true }),
-    ) as TripWithStops[]
+      await (shared.length ? query.or(`user_id.eq.${userId},id.in.(${shared.join(',')})`) : query.eq('user_id', userId)).order('start_date', {
+        ascending: false,
+        nullsFirst: true,
+      }),
+    ) as TripRow[]
     await signPhotos(rows.flatMap((t) => (t.photos ?? []).map((p) => p.path)))
     return rows.map(sortTrip)
   },
   async getTrip(id) {
-    const row = must(await supabase.from('trips').select('*, stops(*), photos(*)').eq('id', id).maybeSingle()) as TripWithStops | null
+    const row = must(await supabase.from('trips').select(TRIP_SELECT).eq('id', id).maybeSingle()) as TripRow | null
     if (row) await signPhotos((row.photos ?? []).map((p) => p.path))
     return row && sortTrip(row)
   },
@@ -105,6 +113,39 @@ export const supabaseApi: Api = {
     const photos = must(await supabase.from('photos').select('path').eq('trip_id', id)) as Pick<Photo, 'path'>[]
     if (photos.length) await supabase.storage.from(BUCKET).remove(photos.map((p) => p.path))
     must(await supabase.from('trips').delete().eq('id', id))
+  },
+
+  async listTripMembers(tripId) {
+    return must(await supabase.rpc('list_trip_members', { t: tripId })) as TripMember[]
+  },
+  async removeTripMember(tripId, userId) {
+    must(await supabase.from('trip_members').delete().eq('trip_id', tripId).eq('user_id', userId))
+  },
+  async listInvites(tripId) {
+    return must(
+      await supabase
+        .from('trip_invites')
+        .select('*')
+        .eq('trip_id', tripId)
+        .eq('revoked', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false }),
+    )
+  },
+  async createInvite(tripId) {
+    return must(await supabase.from('trip_invites').insert({ trip_id: tripId }).select().single())
+  },
+  async revokeInvite(token) {
+    must(await supabase.from('trip_invites').update({ revoked: true }).eq('token', token))
+  },
+  async getInvite(token) {
+    if (!UUID.test(token)) return null
+    const rows = must(await supabase.rpc('get_trip_invite', { invite: token })) as InvitePreview[]
+    return rows[0] ?? null
+  },
+  async acceptInvite(token) {
+    if (!UUID.test(token)) throw new Error('La invitación no existe')
+    return must(await supabase.rpc('accept_trip_invite', { invite: token })) as string
   },
 
   async addStop(trip, stop) {
@@ -191,7 +232,10 @@ export const supabaseApi: Api = {
   },
   async deleteMyAccount(userId) {
     // Primero los archivos (Storage no se vacía con el borrado en cascada de la base de datos).
-    const photos = must(await supabase.from('photos').select('path').eq('user_id', userId)) as Pick<Photo, 'path'>[]
+    // Las suyas y las de los viajes que creó (al borrarse la cuenta, esos viajes desaparecen con sus fotos).
+    const owned = (must(await supabase.from('trips').select('id').eq('user_id', userId)) as { id: string }[]).map((t) => t.id)
+    const filter = owned.length ? `user_id.eq.${userId},trip_id.in.(${owned.join(',')})` : `user_id.eq.${userId}`
+    const photos = must(await supabase.from('photos').select('path').or(filter)) as Pick<Photo, 'path'>[]
     for (let i = 0; i < photos.length; i += 100) {
       const { error } = await supabase.storage.from(BUCKET).remove(photos.slice(i, i + 100).map((p) => p.path))
       if (error) throw new Error(error.message)

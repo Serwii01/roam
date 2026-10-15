@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { SpotifyLogo, SpotifyPlayer } from '../components/Spotify'
+import { TripCrew } from '../components/TripCrew'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
@@ -77,8 +78,11 @@ export function TripLogPage() {
               setTimeout(() => setCopied(false), 1800)
             }}
           >
-            <Icon name="share" size={18} /> {copied ? 'Enlace copiado' : 'Compartir'}
+            <Icon name="link" size={18} /> {copied ? 'Enlace copiado' : 'Copiar enlace'}
           </button>
+          <a href="#companeros" className="btn btn-ghost">
+            <Icon name="group_add" size={18} /> {(t.member_count ?? 0) > 0 ? `${(t.member_count ?? 0) + 1} viajeros` : 'Invitar'}
+          </a>
           <button className="btn btn-ghost" onClick={() => window.print()}>
             <Icon name="picture_as_pdf" size={18} /> Exportar PDF
           </button>
@@ -189,6 +193,8 @@ export function TripLogPage() {
               routeLink={false}
             />
           </div>
+
+          <TripCrew trip={t} />
 
           <div className="card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">

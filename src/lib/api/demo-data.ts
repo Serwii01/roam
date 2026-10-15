@@ -1,5 +1,5 @@
 // Datos de ejemplo del modo demo (sin Supabase).
-import type { Passport, Photo, Profile, Stop, TransportMode, Trip, TripStyle, Wish } from '../db'
+import type { Passport, Photo, Profile, Stop, TransportMode, Trip, TripInvite, TripMember, TripStyle, Wish } from '../db'
 
 export const DEMO_USER_ID = '00000000-0000-4000-8000-00000000demo'
 
@@ -12,6 +12,19 @@ export interface DemoState {
   userCountries: string[]
   userSubdivisions: string[]
   wishlist: Wish[]
+  /** Compañeros de viajes compartidos (el creador de todos los viajes de la demo es el usuario demo). */
+  members: (TripMember & { trip_id: string })[]
+  invites: TripInvite[]
+}
+
+/** Compañera de ejemplo con la que se comparte el viaje a Japón. */
+export const DEMO_FRIEND: TripMember = {
+  user_id: '00000000-0000-4000-8000-0000000julia',
+  username: 'julia_dz',
+  display_name: 'Julia Domínguez',
+  avatar_url: null,
+  role: 'editor',
+  joined_at: '2024-09-20T10:00:00Z',
 }
 
 type S = [name: string, cc: string, region: string | null, province: string | null, lat: number, lon: number, date: string, via?: TransportMode, from?: string, to?: string, notes?: string, rating?: number, tags?: string[]]
@@ -213,5 +226,7 @@ export function demoState(): DemoState {
       { user_id: DEMO_USER_ID, country_code: 'VN', note: 'Bahía de Ha Long', created_at: '2025-01-02' },
       { user_id: DEMO_USER_ID, country_code: 'NO', note: 'Auroras en Tromsø', created_at: '2025-01-03' },
     ],
+    members: [{ ...DEMO_FRIEND, trip_id: 'kioto' }],
+    invites: [],
   }
 }

@@ -73,7 +73,8 @@ export interface Trip {
 export interface Stop {
   id: string
   trip_id: string
-  user_id: string
+  /** Quién añadió la parada; null si borró su cuenta (la parada se queda en el viaje). */
+  user_id: string | null
   position: number
   name: string
   country_code: string
@@ -109,7 +110,44 @@ export interface Wish {
   created_at: string
 }
 
-export type TripWithStops = Trip & { stops: Stop[]; photos: Photo[] }
+/** Viaje con sus paradas y fotos. `member_count`: compañeros con cuenta que lo comparten (sin contar al creador). */
+export type TripWithStops = Trip & { stops: Stop[]; photos: Photo[]; member_count?: number }
+
+/** Participante de un viaje compartido: solo lo necesario para mostrarlo. */
+export interface TripMember {
+  user_id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+  role: 'owner' | 'editor'
+  joined_at: string
+}
+
+/** Enlace de invitación a un viaje (lo gestiona el creador). */
+export interface TripInvite {
+  token: string
+  trip_id: string
+  expires_at: string
+  max_uses: number | null
+  uses: number
+  revoked: boolean
+  created_at: string
+}
+
+/** Lo que ve quien abre un enlace de invitación, antes de unirse. */
+export interface InvitePreview {
+  trip_id: string
+  title: string
+  start_date: string | null
+  end_date: string | null
+  stops: number
+  owner_id: string
+  owner_name: string
+  owner_username: string
+  owner_avatar: string | null
+  status: 'valid' | 'expired' | 'used_up' | 'revoked'
+  already_member: boolean
+}
 
 export const CONTINENT_NAMES: Record<ContinentCode, string> = {
   AF: 'África',

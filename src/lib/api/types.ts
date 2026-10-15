@@ -1,4 +1,4 @@
-import type { Airport, Country, Passport, Photo, Profile, Stop, Subdivision, Trip, TripWithStops, Wish } from '../db'
+import type { Airport, Country, InvitePreview, Passport, Photo, Profile, Stop, Subdivision, Trip, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
@@ -29,12 +29,25 @@ export interface Api {
   savePassport(p: Partial<Passport> & Pick<Passport, 'country_code'>): Promise<Passport>
   deletePassport(id: string): Promise<void>
 
-  // Viajes
+  // Viajes (los propios y los compartidos en los que participa)
   listTrips(userId: string): Promise<TripWithStops[]>
   getTrip(id: string): Promise<TripWithStops | null>
   createTrip(fields: TripFields & { title: string }): Promise<Trip>
   updateTrip(id: string, patch: TripFields): Promise<Trip>
   deleteTrip(id: string): Promise<void>
+
+  // Viajes compartidos
+  listTripMembers(tripId: string): Promise<TripMember[]>
+  /** Expulsa a un compañero (el creador) o sale del viaje (uno mismo). */
+  removeTripMember(tripId: string, userId: string): Promise<void>
+  /** Enlaces de invitación vigentes del viaje (solo el creador). */
+  listInvites(tripId: string): Promise<TripInvite[]>
+  createInvite(tripId: string): Promise<TripInvite>
+  revokeInvite(token: string): Promise<void>
+  /** Vista previa de una invitación; null si el enlace no existe. Funciona sin sesión. */
+  getInvite(token: string): Promise<InvitePreview | null>
+  /** Se une al viaje y devuelve su id. */
+  acceptInvite(token: string): Promise<string>
 
   // Paradas
   addStop(trip: TripWithStops, stop: NewStop): Promise<Stop>

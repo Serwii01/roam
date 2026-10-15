@@ -14,6 +14,7 @@ import { haversine } from '../lib/geo'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
 import { nearestAirportLocal, preloadAirports } from '../lib/airportIndex'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
+import { useAuth } from '../lib/auth'
 import { useAirportMap, useCountries, useInvalidateTravel, useTrip } from '../lib/hooks'
 import { formatKm, legKm, tripKm } from '../lib/stats'
 import { TRANSPORT, TRANSPORT_MODES, TRIP_STYLES } from '../lib/transport'
@@ -44,6 +45,7 @@ export function TripEditorPage() {
   const [params, setParams] = useSearchParams()
   const step = (STEPS.find((s) => s.id === params.get('paso'))?.id ?? 'destino') as StepId
   const trip = useTrip(id)
+  const me = useAuth().user?.id
   const invalidate = useInvalidateTravel()
   const countries = useCountries()
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
@@ -332,7 +334,8 @@ export function TripEditorPage() {
             {busy ? `${busy}…` : savedAt ? `Borrador autoguardado hace ${Math.max(1, Math.round((Date.now() - savedAt) / 1000))} s` : id ? 'Cambios guardados' : 'Sin guardar todavía'}
           </span>
           <div className="flex flex-wrap gap-3">
-            {id && (
+            {/* Solo el creador borra el viaje; los compañeros pueden salir desde la bitácora. */}
+            {id && trip.data?.user_id === me && (
               <button
                 className="btn text-red-700 hover:bg-red-50"
                 onClick={() => {

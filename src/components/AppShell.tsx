@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../lib/auth'
 import { UN_COUNTRY_COUNT, loadWorldShapes } from '../lib/countries'
 import { useProfile, useTravelData } from '../lib/hooks'
+import { takePendingInvite } from '../lib/invites'
 import { Avatar } from './Avatar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
@@ -32,6 +33,12 @@ export function AppShell() {
   const { stats } = useTravelData()
   const { demo } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
+  // Vuelve a la invitación que se abrió antes de entrar (registro con confirmación por email, OAuth…).
+  useEffect(() => {
+    const token = takePendingInvite()
+    if (token) navigate(`/invitacion/${token}`, { replace: true })
+  }, [navigate])
   // El mapa del mundo empieza a descargarse ya, en paralelo con el motor de mapas.
   useEffect(() => {
     loadWorldShapes().catch(() => {})

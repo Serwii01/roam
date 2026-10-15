@@ -123,14 +123,100 @@ await as(B, async () => {
 // Fotos (bucket privado): cada uno sube solo a su carpeta; un perfil privado no deja ver sus fotos.
 await db.exec(`grant select, insert, delete on storage.objects to anon, authenticated; grant usage on schema storage to anon, authenticated;`)
 await as(A, () => db.query(`update profiles set is_public = false where id = $1`, [A]))
-await as(A, () => db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/viaje/foto.jpg`]))
+await as(A, () => db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/${tripId}/foto.jpg`]))
 await as(B, async () => {
-  await assert.rejects(db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/viaje/intruso.jpg`]), /row-level security/)
+  await assert.rejects(db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/${tripId}/intruso.jpg`]), /row-level security/)
   assert.equal(await count(`select count(*) n from storage.objects`), 0, 'Berto no ve fotos de un perfil privado')
 })
 await as(A, async () => assert.equal(await count(`select count(*) n from storage.objects`), 1, 'Ana ve las suyas'))
 await as(A, () => db.query(`update profiles set is_public = true where id = $1`, [A]))
 await as(B, async () => assert.equal(await count(`select count(*) n from storage.objects`), 1, 'con perfil público sí se ven'))
+
+// ── Viajes compartidos ──
+// Ana (perfil privado) invita a Berto por enlace; Carla no participa.
+const C = '00000000-0000-0000-0000-00000000000c'
+await db.query(`insert into auth.users (id, email) values ($1, 'carla@example.com')`, [C])
+await as(A, () => db.query(`update profiles set is_public = false where id = $1`, [A]))
+const token = await as(A, async () => (await one(`insert into trip_invites (trip_id) values ($1) returning token`, [tripId])).token)
+
+// Vista previa sin sesión; aceptar exige sesión.
+await db.exec('set role anon')
+const preview = await one('select * from get_trip_invite($1)', [token])
+assert.equal(preview.title, 'Madrid y Tokio')
+assert.equal(preview.status, 'valid')
+assert.equal(preview.stops, 2)
+await assert.rejects(db.query('select accept_trip_invite($1)', [token]), /permission denied/)
+await db.exec('reset role')
+
+await as(B, async () => {
+  assert.equal((await one('select * from get_trip_invite($1)', [token])).already_member, false)
+  await assert.rejects(db.query(`insert into trip_invites (trip_id) values ($1)`, [tripId]), /row-level security/, 'solo el creador invita')
+  assert.equal((await one('select accept_trip_invite($1) id', [token])).id, tripId)
+  assert.equal((await one('select accept_trip_invite($1) id', [token])).id, tripId, 'aceptar dos veces no falla')
+  assert.equal((await one('select * from get_trip_invite($1)', [token])).already_member, true)
+  // Ve y edita el viaje compartido.
+  assert.equal(await count('select count(*) n from trips'), 1, 've el compartido, no el planificado de Ana')
+  assert.equal(await count('select count(*) n from stops'), 2)
+  await db.query(`insert into stops (trip_id, position, name, country_code, region_code, lat, lon) values ($1, 2, 'Kioto', 'JP', 'JP-26', 35.0, 135.8)`, [tripId])
+  assert.equal((await db.query(`update trips set title = 'Madrid, Tokio y Kioto' where id = $1`, [tripId])).affectedRows, 1)
+  await assert.rejects(db.query('update trips set user_id = $1 where id = $2', [B, tripId]), /propietario/)
+  assert.equal((await db.query('delete from trips where id = $1', [tripId])).affectedRows, 0, 'solo el creador borra el viaje')
+  assert.equal((await db.query('delete from trip_invites')).affectedRows, 0, 'no gestiona invitaciones')
+  // El viaje cuenta en su pasaporte.
+  const mine = (await db.query('select country_code from visited_countries where user_id = $1 order by 1', [B])).rows.map((r) => r.country_code)
+  assert.deepEqual(mine, ['ES', 'JP'])
+  // Compañeros: nombre y avatar, sin abrir el resto del perfil privado de Ana.
+  assert.equal((await db.query('select * from list_trip_members($1)', [tripId])).rows.length, 2)
+  assert.equal(await count('select count(*) n from profiles'), 1, 'el perfil de Ana sigue privado')
+  // Fotos: a su carpeta, y solo en viajes en los que participa.
+  await db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${B}/${tripId}/berto.jpg`])
+  await db.query('insert into photos (trip_id, path) values ($1, $2)', [tripId, `${B}/${tripId}/berto.jpg`])
+  await assert.rejects(db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${B}/${A}/x.jpg`]), /row-level security/)
+  assert.equal(await count('select count(*) n from storage.objects'), 2, 've las fotos del viaje (de Ana y suyas)')
+  assert.equal(await count('select count(*) n from photos'), 2)
+})
+
+await as(A, async () => {
+  assert.equal(await count('select count(*) n from stops where trip_id = $1', [tripId]), 3, 'Ana ve la parada de Berto')
+  assert.equal(await count('select count(*) n from storage.objects'), 2, 'y su foto')
+  assert.equal(await count('select count(*) n from trip_members'), 1)
+})
+
+await as(C, async () => {
+  assert.equal(await count('select count(*) n from trips'), 0)
+  assert.equal((await db.query('select * from list_trip_members($1)', [tripId])).rows.length, 0)
+  assert.equal(await count('select count(*) n from trip_members'), 0)
+  assert.equal(await count('select count(*) n from storage.objects'), 0)
+  assert.equal((await db.query(`update stops set name = 'x' where trip_id = $1`, [tripId])).affectedRows, 0)
+})
+
+// Invitaciones caducadas, agotadas o revocadas.
+const [expired, usedUp, revoked] = await as(A, async () => [
+  (await one(`insert into trip_invites (trip_id, expires_at) values ($1, now() - interval '1 day') returning token`, [tripId])).token,
+  (await one(`insert into trip_invites (trip_id, max_uses, uses) values ($1, 1, 1) returning token`, [tripId])).token,
+  (await one(`insert into trip_invites (trip_id, revoked) values ($1, true) returning token`, [tripId])).token,
+])
+await as(C, async () => {
+  await assert.rejects(db.query('select accept_trip_invite($1)', [expired]), /caducado/)
+  await assert.rejects(db.query('select accept_trip_invite($1)', [usedUp]), /demasiadas/)
+  await assert.rejects(db.query('select accept_trip_invite($1)', [revoked]), /no es válida/)
+  await assert.rejects(db.query('select accept_trip_invite($1)', ['00000000-0000-0000-0000-000000000000']), /no existe/)
+  assert.equal((await one('select * from get_trip_invite($1)', [expired])).status, 'expired')
+  // Se une con el enlace bueno y luego se sale por su cuenta.
+  await db.query('select accept_trip_invite($1)', [token])
+  assert.equal(await count('select count(*) n from trips'), 1)
+  assert.equal((await db.query('delete from trip_members where user_id = $1', [C])).affectedRows, 1)
+  assert.equal(await count('select count(*) n from trips'), 0, 'al salir deja de verlo')
+})
+assert.equal((await one('select uses from trip_invites where token = $1', [token])).uses, 2)
+
+// Berto borra su cuenta: su parada se queda en el viaje (sin autor) y su fila de foto desaparece.
+await as(B, () => db.query('select public.delete_my_account()'))
+assert.equal(await count('select count(*) n from stops where trip_id = $1', [tripId]), 3)
+assert.equal(await count('select count(*) n from stops where trip_id = $1 and user_id is null', [tripId]), 1)
+assert.equal(await count('select count(*) n from photos where trip_id = $1', [tripId]), 1)
+assert.equal(await count('select count(*) n from trip_members'), 0)
+await db.query(`insert into auth.users (id, email) values ($1, 'berto@example.com')`, [B])
 
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))

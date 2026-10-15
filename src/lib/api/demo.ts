@@ -1,6 +1,6 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { Airport, Country, Photo, Stop, Subdivision, Trip, TripWithStops } from '../db'
+import type { Airport, Country, InvitePreview, Photo, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
@@ -13,7 +13,8 @@ let state: DemoState = load()
 function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as DemoState
+    // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
+    if (raw) return { members: [], invites: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -62,6 +63,27 @@ function withRelations(t: Trip): TripWithStops {
     ...t,
     stops: state.stops.filter((s) => s.trip_id === t.id).sort((a, b) => a.position - b.position),
     photos: state.photos.filter((p) => p.trip_id === t.id),
+    member_count: state.members.filter((m) => m.trip_id === t.id).length,
+  }
+}
+
+function invitePreview(i: TripInvite): InvitePreview | null {
+  const t = state.trips.find((x) => x.id === i.trip_id)
+  if (!t) return null
+  const p = state.profile
+  return {
+    trip_id: t.id,
+    title: t.title,
+    start_date: t.start_date,
+    end_date: t.end_date,
+    stops: state.stops.filter((s) => s.trip_id === t.id).length,
+    owner_id: p.id,
+    owner_name: p.display_name || p.username,
+    owner_username: p.username,
+    owner_avatar: p.avatar_url,
+    status: i.revoked ? 'revoked' : i.expires_at < now() ? 'expired' : i.max_uses != null && i.uses >= i.max_uses ? 'used_up' : 'valid',
+    // En la demo todos los viajes son del usuario demo.
+    already_member: true,
   }
 }
 
@@ -156,7 +178,52 @@ export const demoApi: Api = {
     state.trips = state.trips.filter((t) => t.id !== id)
     state.stops = state.stops.filter((s) => s.trip_id !== id)
     state.photos = state.photos.filter((p) => p.trip_id !== id)
+    state.members = state.members.filter((m) => m.trip_id !== id)
+    state.invites = state.invites.filter((i) => i.trip_id !== id)
     save()
+  },
+
+  async listTripMembers(tripId) {
+    const t = state.trips.find((x) => x.id === tripId)
+    if (!t) return []
+    const p = state.profile
+    const owner = { user_id: p.id, username: p.username, display_name: p.display_name, avatar_url: p.avatar_url, role: 'owner' as const, joined_at: t.created_at }
+    return delay([owner, ...state.members.filter((m) => m.trip_id === tripId).map(({ trip_id: _, ...m }) => m)])
+  },
+  async removeTripMember(tripId, userId) {
+    state.members = state.members.filter((m) => !(m.trip_id === tripId && m.user_id === userId))
+    save()
+  },
+  async listInvites(tripId) {
+    return delay(state.invites.filter((i) => i.trip_id === tripId && !i.revoked && i.expires_at > now()).reverse())
+  },
+  async createInvite(tripId) {
+    const invite: TripInvite = {
+      token: uid(),
+      trip_id: tripId,
+      expires_at: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+      max_uses: 10,
+      uses: 0,
+      revoked: false,
+      created_at: now(),
+    }
+    state.invites.push(invite)
+    save()
+    return delay(invite)
+  },
+  async revokeInvite(token) {
+    state.invites = state.invites.map((i) => (i.token === token ? { ...i, revoked: true } : i))
+    save()
+  },
+  async getInvite(token) {
+    const i = state.invites.find((x) => x.token === token)
+    return delay(i ? invitePreview(i) : null)
+  },
+  async acceptInvite(token) {
+    const i = state.invites.find((x) => x.token === token)
+    const preview = i && invitePreview(i)
+    if (!preview) throw new Error('La invitación no existe')
+    return preview.trip_id
   },
 
   async addStop(trip, stop) {

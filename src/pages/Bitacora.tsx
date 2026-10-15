@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/Icon'
+import { SharedBadge } from '../components/TripCard'
 import { Empty, Eyebrow, Flag, Spinner, formatRange, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
@@ -74,6 +75,7 @@ export function BitacoraPage() {
                             <span>{formatRange(t.start_date, t.end_date)}</span>
                             {tripDays(t) && <span>{tripDays(t)} días</span>}
                             {t.style && <span className="text-accent-deep">{TRIP_STYLES[t.style].label}</span>}
+                            <SharedBadge trip={t} size={14} />
                           </div>
                           <h3 className="headline-sm mt-1 truncate">{t.title}</h3>
                           <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-soft">

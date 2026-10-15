@@ -29,7 +29,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       } else {
         const { needsConfirmation } = await signUp(email, password, username || undefined)
         if (needsConfirmation) setNotice('Te hemos enviado un email para confirmar la cuenta. Ábrelo y vuelve a entrar.')
-        else navigate('/app', { replace: true })
+        else navigate(from, { replace: true })
       }
     } catch (err) {
       setError(err)
@@ -136,7 +136,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
           <p className="mt-8 text-center text-sm text-ink-soft">
             {isLogin ? '¿Aún no tienes cuenta? ' : '¿Ya tienes cuenta? '}
-            <Link to={isLogin ? '/registro' : '/entrar'} className="font-semibold text-accent-deep">
+            <Link to={isLogin ? '/registro' : '/entrar'} state={{ from }} className="font-semibold text-accent-deep">
               {isLogin ? 'Regístrate gratis' : 'Entra'}
             </Link>
           </p>

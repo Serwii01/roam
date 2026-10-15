@@ -23,6 +23,7 @@ const PrivacyPage = page(() => import('./pages/Legal'), 'PrivacyPage')
 const LegalNoticePage = page(() => import('./pages/Legal'), 'LegalNoticePage')
 const TermsPage = page(() => import('./pages/Legal'), 'TermsPage')
 const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
+const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -34,8 +35,9 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
+  const from = (useLocation().state as { from?: string } | null)?.from
   if (loading) return <Spinner label="Verificando sesión" />
-  return user ? <Navigate to="/app" replace /> : children
+  return user ? <Navigate to={from ?? '/app'} replace /> : children
 }
 
 export default function App() {
@@ -49,6 +51,7 @@ export default function App() {
         <Route path="/aviso-legal" element={<LegalNoticePage />} />
         <Route path="/terminos" element={<TermsPage />} />
         <Route path="/creditos" element={<CreditsPage />} />
+        <Route path="/invitacion/:token" element={<InvitePage />} />
         <Route path="/entrar" element={<GuestOnly><AuthPage mode="login" /></GuestOnly>} />
         <Route path="/registro" element={<GuestOnly><AuthPage mode="register" /></GuestOnly>} />
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
