@@ -82,7 +82,7 @@ export function TripEditorPage() {
   /** Crea el viaje la primera vez que hace falta un id (añadir parada, foto o guardar). */
   async function ensureTrip(): Promise<TripWithStops> {
     if (trip.data) return trip.data
-    const created = await api.createTrip({ ...draft, title: draft.title.trim() || 'Nueva expedición' })
+    const created = await api.createTrip(tripFields(draft))
     await invalidate()
     navigate(`/app/viajes/${created.id}/editar?paso=${step}`, { replace: true })
     return { ...created, stops: [], photos: [] }
@@ -90,12 +90,14 @@ export function TripEditorPage() {
 
   function update(patch: Partial<typeof draft>) {
     const next = { ...draft, ...patch }
+    // Ida después de la vuelta (p. ej. al cambiar la ida): la vuelta pasa a ser ese mismo día.
+    if (next.start_date && next.end_date && next.end_date < next.start_date) next.end_date = next.start_date
     setDraft(next)
     if (!id) return
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       try {
-        await api.updateTrip(id, { ...next, title: next.title.trim() || 'Nueva expedición' })
+        await api.updateTrip(id, tripFields(next))
         setSavedAt(Date.now())
         invalidate()
       } catch (e) {
@@ -355,7 +357,7 @@ export function TripEditorPage() {
               onClick={() =>
                 run('Acuñando sello', async () => {
                   const tt = await ensureTrip()
-                  await api.updateTrip(tt.id, { ...draft, title: draft.title.trim() || 'Nueva expedición' })
+                  await api.updateTrip(tt.id, tripFields(draft))
                   navigate(`/app/viajes/${tt.id}`)
                 })
               }
@@ -393,7 +395,7 @@ function DestinoStep({ draft, update }: { draft: typeof EMPTY_DRAFT; update: (p:
   return (
     <div className="space-y-8">
       <Field n={1} label="Identificador del viaje" right="Obligatorio">
-        <input className="field font-display text-lg" value={draft.title} placeholder="Travesía del Archipiélago: Honshu & Kansai" onChange={(e) => update({ title: e.target.value })} />
+        <input className="field font-display text-lg" maxLength={120} value={draft.title} placeholder="Travesía del Archipiélago: Honshu & Kansai" onChange={(e) => update({ title: e.target.value })} />
       </Field>
 
       <Field n={2} label="Modalidad operativa">
@@ -742,4 +744,10 @@ function PhotoStrip({ trip, onUpload }: { trip: TripWithStops | undefined | null
       </div>
     </div>
   )
+}
+
+/** Campos del viaje listos para guardar: siempre cumplen las restricciones de la base de datos. */
+function tripFields<T extends { title: string; start_date?: string | null; end_date?: string | null }>(d: T): T {
+  const end = d.start_date && d.end_date && d.end_date < d.start_date ? d.start_date : d.end_date
+  return { ...d, title: d.title.trim().slice(0, 120) || 'Nueva expedición', end_date: end }
 }
