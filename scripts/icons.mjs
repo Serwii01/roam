@@ -1,5 +1,6 @@
 // Material Symbols pesa ~1 MB con todos los iconos. Este script extrae del código los iconos usados,
-// descarga de Google Fonts solo esos (parámetro icon_names) y guarda la fuente en public/fonts.
+// descarga de Google Fonts solo esos (parámetro icon_names) y guarda la fuente en src/assets/fonts.
+// Vite le pone un hash en el nombre: con iconos nuevos cambia la URL y no se usa una versión vieja de la caché.
 // La descarga es en tiempo de compilación: los visitantes nunca contactan con Google (RGPD).
 // Uso: npm run icons            (se ejecuta también antes de cada build)
 //      npm run icons -- --check (falla si el código usa un icono que no está en la fuente)
@@ -7,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
-const fontsDir = path.join(root, 'public/fonts')
+const fontsDir = path.join(root, 'src/assets/fonts')
 const manifestPath = path.join(fontsDir, 'material-symbols.json')
 
 const files = []
@@ -41,7 +42,7 @@ if (process.argv.includes('--check')) {
     console.error(`Faltan iconos en la fuente: ${missing.join(', ')}. Ejecuta npm run icons.`)
     process.exit(1)
   }
-  console.log(`✓ ${list.length} iconos en public/fonts/material-symbols.woff2`)
+  console.log(`✓ ${list.length} iconos en src/assets/fonts/material-symbols.woff2`)
   process.exit(0)
 }
 
@@ -65,4 +66,4 @@ const font = Buffer.from(await (await fetch(url)).arrayBuffer())
 fs.mkdirSync(fontsDir, { recursive: true })
 fs.writeFileSync(path.join(fontsDir, 'material-symbols.woff2'), font)
 fs.writeFileSync(manifestPath, JSON.stringify(list))
-console.log(`public/fonts/material-symbols.woff2: ${list.length} iconos, ${(font.length / 1024).toFixed(1)} KB`)
+console.log(`src/assets/fonts/material-symbols.woff2: ${list.length} iconos, ${(font.length / 1024).toFixed(1)} KB`)

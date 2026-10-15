@@ -68,7 +68,7 @@ Para activar OAuth: habilita el proveedor en Supabase → Authentication → Pro
 ## Scripts
 
 - `npm run data`: vuelve a descargar las fuentes abiertas y regenera `supabase/seed.sql`, `public/geo/regions/*.json` y `public/data/*.json`.
-- `npm run icons`: recalcula los iconos usados y descarga la fuente recortada a `public/fonts` (se ejecuta en cada build).
+- `npm run icons`: recalcula los iconos usados y descarga la fuente recortada a `src/assets/fonts` (se ejecuta en cada build).
 - `npm run avatars`: genera los monigotes de `public/avatars`.
 - `npm run test:db`: ejecuta la migración y el seed en un Postgres embebido (PGlite) y comprueba las políticas RLS entre usuarios.
 

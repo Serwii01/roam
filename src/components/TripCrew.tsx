@@ -60,7 +60,7 @@ export function TripCrew({ trip }: { trip: TripWithStops }) {
     <div className="card p-4" id="companeros">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="headline-sm uppercase">Compañeros de viaje</h3>
-        <span className="label-code text-ink-soft">{list.length > 1 ? `${list.length} en la expedición` : 'Solo tú'}</span>
+        <span className="label-code text-ink-soft">{list.length > 1 ? `${list.length} viajeros` : 'Solo tú'}</span>
       </div>
 
       <ErrorNote error={members.error ?? create.error ?? revoke.error ?? remove.error} />

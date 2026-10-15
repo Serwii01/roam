@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
+import { PhotoViewer, type ViewerPhoto } from '../components/PhotoViewer'
 import { SpotifyLogo, SpotifyPlayer } from '../components/Spotify'
 import { TripCrew } from '../components/TripCrew'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
@@ -16,9 +17,22 @@ export function TripLogPage() {
   const { name } = useCountries()
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
   const [copied, setCopied] = useState(false)
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [viewer, setViewer] = useState<number | null>(null)
 
   const t = trip.data
+  // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
+  const gallery = useMemo<(ViewerPhoto & { stopName?: string })[]>(() => {
+    if (!t) return []
+    const order = new Map(t.stops.map((s, i) => [s.id, i]))
+    return [...t.photos]
+      .sort((a, b) => (order.get(a.stop_id ?? '') ?? Infinity) - (order.get(b.stop_id ?? '') ?? Infinity))
+      .map((p) => {
+        const stop = t.stops.find((s) => s.id === p.stop_id)
+        const when = stop?.arrived_on ? formatDate(stop.arrived_on, 'long') : null
+        return { id: p.id, url: api.photoUrl(p.path), stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
+      })
+  }, [t])
+  const openPhoto = (id: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === id)))
   const legs = useMemo(() => (t ? t.stops.slice(1).map((s, j) => ({ stop: s, km: legKm(t.stops, j + 1, airports) })) : []), [t, airports])
 
   if (trip.isLoading) return <Spinner label="Abriendo bitácora" />
@@ -149,7 +163,7 @@ export function TripLogPage() {
                   {photos.length > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       {photos.map((p) => (
-                        <button key={p.id} onClick={() => setLightbox(api.photoUrl(p.path))} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-container">
+                        <button key={p.id} onClick={() => openPhoto(p.id)} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-container">
                           <img src={api.photoUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
                           <span className="label-code absolute bottom-2 left-2 bg-ink px-1.5 py-0.5 text-white">
                             {s.name} · {s.lat.toFixed(4)}° {s.lat >= 0 ? 'N' : 'S'}
@@ -243,19 +257,29 @@ export function TripLogPage() {
           <div className="card p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="headline-sm uppercase">Galería editorial</h3>
-              <span className="label-code text-ink-soft">{plural(t.photos.length, 'foto', 'fotos')}</span>
+              {gallery.length > 0 ? (
+                <button className="label-code flex items-center gap-1 text-accent-deep hover:underline" onClick={() => setViewer(0)}>
+                  <Icon name="photo_library" size={16} /> Ver {plural(gallery.length, 'foto', 'fotos')}
+                </button>
+              ) : (
+                <span className="label-code text-ink-soft">0 fotos</span>
+              )}
             </div>
-            {t.photos.length ? (
-              <div className="grid grid-cols-2 gap-2">
-                {t.photos.slice(0, 6).map((p) => {
-                  const stop = t.stops.find((s) => s.id === p.stop_id)
-                  return (
-                    <button key={p.id} onClick={() => setLightbox(api.photoUrl(p.path))} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-container">
-                      <img src={api.photoUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
-                      {stop && <span className="label-code absolute right-2 top-2 bg-ink px-1.5 py-0.5 text-white">{stop.name}</span>}
-                    </button>
-                  )
-                })}
+            {gallery.length ? (
+              <div className="grid grid-cols-3 gap-1.5">
+                {gallery.map((g, i) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setViewer(i)}
+                    aria-label={`Ver foto ${i + 1}${g.stopName ? ` (${g.stopName})` : ''}`}
+                    className={`group relative overflow-hidden rounded-sm bg-surface-container aspect-square ${i === 0 && gallery.length > 2 ? 'col-span-2 row-span-2' : ''}`}
+                  >
+                    <img src={g.url} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                    {i === 0 && g.stopName && gallery.length > 2 && (
+                      <span className="label-code absolute bottom-2 left-2 bg-ink px-1.5 py-0.5 text-white">{g.stopName}</span>
+                    )}
+                  </button>
+                ))}
               </div>
             ) : (
               <Link to={`/app/viajes/${t.id}/editar?paso=recuerdos`} className="btn btn-ghost w-full">
@@ -275,11 +299,7 @@ export function TripLogPage() {
         </aside>
       </div>
 
-      {lightbox && (
-        <button className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-6" onClick={() => setLightbox(null)} aria-label="Cerrar">
-          <img src={lightbox} alt="" className="max-h-full max-w-full rounded-sm" />
-        </button>
-      )}
+      {viewer !== null && gallery.length > 0 && <PhotoViewer photos={gallery} index={viewer} onIndex={setViewer} onClose={() => setViewer(null)} />}
     </div>
   )
 }

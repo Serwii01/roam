@@ -6,7 +6,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!assets/|geo/|data/|flags/|fonts/|avatars/).*)",
+      "source": "/((?!assets/|geo/|data/|flags/|avatars/).*)",
       "destination": "/index.html"
     }
   ],
@@ -60,15 +60,6 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=2592000"
-        }
-      ]
-    },
-    {
-      "source": "/fonts/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000"
         }
       ]
     },

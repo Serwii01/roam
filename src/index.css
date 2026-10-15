@@ -6,7 +6,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url('/fonts/material-symbols.woff2') format('woff2');
+  src: url('./assets/fonts/material-symbols.woff2') format('woff2');
 }
 
 /* Tokens del diseño "Minimalist Travel Map Tracker" (Stitch · ROAM). */
