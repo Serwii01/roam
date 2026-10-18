@@ -7,12 +7,13 @@ import { StopSights } from '../components/StopSights'
 import { useAuth } from '../lib/auth'
 import type { NewSight } from '../lib/api/types'
 import type { Sight } from '../lib/db'
+import { DayPlan } from '../components/DayPlan'
 import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
 import { TripShareLink } from '../components/TripShareLink'
 import { PassportAlert, WeatherChip } from '../components/Weather'
 import { passportWarnings } from '../lib/passportCheck'
-import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
+import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
 import { useAirportMap, useCountries, usePassports, useProfile, useTravelMutation, useTrip } from '../lib/hooks'
@@ -34,7 +35,7 @@ export function TripLogPage() {
   const passports = usePassports()
   const profile = useProfile()
   const addSight = useTravelMutation(({ stopId, sight }: { stopId: string; sight: NewSight }) => api.addSight(stopId, sight))
-  const toggleSight = useTravelMutation((x: Sight) => api.updateSight(x.id, { done: !x.done }))
+  const updateSight = useTravelMutation(({ id: sid, patch }: { id: string; patch: Parameters<typeof api.updateSight>[1] }) => api.updateSight(sid, patch))
   const removeSight = useTravelMutation((x: Sight) => api.deleteSight(x.id))
 
   const t = trip.data
@@ -161,6 +162,29 @@ export function TripLogPage() {
         />
       </div>
 
+      {/* Plan día a día (participantes): lo que se va a ver cada día, con casillas para ir marcando. */}
+      {t.status === 'planned' && (t.user_id === me || (t.member_count ?? 0) > 0) && (
+        <section className="mt-10">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="headline-sm flex items-center gap-2 uppercase">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent" /> Plan día a día
+            </h2>
+            <Link to={`/app/viajes/${t.id}/plan`} className="text-sm font-semibold text-accent-deep hover:underline">
+              Tiempo, equipaje y documentos →
+            </Link>
+          </div>
+          <ErrorNote error={addSight.error ?? updateSight.error ?? removeSight.error} />
+          <DayPlan
+            trip={t}
+            ops={{
+              add: (stopId, sight) => addSight.mutate({ stopId, sight }),
+              update: (id, patch) => updateSight.mutate({ id, patch }),
+              remove: (id) => removeSight.mutate({ id } as Sight),
+            }}
+          />
+        </section>
+      )}
+
       <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_460px]">
         <section>
           <div className="mb-4 flex items-center justify-between">
@@ -204,26 +228,12 @@ export function TripLogPage() {
                     </div>
                   )}
                   {s.notes ? <p className="mt-3 leading-relaxed">{s.notes}</p> : <p className="mt-3 text-ink-soft">Sin notas.</p>}
-                  {(() => {
-                    const list = t.sights.filter((x) => x.stop_id === s.id)
-                    // Solo quien participa puede editar (quien ve un perfil público no ve los compañeros: member_count 0).
-                    const canEdit = t.user_id === me || (t.member_count ?? 0) > 0
-                    const planned = t.status === 'planned'
-                    if (!list.length && !(planned && canEdit)) return null
-                    return (
-                      <div className="mt-4 rounded-sm bg-surface-low p-3">
-                        <StopSights
-                          stop={s}
-                          sights={list}
-                          planned={planned}
-                          readOnly={!canEdit || !planned}
-                          onAdd={(sight) => addSight.mutate({ stopId: s.id, sight })}
-                          onToggle={(x) => toggleSight.mutate(x)}
-                          onRemove={(x) => removeSight.mutate(x)}
-                        />
-                      </div>
-                    )
-                  })()}
+                  {/* En un plan, los sitios están en el día a día de arriba; en un viaje hecho, la lista por parada. */}
+                  {t.status === 'done' && t.sights.some((x) => x.stop_id === s.id) && (
+                    <div className="mt-4 rounded-sm bg-surface-low p-3">
+                      <StopSights stop={s} sights={t.sights.filter((x) => x.stop_id === s.id)} planned={false} readOnly onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} />
+                    </div>
+                  )}
                   {s.song_url && <SpotifyPlayer url={s.song_url} compact className="mt-4" />}
                   {photos.length > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-3">

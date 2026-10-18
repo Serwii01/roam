@@ -1,5 +1,5 @@
 // Datos de ejemplo del modo demo (sin Supabase).
-import type { ItineraryItem, PackingItem, TripDocument } from '../db'
+import type { PackingItem, TripDocument } from '../db'
 import type { Expense, Passport, Photo, Profile, Sight, Stop, TransportMode, Trip, TripBudget, TripInvite, TripMember, TripStyle, Wish } from '../db'
 
 export const DEMO_USER_ID = '00000000-0000-4000-8000-00000000demo'
@@ -21,7 +21,6 @@ export interface DemoState {
   expenses: Expense[]
   /** Ids de los viajeros de ejemplo que sigue el usuario demo. */
   follows: string[]
-  itinerary: ItineraryItem[]
   packing: PackingItem[]
   /** En la demo el archivo va como data URL (pequeño) dentro del propio registro. */
   documents: (TripDocument & { dataUrl: string })[]
@@ -270,7 +269,6 @@ export function demoState(): DemoState {
     members: [{ ...DEMO_FRIEND, trip_id: 'kioto' }],
     invites: [],
     follows: [],
-    itinerary: [],
     packing: [],
     documents: [],
     budgets: [{ trip_id: 'kioto', currency: 'EUR', amount: 3000, updated_at: '2024-10-01T00:00:00Z' }],

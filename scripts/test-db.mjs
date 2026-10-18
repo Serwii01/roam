@@ -314,9 +314,8 @@ await as(B, async () => assert.equal((await db.query('delete from follows where 
 
 // ── Planificador: itinerario, equipaje y documentos (privados del viaje) ──
 await as(A, async () => {
-  await db.query(`insert into itinerary_items (trip_id, stop_id, day, time, title) values ($1, $2, '2025-04-03', '10:00', 'Templo Senso-ji')`, [tripId, stopId])
-  await assert.rejects(db.query(`insert into itinerary_items (trip_id, day, time, title) values ($1, '2025-04-03', '25:00', 'x')`, [tripId]), /check constraint/, 'hora válida')
-  await assert.rejects(db.query(`insert into itinerary_items (trip_id, stop_id, day, title) values ($1, $2, '2025-04-03', 'x')`, [tripId, otherTripStop]), /row-level security/, 'parada del viaje')
+  await db.query(`insert into sights (stop_id, name, day, time) values ($1, 'Templo Senso-ji', '2025-04-03', '10:00')`, [stopId])
+  await assert.rejects(db.query(`insert into sights (stop_id, name, day, time) values ($1, 'x', '2025-04-03', '25:00')`, [stopId]), /check constraint/, 'hora válida')
   await db.query(`insert into packing_items (trip_id, category, label) values ($1, 'docs', 'Pasaporte'), ($1, 'electronics', 'Cargador')`, [tripId])
   await assert.rejects(db.query(`insert into packing_items (trip_id, label) values ($1, 'Pasaporte')`, [tripId]), /unique|duplicate/, 'sin repetidos')
   await db.query(`insert into trip_documents (trip_id, name, kind, path) values ($1, 'Billete MAD-HND.pdf', 'flight', $2)`, [tripId, `${tripId}/billete.pdf`])
@@ -326,7 +325,6 @@ await as(A, async () => {
 })
 await as(B, async () => {
   // Berto no participa (aunque el perfil de Ana sea público).
-  assert.equal(await count('select count(*) n from itinerary_items'), 0)
   assert.equal(await count('select count(*) n from packing_items'), 0)
   assert.equal(await count('select count(*) n from trip_documents'), 0)
   assert.equal(await count(`select count(*) n from storage.objects where bucket_id = 'trip-docs'`), 0, 'no ve los archivos')

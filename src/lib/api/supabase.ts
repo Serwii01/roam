@@ -33,7 +33,7 @@ const sortTrip = ({ trip_members, ...t }: TripRow): TripWithStops => ({
   member_count: trip_members?.[0]?.count ?? 0,
   stops: [...(t.stops ?? [])].sort((a, b) => a.position - b.position),
   photos: [...(t.photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-  sights: [...(t.sights ?? [])].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at)),
+  sights: [...(t.sights ?? [])].sort((a, b) => (a.day ?? '').localeCompare(b.day ?? '') || (a.time ?? '99').localeCompare(b.time ?? '99') || a.position - b.position || a.created_at.localeCompare(b.created_at)),
 })
 
 export const supabaseApi: Api = {
@@ -233,18 +233,6 @@ export const supabaseApi: Api = {
     return rows.map(sortTrip)
   },
 
-  async listItinerary(tripId) {
-    return must(await supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day').order('time', { nullsFirst: false }).order('position'))
-  },
-  async addItineraryItem(tripId, item) {
-    return must(await supabase.from('itinerary_items').insert({ ...item, trip_id: tripId }).select().single())
-  },
-  async updateItineraryItem(id, patch) {
-    return must(await supabase.from('itinerary_items').update(patch).eq('id', id).select().single())
-  },
-  async deleteItineraryItem(id) {
-    must(await supabase.from('itinerary_items').delete().eq('id', id))
-  },
   async listPacking(tripId) {
     return must(await supabase.from('packing_items').select('*').eq('trip_id', tripId).order('position').order('created_at'))
   },

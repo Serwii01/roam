@@ -140,21 +140,6 @@ export interface Expense {
   created_at: string
 }
 
-/** Actividad del itinerario de un día (hora opcional, 'HH:MM'). */
-export interface ItineraryItem {
-  id: string
-  trip_id: string
-  stop_id: string | null
-  day: string
-  time: string | null
-  title: string
-  notes: string | null
-  done: boolean
-  position: number
-  user_id: string | null
-  created_at: string
-}
-
 export type PackingCategory = 'docs' | 'clothes' | 'toiletries' | 'electronics' | 'health' | 'other'
 
 export interface PackingItem {
@@ -195,6 +180,11 @@ export interface Sight {
   wiki_url: string | null
   done: boolean
   position: number
+  /** Día del viaje en que se ve (null = el de llegada a la parada). */
+  day?: string | null
+  /** Hora opcional, 'HH:MM'. */
+  time?: string | null
+  notes?: string | null
   created_at: string
 }
 

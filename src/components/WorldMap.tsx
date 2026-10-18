@@ -61,6 +61,8 @@ interface Props {
   routeInfo?: boolean
   /** Al hacer clic en una ruta, abrir su bitácora. */
   routeLink?: boolean
+  /** Zoom máximo al encuadrar: alto para los sitios de una ciudad (día a día), bajo para rutas entre países. */
+  maxZoom?: number
   className?: string
 }
 
@@ -79,6 +81,7 @@ export function WorldMap({
   base = 'minimal',
   routeInfo = true,
   routeLink = true,
+  maxZoom,
   className = '',
 }: Props) {
   const navigate = useNavigate()
@@ -162,7 +165,8 @@ export function WorldMap({
   )
 
   // Encuadra el mapa en las rutas (o en el viaje activo) cuando cambian.
-  const fitKey = `${activeTripId ?? ''}|${points.length}|${lines.features.length}|${mode}`
+  // Incluye qué puntos hay (no solo cuántos): el mapa del día a día cambia de sitios sin cambiar de número.
+  const fitKey = `${activeTripId ?? ''}|${points.map((p) => p.stop.id).join(',')}|${lines.features.length}|${mode}`
   useEffect(() => {
     const map = mapRef.current
     if (!map || !loaded) return
@@ -170,7 +174,8 @@ export function WorldMap({
     const pts: LngLat[] = focus.flatMap((t) => t.stops.map((s) => [s.lon, s.lat] as LngLat))
     const b = bounds(pts)
     if (!b) return
-    if (pts.length === 1 || (b[1][0] - b[0][0] < 0.5 && b[1][1] - b[0][1] < 0.5)) map.flyTo({ center: pts[0], zoom: 5, duration: 700 })
+    if (pts.length === 1 && maxZoom) map.flyTo({ center: pts[0], zoom: Math.min(maxZoom, 13), duration: 700 })
+    else if (!maxZoom && (pts.length === 1 || (b[1][0] - b[0][0] < 0.5 && b[1][1] - b[0][1] < 0.5))) map.flyTo({ center: pts[0], zoom: 5, duration: 700 })
     else if (mode === '3d') {
       // En el globo se centra la vista: ajustar los límites acercaba tanto que no se veía la Tierra.
       const span = Math.max(b[1][0] - b[0][0], (b[1][1] - b[0][1]) * 2)
@@ -182,7 +187,7 @@ export function WorldMap({
       const pad = Math.round(h * 0.12)
       map.fitBounds(b, {
         padding: { top: big ? 90 : pad + (controls ? 44 : 0), bottom: big ? 70 : pad + 16, left: big ? 60 : pad, right: big ? 60 : pad + (controls ? 40 : 0) },
-        maxZoom: 6.5,
+        maxZoom: maxZoom ?? 6.5,
         duration: 700,
       })
     }

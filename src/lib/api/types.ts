@@ -1,14 +1,13 @@
-import type { DocumentKind, ItineraryItem, PackingItem, TripDocument } from '../db'
+import type { DocumentKind, PackingItem, TripDocument } from '../db'
 import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
 
-export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position'>>
+export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position' | 'day' | 'time' | 'notes'>>
 
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> & Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on'>>
 
-export type NewItineraryItem = Pick<ItineraryItem, 'day' | 'title'> & Partial<Pick<ItineraryItem, 'time' | 'notes' | 'stop_id' | 'position'>>
 export type NewPackingItem = Pick<PackingItem, 'label' | 'category'> & Partial<Pick<PackingItem, 'position'>>
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
@@ -65,7 +64,8 @@ export interface Api {
 
   // Sitios de cada parada
   addSight(stopId: string, sight: NewSight): Promise<Sight>
-  updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position'>>): Promise<Sight>
+  /** Cambiar `stop_id` mueve el sitio a otra parada (otro día en otra ciudad). */
+  updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'stop_id'>>): Promise<Sight>
   deleteSight(id: string): Promise<void>
 
   // Perfil público, enlaces y amigos
@@ -85,10 +85,6 @@ export interface Api {
   listFriendsTrips(userIds: string[]): Promise<TripWithStops[]>
 
   // Planificador (solo participantes)
-  listItinerary(tripId: string): Promise<ItineraryItem[]>
-  addItineraryItem(tripId: string, item: NewItineraryItem): Promise<ItineraryItem>
-  updateItineraryItem(id: string, patch: Partial<NewItineraryItem & { done: boolean }>): Promise<ItineraryItem>
-  deleteItineraryItem(id: string): Promise<void>
   listPacking(tripId: string): Promise<PackingItem[]>
   /** Añade varios a la vez (los que ya están con el mismo nombre se ignoran). */
   addPackingItems(tripId: string, items: NewPackingItem[]): Promise<void>

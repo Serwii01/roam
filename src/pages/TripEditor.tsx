@@ -8,7 +8,7 @@ import { Icon } from '../components/Icon'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { SpotifyField } from '../components/Spotify'
 import { Stamp } from '../components/Stamp'
-import { StopSights } from '../components/StopSights'
+import { DayPlan } from '../components/DayPlan'
 import { TripBudget } from '../components/TripBudget'
 import { ErrorNote, Flag, Spinner, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
@@ -20,6 +20,7 @@ import type { Sight, Stop, TransportMode, TripStyle, TripWithStops } from '../li
 import { haversine } from '../lib/geo'
 import type { FlightAirport, FlightRoute } from '../lib/flights'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
+import { isReturnHome } from '../lib/days'
 import { appendStops, type DraftStop } from '../lib/import/common'
 import { knownPlaceNear } from '../lib/placesIndex'
 import { nearestAirportLocal, preloadAirports } from '../lib/airportIndex'
@@ -31,6 +32,7 @@ import { TRANSPORT, TRANSPORT_MODES, TRIP_STYLES } from '../lib/transport'
 const STEPS = [
   { id: 'destino', label: 'Viaje' },
   { id: 'ruta', label: 'Ruta' },
+  { id: 'dias', label: 'Día a día' },
   { id: 'recuerdos', label: 'Recuerdos' },
   { id: 'sello', label: 'Resumen' },
 ] as const
@@ -204,6 +206,7 @@ export function TripEditorPage() {
   const sightOps: SightOps = {
     add: (stopId, x) => run('Añadiendo sitio', () => api.addSight(stopId, x)),
     toggle: (x) => run('Guardando', () => api.updateSight(x.id, { done: !x.done })),
+    update: (sid, patch) => run('Guardando', () => api.updateSight(sid, patch)),
     remove: (x) => run('Quitando sitio', () => api.deleteSight(x.id)),
   }
 
@@ -305,7 +308,27 @@ export function TripEditorPage() {
       <div className="p-5 md:p-10">
         <ErrorNote error={error} />
 
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_440px]">
+        {step === 'dias' && (
+          <div>
+            <h2 className="headline-md">{planned ? '¿Qué vais a ver cada día?' : '¿Qué visitasteis cada día?'}</h2>
+            <p className="mb-5 mt-1 text-ink-soft">Un día por cada día del viaje, con la ciudad en la que estáis. Busca sitios, elige de las ideas o escribe lo que quieras; la hora es opcional.</p>
+            {t ? (
+              <DayPlan
+                trip={{ ...t, start_date: draft.start_date ?? null, end_date: draft.end_date ?? null, status: draft.status ?? t.status }}
+                ops={{ add: sightOps.add, update: sightOps.update, remove: (sid) => sightOps.remove({ id: sid } as Sight) }}
+                onSetDates={(a, b) => update({ start_date: a, end_date: b })}
+              />
+            ) : (
+              <p className="rounded-md bg-surface-low p-6 text-ink-soft">
+                Primero añade la ruta.{' '}
+                <button type="button" className="font-semibold underline" onClick={() => goStep('ruta')}>
+                  Ir a la ruta
+                </button>
+              </p>
+            )}
+          </div>
+        )}
+        <div className={`grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_440px] ${step === 'dias' ? 'hidden' : ''}`}>
           <div className="min-w-0">
             {step === 'destino' && <DestinoStep draft={draft} update={update} />}
             {step === 'ruta' && (
@@ -329,7 +352,6 @@ export function TripEditorPage() {
                 onAddFlight={addFlight}
                 onEditDates={() => goStep('destino')}
                 home={stops[0]?.country_code ?? profile.data?.home_country ?? undefined}
-                sightOps={sightOps}
               />
             )}
             {step === 'recuerdos' && (
@@ -342,7 +364,6 @@ export function TripEditorPage() {
                 onUpload={uploadFiles}
                 onDeletePhoto={(p) => run('Eliminando foto', () => api.deletePhoto(p))}
                 onGoRoute={() => goStep('ruta')}
-                sightOps={sightOps}
               />
             )}
             {step === 'sello' && (
@@ -591,7 +612,6 @@ function RutaStep({
   onAddFlight,
   onEditDates,
   home,
-  sightOps,
 }: {
   trip: TripWithStops | undefined | null
   airports: ReturnType<typeof useAirportMap>
@@ -606,7 +626,6 @@ function RutaStep({
   onAddFlight: (route: FlightRoute, date: string | null) => void
   onEditDates: () => void
   home?: string
-  sightOps: SightOps
 }) {
   const stops = trip?.stops ?? []
   const [start, end] = range
@@ -678,10 +697,10 @@ function RutaStep({
                   stop={s}
                   index={i}
                   total={stops.length}
+                  homeReturn={isReturnHome(stops, i)}
                   range={range}
                   planned={planned}
                   sights={trip?.sights.filter((x) => x.stop_id === s.id) ?? []}
-                  sightOps={sightOps}
                   photos={trip?.photos.filter((p) => p.stop_id === s.id).length ?? 0}
                   onChange={(patch) => onChange(s.id, patch)}
                   onRemove={() => onRemove(s.id)}
@@ -773,10 +792,10 @@ function StopCard({
   stop: s,
   index: i,
   total,
+  homeReturn,
   range,
   planned,
   sights,
-  sightOps,
   photos,
   onChange,
   onRemove,
@@ -785,22 +804,23 @@ function StopCard({
   stop: Stop
   index: number
   total: number
+  homeReturn: boolean
   range: [string | null, string | null]
   planned: boolean
   sights: Sight[]
-  sightOps: SightOps
   photos: number
   onChange: (patch: Partial<Stop>) => void
   onRemove: () => void
   onMove: (dir: -1 | 1) => void
 }) {
   const [name, setName] = useState(s.name)
-  const [showSights, setShowSights] = useState(false)
   useEffect(() => setName(s.name), [s.name])
-  const label = i === 0 ? 'Salida' : i === total - 1 && total > 1 ? 'Última parada' : `Parada ${i + 1}`
+  const label = i === 0 ? 'Salida' : homeReturn ? 'Vuelta a casa' : i === total - 1 && total > 1 ? 'Última parada' : `Parada ${i + 1}`
   return (
     <div className="flex items-start gap-3 rounded-md bg-surface-low p-3 sm:items-center">
-      <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full font-display font-bold text-white sm:mt-0 ${i === 0 ? 'bg-accent' : 'bg-ink'}`}>{i + 1}</span>
+      <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full font-display font-bold text-white sm:mt-0 ${i === 0 || homeReturn ? 'bg-accent' : 'bg-ink'}`}>
+        {homeReturn ? <Icon name="home" size={20} /> : i + 1}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="label-stamp text-ink-soft">{label}</div>
         <input
@@ -816,22 +836,12 @@ function StopCard({
             <Flag code={s.country_code} /> {[s.province_code, s.region_code].filter(Boolean).join(' · ') || s.country_code}
           </span>
           <DateField value={s.arrived_on} min={range[0]} max={range[1]} onChange={(d) => onChange({ arrived_on: d })} placeholder="¿Qué día?" label={`Llegada a ${s.name}`} />
-          <button
-            type="button"
-            aria-expanded={showSights}
-            onClick={() => setShowSights((v) => !v)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${showSights || sights.length ? 'bg-card text-ink ring-1 ring-outline-soft hover:ring-ink' : 'border border-dashed border-outline text-ink-soft hover:border-ink hover:text-ink'}`}
-          >
-            <Icon name={planned ? 'checklist' : 'museum'} size={14} className={sights.length ? 'text-accent' : ''} />
-            {planned ? '¿Qué vamos a ver?' : 'Sitios'}
-            {sights.length > 0 && <span className="rounded-full bg-ink px-1.5 text-[10px] text-white">{sights.length}</span>}
-          </button>
+          {!homeReturn && i > 0 && sights.length > 0 && (
+            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-card px-3 font-semibold text-ink ring-1 ring-outline-soft">
+              <Icon name={planned ? 'checklist' : 'museum'} size={14} className="text-accent" /> {plural(sights.length, 'sitio', 'sitios')}
+            </span>
+          )}
         </div>
-        {showSights && (
-          <div className="mt-3 rounded-sm bg-surface-container/60 p-3">
-            <StopSights stop={s} sights={sights} planned={planned} onAdd={(x) => sightOps.add(s.id, x)} onToggle={sightOps.toggle} onRemove={sightOps.remove} />
-          </div>
-        )}
       </div>
       <div className="flex shrink-0 flex-col gap-0.5 text-ink-soft sm:flex-row">
         <IconButton icon="arrow_upward" label="Subir" disabled={i === 0} onClick={() => onMove(-1)} />
@@ -916,11 +926,9 @@ function RecuerdosStep({
   onUpload,
   onDeletePhoto,
   onGoRoute,
-  sightOps,
 }: {
   trip: TripWithStops | undefined | null
   planned: boolean
-  sightOps: SightOps
   soundtrack: string | null
   onSoundtrack: (url: string | null) => void
   onChange: (id: string, patch: Partial<Stop>) => void
@@ -969,16 +977,6 @@ function RecuerdosStep({
                 ))}
               </span>
             )}
-          </div>
-          <div className="mt-3">
-            <StopSights
-              stop={s}
-              sights={trip.sights.filter((x) => x.stop_id === s.id)}
-              planned={planned}
-              onAdd={(x) => sightOps.add(s.id, x)}
-              onToggle={sightOps.toggle}
-              onRemove={sightOps.remove}
-            />
           </div>
           <textarea
             className="field mt-3 min-h-20 bg-card!"
@@ -1162,6 +1160,7 @@ function PhotoStrip({ trip, onUpload }: { trip: TripWithStops | undefined | null
 }
 
 interface SightOps {
+  update: (id: string, patch: Parameters<typeof api.updateSight>[1]) => void
   add: (stopId: string, s: NewSight) => void
   toggle: (s: Sight) => void
   remove: (s: Sight) => void

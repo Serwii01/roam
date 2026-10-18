@@ -1,29 +1,26 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { daysBetween, formatDay } from '../components/DatePicker'
 import { Icon } from '../components/Icon'
-import { PassportAlert, WeatherChip, useWeather } from '../components/Weather'
+import { PassportAlert, useWeather } from '../components/Weather'
 import { Empty, ErrorNote, Flag, Spinner, plural } from '../components/ui'
 import { api } from '../lib/api'
-import type { DocumentKind, ItineraryItem, PackingCategory, Stop, TripDocument, TripWithStops } from '../lib/db'
-import { usePassports, useProfile, useTrip } from '../lib/hooks'
+import type { DocumentKind, PackingCategory, Stop, TripDocument, TripWithStops } from '../lib/db'
+import type { NewSight } from '../lib/api/types'
+import { DayPlan } from '../components/DayPlan'
+import { useInvalidateTravel, usePassports, useProfile, useTrip } from '../lib/hooks'
 import { PACKING_CATEGORIES, PACKING_ORDER, PACKING_TEMPLATES, packingSuggestions } from '../lib/packing'
 import { passportWarnings } from '../lib/passportCheck'
 import { KIND_LABEL, weatherFor } from '../lib/weather'
 
 const TABS = [
-  { id: 'itinerario', label: 'Itinerario', icon: 'event_note' },
+  { id: 'itinerario', label: 'Día a día', icon: 'event_note' },
   { id: 'tiempo', label: 'Tiempo', icon: 'partly_cloudy_day' },
   { id: 'equipaje', label: 'Equipaje', icon: 'luggage' },
   { id: 'documentos', label: 'Documentos', icon: 'description' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
-
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
-const weekday = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('es-ES', { weekday: 'long', timeZone: 'UTC' })
-/** Parada en la que se está un día: la última a la que se llegó ese día o antes. */
-const stopForDay = (stops: Stop[], day: string) => [...stops].reverse().find((s) => s.arrived_on && s.arrived_on <= day) ?? stops[0]
 
 /** /app/viajes/:id/plan — itinerario, tiempo, equipaje y documentos de un viaje. */
 export function PlannerPage() {
@@ -85,7 +82,7 @@ export function PlannerPage() {
       </nav>
 
       <div className="mt-6">
-        {tab === 'itinerario' && <ItineraryTab trip={t} />}
+        {tab === 'itinerario' && <DaysTab trip={t} />}
         {tab === 'tiempo' && <WeatherTab trip={t} />}
         {tab === 'equipaje' && <PackingTab trip={t} home={profile.data?.home_country ?? 'ES'} />}
         {tab === 'documentos' && <DocumentsTab trip={t} />}
@@ -94,145 +91,27 @@ export function PlannerPage() {
   )
 }
 
-// ───────────────────────────── Itinerario ─────────────────────────────
+// ───────────────────────────── Día a día ─────────────────────────────
 
-function ItineraryTab({ trip: t }: { trip: TripWithStops }) {
-  const qc = useQueryClient()
-  const items = useQuery({ queryKey: ['itinerary', t.id], queryFn: () => api.listItinerary(t.id) })
-  const refresh = () => qc.invalidateQueries({ queryKey: ['itinerary', t.id] })
-  const add = useMutation({ mutationFn: (x: Parameters<typeof api.addItineraryItem>[1]) => api.addItineraryItem(t.id, x), onSuccess: refresh })
-  const update = useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.updateItineraryItem>[1] }) => api.updateItineraryItem(id, patch), onSuccess: refresh })
-  const remove = useMutation({ mutationFn: (id: string) => api.deleteItineraryItem(id), onSuccess: refresh })
-
-  if (!t.start_date)
-    return (
-      <div className="card p-8 text-center">
-        <Icon name="calendar_month" size={36} className="text-accent" />
-        <p className="mt-2">Pon las fechas del viaje para organizarlo día a día.</p>
+/** El mismo plan día a día del editor: lo que se ve cada día, con hora y casilla. */
+function DaysTab({ trip: t }: { trip: TripWithStops }) {
+  const invalidate = useInvalidateTravel()
+  const add = useMutation({ mutationFn: ({ stopId, sight }: { stopId: string; sight: NewSight }) => api.addSight(stopId, sight), onSuccess: () => invalidate() })
+  const update = useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.updateSight>[1] }) => api.updateSight(id, patch), onSuccess: () => invalidate() })
+  const remove = useMutation({ mutationFn: (id: string) => api.deleteSight(id), onSuccess: () => invalidate() })
+  return (
+    <div>
+      <ErrorNote error={add.error ?? update.error ?? remove.error} />
+      <DayPlan
+        trip={t}
+        ops={{ add: (stopId, sight) => add.mutate({ stopId, sight }), update: (id, patch) => update.mutate({ id, patch }), remove: (id) => remove.mutate(id) }}
+      />
+      {!t.start_date && (
         <Link to={`/app/viajes/${t.id}/editar?paso=destino`} className="btn btn-dark mt-4">
           Poner fechas
         </Link>
-      </div>
-    )
-  const n = Math.min(60, daysBetween(t.start_date, t.end_date ?? t.start_date))
-  const days = Array.from({ length: n }, (_, i) => addDays(t.start_date!, i))
-  const list = items.data ?? []
-  return (
-    <div className="space-y-4">
-      <ErrorNote error={items.error ?? add.error ?? update.error ?? remove.error} />
-      {days.map((day, i) => {
-        const stop = stopForDay(t.stops, day)
-        const mine = list.filter((x) => x.day === day)
-        const planned = new Set(mine.map((x) => x.title.toLowerCase()))
-        const ideas = t.sights.filter((s) => s.stop_id === stop?.id && !planned.has(s.name.toLowerCase()))
-        return (
-          <section key={day} className="card p-4 md:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink font-display font-bold text-white">{i + 1}</span>
-                <div>
-                  <div className="font-display text-lg font-semibold capitalize">{weekday(day)}</div>
-                  <div className="text-sm text-ink-soft">
-                    {formatDay(day)}
-                    {stop && (
-                      <>
-                        {' '}
-                        · <Flag code={stop.country_code} /> {stop.name}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {stop && <WeatherChip lat={stop.lat} lon={stop.lon} date={day} />}
-            </div>
-            {mine.length > 0 && (
-              <ul className="mt-3 space-y-1.5">
-                {mine.map((x) => (
-                  <ItineraryRow key={x.id} item={x} onToggle={() => update.mutate({ id: x.id, patch: { done: !x.done } })} onSave={(patch) => update.mutate({ id: x.id, patch })} onRemove={() => remove.mutate(x.id)} />
-                ))}
-              </ul>
-            )}
-            <AddActivity onAdd={(time, title) => add.mutate({ day, time, title, stop_id: stop?.id ?? null, position: mine.length })} busy={add.isPending} />
-            {ideas.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
-                <span className="text-ink-soft">Querías ver:</span>
-                {ideas.slice(0, 6).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => add.mutate({ day, title: s.name, stop_id: stop?.id ?? null, position: mine.length })}
-                    className="inline-flex items-center gap-1 rounded-full bg-surface-low px-2.5 py-1 hover:bg-surface-container"
-                  >
-                    <Icon name="add" size={14} className="text-accent" /> {s.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-        )
-      })}
+      )}
     </div>
-  )
-}
-
-function ItineraryRow({ item: x, onToggle, onSave, onRemove }: { item: ItineraryItem; onToggle: () => void; onSave: (p: { title?: string; time?: string | null }) => void; onRemove: () => void }) {
-  const [title, setTitle] = useState(x.title)
-  return (
-    <li className="flex items-center gap-2 rounded-sm bg-surface-low px-2 py-1.5">
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={x.done}
-        aria-label={x.done ? `Desmarcar ${x.title}` : `Marcar ${x.title} como hecho`}
-        onClick={onToggle}
-        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 transition ${x.done ? 'border-accent bg-accent text-white' : 'border-outline hover:border-ink'}`}
-      >
-        {x.done && <Icon name="check" size={16} />}
-      </button>
-      <input
-        type="time"
-        aria-label="Hora"
-        className="w-[5.5rem] shrink-0 rounded-xs bg-card px-1.5 py-1 text-sm tabular-nums ring-1 ring-outline-soft"
-        defaultValue={x.time ?? ''}
-        onBlur={(e) => (e.target.value || null) !== x.time && onSave({ time: e.target.value || null })}
-      />
-      <input
-        aria-label="Actividad"
-        className={`min-w-0 flex-1 rounded-xs bg-transparent px-1 py-1 outline-none focus:bg-card ${x.done ? 'text-ink-soft line-through' : ''}`}
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={() => title.trim() && title !== x.title && onSave({ title: title.trim().slice(0, 160) })}
-        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-      />
-      <button type="button" aria-label={`Quitar ${x.title}`} onClick={onRemove} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-red-50 hover:text-red-700">
-        <Icon name="close" size={16} />
-      </button>
-    </li>
-  )
-}
-
-function AddActivity({ onAdd, busy }: { onAdd: (time: string | null, title: string) => void; busy: boolean }) {
-  const [time, setTime] = useState('')
-  const [title, setTitle] = useState('')
-  const ref = useRef<HTMLInputElement>(null)
-  return (
-    <form
-      className="mt-3 flex gap-2"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!title.trim()) return
-        onAdd(time || null, title.trim().slice(0, 160))
-        setTitle('')
-        setTime('')
-        ref.current?.focus()
-      }}
-    >
-      <input type="time" aria-label="Hora (opcional)" className="w-[5.5rem] shrink-0 rounded-sm bg-card px-1.5 text-sm ring-1 ring-outline-soft" value={time} onChange={(e) => setTime(e.target.value)} />
-      <input ref={ref} aria-label="Nueva actividad" className="min-w-0 flex-1 rounded-sm bg-card px-3 py-2 text-sm ring-1 ring-outline-soft focus:ring-2 focus:ring-ink" placeholder="Añadir actividad…" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <button type="submit" className="btn btn-dark shrink-0 px-3!" disabled={!title.trim() || busy} aria-label="Añadir actividad">
-        <Icon name="add" size={18} />
-      </button>
-    </form>
   )
 }
 

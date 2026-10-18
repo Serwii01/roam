@@ -1,6 +1,5 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { ItineraryItem } from '../db'
 import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
@@ -16,7 +15,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], itinerary: [], packing: [], documents: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -65,7 +64,9 @@ function withRelations(t: Trip): TripWithStops {
     ...t,
     stops: state.stops.filter((s) => s.trip_id === t.id).sort((a, b) => a.position - b.position),
     photos: state.photos.filter((p) => p.trip_id === t.id),
-    sights: state.sights.filter((x) => x.trip_id === t.id).sort((a, b) => a.position - b.position),
+    sights: state.sights
+      .filter((x) => x.trip_id === t.id)
+      .sort((a, b) => (a.day ?? '').localeCompare(b.day ?? '') || (a.time ?? '99').localeCompare(b.time ?? '99') || a.position - b.position),
     member_count: state.members.filter((m) => m.trip_id === t.id).length,
   }
 }
@@ -187,7 +188,6 @@ export const demoApi: Api = {
     state.members = state.members.filter((m) => m.trip_id !== id)
     state.sights = state.sights.filter((x) => x.trip_id !== id)
     state.expenses = state.expenses.filter((x) => x.trip_id !== id)
-    state.itinerary = state.itinerary.filter((x) => x.trip_id !== id)
     state.packing = state.packing.filter((x) => x.trip_id !== id)
     state.documents = state.documents.filter((x) => x.trip_id !== id)
     state.budgets = state.budgets.filter((x) => x.trip_id !== id)
@@ -298,7 +298,7 @@ export const demoApi: Api = {
     return delay(s)
   },
   async updateSight(id, patch) {
-    state.sights = state.sights.map((x) => (x.id === id ? { ...x, ...patch } : x))
+    state.sights = state.sights.map((x) => (x.id === id ? { ...x, ...patch, trip_id: state.stops.find((st) => st.id === (patch.stop_id ?? x.stop_id))?.trip_id ?? x.trip_id } : x))
     save()
     return delay(state.sights.find((x) => x.id === id)!)
   },
@@ -351,25 +351,6 @@ export const demoApi: Api = {
     return delay(DEMO_PEOPLE.filter((p) => userIds.includes(p.profile.id)).flatMap((p) => p.trips))
   },
 
-  async listItinerary(tripId) {
-    const key = (i: ItineraryItem) => `${i.day}${i.time ?? '99:99'}${String(i.position).padStart(6, '0')}`
-    return delay(state.itinerary.filter((i) => i.trip_id === tripId).sort((a, b) => key(a).localeCompare(key(b))))
-  },
-  async addItineraryItem(tripId, item) {
-    const i: ItineraryItem = { id: uid(), trip_id: tripId, stop_id: null, time: null, notes: null, done: false, position: 0, user_id: DEMO_USER_ID, created_at: now(), ...item }
-    state.itinerary.push(i)
-    save()
-    return delay(i)
-  },
-  async updateItineraryItem(id, patch) {
-    state.itinerary = state.itinerary.map((i) => (i.id === id ? { ...i, ...patch } : i))
-    save()
-    return delay(state.itinerary.find((i) => i.id === id)!)
-  },
-  async deleteItineraryItem(id) {
-    state.itinerary = state.itinerary.filter((i) => i.id !== id)
-    save()
-  },
   async listPacking(tripId) {
     return delay(state.packing.filter((i) => i.trip_id === tripId).sort((a, b) => a.position - b.position))
   },
