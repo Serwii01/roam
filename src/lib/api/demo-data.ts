@@ -1,5 +1,5 @@
 // Datos de ejemplo del modo demo (sin Supabase).
-import type { Passport, Photo, Profile, Sight, Stop, TransportMode, Trip, TripInvite, TripMember, TripStyle, Wish } from '../db'
+import type { Expense, Passport, Photo, Profile, Sight, Stop, TransportMode, Trip, TripBudget, TripInvite, TripMember, TripStyle, Wish } from '../db'
 
 export const DEMO_USER_ID = '00000000-0000-4000-8000-00000000demo'
 
@@ -16,6 +16,8 @@ export interface DemoState {
   members: (TripMember & { trip_id: string })[]
   invites: TripInvite[]
   sights: Sight[]
+  budgets: TripBudget[]
+  expenses: Expense[]
 }
 
 /** Compañera de ejemplo con la que se comparte el viaje a Japón. */
@@ -101,6 +103,22 @@ const MAD: S = ['Madrid', 'ES', 'ES-MD', 'ES-M', 40.4168, -3.7038, '']
 const from = (s: S, date: string): S => [s[0], s[1], s[2], s[3], s[4], s[5], date]
 /** Vuelta a casa en avión. */
 const flyHome = (s: S, date: string, fromIata: string, toIata: string): S => [s[0], s[1], s[2], s[3], s[4], s[5], date, 'plane', fromIata, toIata]
+
+let expSeq = 0
+const expense = (tripId: string, stopId: string | null, category: Expense['category'], description: string, amount: number, currency: string, rate: number, date: string, paidBy: string): Expense => ({
+  id: `exp${++expSeq}`,
+  trip_id: tripId,
+  stop_id: stopId,
+  user_id: DEMO_USER_ID,
+  paid_by: paidBy,
+  category,
+  description,
+  amount,
+  currency,
+  rate,
+  spent_on: date,
+  created_at: `${date}T12:00:00Z`,
+})
 
 let sightSeq = 0
 const sight = (stopId: string, tripId: string, name: string, lat: number, lon: number, wiki: string | null): Sight => ({
@@ -244,6 +262,16 @@ export function demoState(): DemoState {
     ],
     members: [{ ...DEMO_FRIEND, trip_id: 'kioto' }],
     invites: [],
+    budgets: [{ trip_id: 'kioto', currency: 'EUR', amount: 3000, updated_at: '2024-10-01T00:00:00Z' }],
+    expenses: [
+      expense('kioto', null, 'transport', 'Vuelos Madrid – Tokio (ida y vuelta)', 912, 'EUR', 1, '2024-09-02', DEMO_USER_ID),
+      expense('kioto', 'kioto-s1', 'lodging', 'Hotel en Shinjuku, 3 noches', 54000, 'JPY', 0.0062, '2024-10-13', DEMO_USER_ID),
+      expense('kioto', 'kioto-s2', 'transport', 'Shinkansen Tokio – Kioto', 14170, 'JPY', 0.0062, '2024-10-16', DEMO_FRIEND.user_id),
+      expense('kioto', 'kioto-s2', 'lodging', 'Ryokan en Gion, 4 noches', 96000, 'JPY', 0.0062, '2024-10-16', DEMO_FRIEND.user_id),
+      expense('kioto', 'kioto-s2', 'activities', 'Entradas templos', 4800, 'JPY', 0.0062, '2024-10-17', DEMO_USER_ID),
+      expense('kioto', 'kioto-s3', 'food', 'Takoyaki y cena en Dotonbori', 7600, 'JPY', 0.0062, '2024-10-20', DEMO_USER_ID),
+      expense('kioto', 'kioto-s3', 'shopping', 'Regalos', 9500, 'JPY', 0.0062, '2024-10-21', DEMO_FRIEND.user_id),
+    ],
     sights: [
       sight('kioto-s2', 'kioto', 'Fushimi Inari-taisha', 34.9671, 135.7727, 'https://es.wikipedia.org/wiki/Fushimi_Inari-taisha'),
       sight('kioto-s2', 'kioto', 'Kinkaku-ji', 35.0394, 135.7292, 'https://es.wikipedia.org/wiki/Kinkaku-ji'),

@@ -7,6 +7,7 @@ import { StopSights } from '../components/StopSights'
 import { useAuth } from '../lib/auth'
 import type { NewSight } from '../lib/api/types'
 import type { Sight } from '../lib/db'
+import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
@@ -260,6 +261,7 @@ export function TripLogPage() {
           </div>
 
           <TripCrew trip={t} />
+          {(t.user_id === me || (t.member_count ?? 0) > 0) && <TripBudget trip={t} />}
 
           <div className="card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">

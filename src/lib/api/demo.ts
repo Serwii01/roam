@@ -1,6 +1,6 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { Airport, Country, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
+import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
@@ -14,7 +14,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -181,6 +181,8 @@ export const demoApi: Api = {
     state.photos = state.photos.filter((p) => p.trip_id !== id)
     state.members = state.members.filter((m) => m.trip_id !== id)
     state.sights = state.sights.filter((x) => x.trip_id !== id)
+    state.expenses = state.expenses.filter((x) => x.trip_id !== id)
+    state.budgets = state.budgets.filter((x) => x.trip_id !== id)
     state.invites = state.invites.filter((i) => i.trip_id !== id)
     save()
   },
@@ -294,6 +296,35 @@ export const demoApi: Api = {
   },
   async deleteSight(id) {
     state.sights = state.sights.filter((x) => x.id !== id)
+    save()
+  },
+
+  async getBudget(tripId) {
+    return delay(state.budgets.find((b) => b.trip_id === tripId) ?? null)
+  },
+  async setBudget(tripId, budget) {
+    const b = { trip_id: tripId, ...budget, updated_at: now() }
+    state.budgets = [...state.budgets.filter((x) => x.trip_id !== tripId), b]
+    save()
+    return delay(b)
+  },
+  async listExpenses(tripId) {
+    const key = (e: Expense) => `${e.spent_on ?? '9999'}${e.created_at}`
+    return delay(state.expenses.filter((e) => e.trip_id === tripId).sort((a, b) => key(a).localeCompare(key(b))))
+  },
+  async addExpense(tripId, input) {
+    const e: Expense = { id: uid(), trip_id: tripId, user_id: DEMO_USER_ID, stop_id: null, paid_by: null, description: null, rate: 1, spent_on: null, created_at: now(), ...input }
+    state.expenses.push(e)
+    save()
+    return delay(e)
+  },
+  async updateExpense(id, patch) {
+    state.expenses = state.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    save()
+    return delay(state.expenses.find((e) => e.id === id)!)
+  },
+  async deleteExpense(id) {
+    state.expenses = state.expenses.filter((e) => e.id !== id)
     save()
   },
 

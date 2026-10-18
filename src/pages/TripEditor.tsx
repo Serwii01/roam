@@ -8,6 +8,7 @@ import { PlaceSearch } from '../components/PlaceSearch'
 import { SpotifyField } from '../components/Spotify'
 import { Stamp } from '../components/Stamp'
 import { StopSights } from '../components/StopSights'
+import { TripBudget } from '../components/TripBudget'
 import { ErrorNote, Flag, Spinner, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api, type TripFields } from '../lib/api'
@@ -1062,6 +1063,8 @@ function ResumenStep({
           </button>
         </div>
       )}
+
+      {trip && <TripBudget trip={{ ...trip, ...draft, start_date: draft.start_date ?? null, end_date: draft.end_date ?? null, status: draft.status ?? trip.status }} />}
 
       {canDelete && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-highest pt-6">

@@ -110,6 +110,32 @@ export interface Wish {
   created_at: string
 }
 
+export type ExpenseCategory = 'transport' | 'lodging' | 'food' | 'activities' | 'shopping' | 'fees' | 'other'
+
+/** Presupuesto del viaje y moneda en la que se suman los gastos. Solo lo ven los participantes. */
+export interface TripBudget {
+  trip_id: string
+  currency: string
+  amount: number | null
+  updated_at: string
+}
+
+/** Gasto de un viaje. `rate`: unidades de la moneda del viaje por cada unidad de `currency`. */
+export interface Expense {
+  id: string
+  trip_id: string
+  stop_id: string | null
+  user_id: string | null
+  paid_by: string | null
+  category: ExpenseCategory
+  description: string | null
+  amount: number
+  currency: string
+  rate: number
+  spent_on: string | null
+  created_at: string
+}
+
 /** Sitio de una parada: visitado o, en un plan, por ver. */
 export interface Sight {
   id: string

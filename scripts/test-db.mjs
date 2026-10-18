@@ -235,6 +235,39 @@ await as(C, async () => {
 })
 await as(A, async () => assert.equal(await count('select count(*) n from sights'), 2))
 
+// ── Presupuesto y gastos (privados del viaje) ──
+const otherTripStop = await as(A, async () => {
+  const o = await one(`insert into trips (title) values ('Ajeno al gasto') returning id`)
+  return (await one(`insert into stops (trip_id, position, name, country_code, lat, lon) values ($1, 0, 'Oporto', 'PT', 41.1, -8.6) returning id`, [o.id])).id
+})
+await as(A, async () => {
+  await db.query(`insert into trip_budgets (trip_id, currency, amount) values ($1, 'EUR', 2000)`, [tripId])
+  await db.query(`insert into expenses (trip_id, stop_id, category, amount, currency, rate, paid_by) values ($1, $2, 'lodging', 60000, 'JPY', 0.0061, $3)`, [tripId, stopId, A])
+  await db.query(`insert into expenses (trip_id, category, amount, currency) values ($1, 'transport', 850, 'EUR')`, [tripId])
+  await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency) values ($1, 'casino', 5, 'EUR')`, [tripId]), /check constraint/, 'solo categorías conocidas')
+  await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency) values ($1, 'food', -5, 'EUR')`, [tripId]), /check constraint/, 'importe positivo')
+  await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency, paid_by) values ($1, 'food', 5, 'EUR', $2)`, [tripId, C]), /row-level security/, 'solo paga un participante')
+  await assert.rejects(db.query(`insert into expenses (trip_id, stop_id, category, amount, currency) values ($1, $2, 'food', 5, 'EUR')`, [tripId, otherTripStop]), /row-level security/, 'la parada es del viaje')
+  assert.equal(Number((await one('select sum(amount * rate) n from expenses where trip_id = $1', [tripId])).n), 60000 * 0.0061 + 850)
+})
+// Carla entra en el viaje: puede pagar y ver los gastos.
+await db.query('insert into trip_members (trip_id, user_id) values ($1, $2)', [tripId, C])
+await as(C, async () => {
+  await db.query(`insert into expenses (trip_id, category, amount, currency, paid_by) values ($1, 'food', 30, 'EUR', $2)`, [tripId, C])
+  assert.equal(await count('select count(*) n from expenses'), 3)
+  assert.equal(await count('select count(*) n from trip_budgets'), 1)
+})
+// Con el perfil de Ana público, Berto (que no participa) ve el viaje pero no el dinero.
+await as(A, () => db.query('update profiles set is_public = true where id = $1', [A]))
+await as(B, async () => {
+  assert.ok((await count('select count(*) n from trips where id = $1', [tripId])) === 1)
+  assert.equal(await count('select count(*) n from expenses'), 0, 'gastos privados')
+  assert.equal(await count('select count(*) n from trip_budgets'), 0, 'presupuesto privado')
+})
+await db.exec('set role anon')
+await assert.rejects(db.query('select public.is_trip_participant($1, $2)', [tripId, A]), /permission denied/)
+await db.exec('reset role')
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)

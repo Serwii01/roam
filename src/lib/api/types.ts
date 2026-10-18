@@ -1,9 +1,11 @@
-import type { Airport, Country, InvitePreview, Passport, Photo, Profile, Sight, Stop, Subdivision, Trip, TripInvite, TripMember, TripWithStops, Wish } from '../db'
+import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
 
 export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position'>>
+
+export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> & Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on'>>
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 
@@ -61,6 +63,14 @@ export interface Api {
   addSight(stopId: string, sight: NewSight): Promise<Sight>
   updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position'>>): Promise<Sight>
   deleteSight(id: string): Promise<void>
+
+  // Presupuesto y gastos (solo participantes)
+  getBudget(tripId: string): Promise<TripBudget | null>
+  setBudget(tripId: string, budget: Pick<TripBudget, 'currency' | 'amount'>): Promise<TripBudget>
+  listExpenses(tripId: string): Promise<Expense[]>
+  addExpense(tripId: string, expense: NewExpense): Promise<Expense>
+  updateExpense(id: string, patch: Partial<NewExpense>): Promise<Expense>
+  deleteExpense(id: string): Promise<void>
 
   // Fotos
   uploadPhoto(tripId: string, file: File, stopId?: string | null): Promise<Photo>

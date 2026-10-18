@@ -1,6 +1,6 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
-import type { Airport, InvitePreview, Photo, Stop, TripMember, TripWithStops } from '../db'
+import type { Airport, Expense, InvitePreview, Photo, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage } from '../images'
 import { must, supabase } from '../supabase'
 import type { Api } from './types'
@@ -174,6 +174,27 @@ export const supabaseApi: Api = {
     must(await supabase.from('sights').delete().eq('id', id))
   },
 
+  async getBudget(tripId) {
+    return must(await supabase.from('trip_budgets').select('*').eq('trip_id', tripId).maybeSingle())
+  },
+  async setBudget(tripId, budget) {
+    return must(await supabase.from('trip_budgets').upsert({ trip_id: tripId, ...budget, updated_at: new Date().toISOString() }).select().single())
+  },
+  async listExpenses(tripId) {
+    const rows = must(await supabase.from('expenses').select('*').eq('trip_id', tripId).order('spent_on', { ascending: true, nullsFirst: false }).order('created_at')) as Expense[]
+    // numeric llega como número o texto según el tamaño: se normaliza.
+    return rows.map((e) => ({ ...e, amount: Number(e.amount), rate: Number(e.rate) }))
+  },
+  async addExpense(tripId, expense) {
+    return must(await supabase.from('expenses').insert({ ...expense, trip_id: tripId }).select().single())
+  },
+  async updateExpense(id, patch) {
+    return must(await supabase.from('expenses').update(patch).eq('id', id).select().single())
+  },
+  async deleteExpense(id) {
+    must(await supabase.from('expenses').delete().eq('id', id))
+  },
+
   async uploadPhoto(tripId, file, stopId) {
     const { data: auth } = await supabase.auth.getUser()
     if (!auth.user) throw new Error('Sin sesión')
@@ -233,10 +254,13 @@ export const supabaseApi: Api = {
       supabase.from('user_subdivisions').select('subdivision_code').eq('user_id', userId),
       supabaseApi.listWishlist(),
     ])
+    const [expenses, budgets] = await Promise.all([supabase.from('expenses').select('*'), supabase.from('trip_budgets').select('*')])
     return {
       profile,
       passports,
       trips,
+      expenses: must(expenses),
+      budgets: must(budgets),
       marked_countries: must(countries),
       marked_subdivisions: must(subdivisions),
       wishlist,

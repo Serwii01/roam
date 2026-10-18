@@ -100,6 +100,10 @@ export function PrivacyPage() {
           notas, fotos y música) y ven el nombre y el avatar de los demás participantes, nada más de sus cuentas. Es parte del servicio que pides
           (art. 6.1.b). Puedes salir del viaje, quitar a alguien o anular el enlace cuando quieras.
         </li>
+        <li>
+          Presupuesto y gastos de un viaje: solo los ven sus participantes, nunca quien mira tu perfil público. Es parte del servicio que pides
+          (art. 6.1.b).
+        </li>
         <li>Seguridad y prevención de abusos: interés legítimo (art. 6.1.f).</li>
       </ul>
 
@@ -127,6 +131,10 @@ export function PrivacyPage() {
         <li>
           <b>Wikipedia (Fundación Wikimedia, EE. UU.)</b>, solo si pides ideas de sitios o buscas uno en una parada, con las coordenadas de la
           parada y el texto que escribes. Como cualquier web, Wikipedia recibe tu dirección IP; la app no le envía tu nombre ni tu cuenta.
+        </li>
+        <li>
+          <b>jsDelivr / Cloudflare (tipos de cambio de currency-api)</b>, al apuntar un gasto en otra moneda, con las dos monedas y la fecha.
+          Nada más: ni el importe ni el viaje.
         </li>
         <li>
           <b>Spotify</b>, solo si pulsas un reproductor o pegas un enlace en el editor. Spotify puede usar sus propias cookies según su política.
@@ -250,6 +258,7 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
   { what: 'Sitios para ver (ideas y búsqueda)', who: 'Wikipedia en español · Fundación Wikimedia', license: 'API pública; los títulos enlazan a los artículos (CC BY-SA)', url: 'https://es.wikipedia.org' },
+  { what: 'Tipos de cambio', who: 'currency-api (Fawaz Ahmed), vía jsDelivr', license: 'Datos CC0 1.0', url: 'https://github.com/fawazahmed0/exchange-api' },
   { what: 'Música', who: 'Spotify (reproductor embebido)', license: 'Términos de Spotify', url: 'https://developer.spotify.com/terms' },
 ]
 
