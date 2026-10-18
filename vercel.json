@@ -6,7 +6,19 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!assets/|geo/|data/|flags/|avatars/).*)",
+      "source": "/u/:username/:tripId",
+      "destination": "/api/share?k=t&id=:tripId&u=:username"
+    },
+    {
+      "source": "/u/:username",
+      "destination": "/api/share?k=u&id=:username"
+    },
+    {
+      "source": "/v/:token",
+      "destination": "/api/share?k=v&id=:token"
+    },
+    {
+      "source": "/((?!assets/|geo/|data/|flags/|avatars/|api/).*)",
       "destination": "/index.html"
     }
   ],

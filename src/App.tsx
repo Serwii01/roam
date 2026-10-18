@@ -25,6 +25,10 @@ const TermsPage = page(() => import('./pages/Legal'), 'TermsPage')
 const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
 const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
 const ImportPage = page(() => import('./pages/Import'), 'ImportPage')
+const FriendsPage = page(() => import('./pages/Friends'), 'FriendsPage')
+const SharedTripPage = page(() => import('./pages/Public'), 'SharedTripPage')
+const PublicProfilePage = page(() => import('./pages/Public'), 'PublicProfilePage')
+const PublicTripPage = page(() => import('./pages/Public'), 'PublicTripPage')
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -53,6 +57,9 @@ export default function App() {
         <Route path="/terminos" element={<TermsPage />} />
         <Route path="/creditos" element={<CreditsPage />} />
         <Route path="/invitacion/:token" element={<InvitePage />} />
+        <Route path="/v/:token" element={<SharedTripPage />} />
+        <Route path="/u/:username" element={<PublicProfilePage />} />
+        <Route path="/u/:username/:tripId" element={<PublicTripPage />} />
         <Route path="/entrar" element={<GuestOnly><AuthPage mode="login" /></GuestOnly>} />
         <Route path="/registro" element={<GuestOnly><AuthPage mode="register" /></GuestOnly>} />
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
@@ -60,6 +67,7 @@ export default function App() {
           <Route path="bitacora" element={<BitacoraPage />} />
           <Route path="viajes/nuevo" element={<TripEditorPage />} />
           <Route path="importar" element={<ImportPage />} />
+          <Route path="amigos" element={<FriendsPage />} />
           <Route path="viajes/:id" element={<TripLogPage />} />
           <Route path="viajes/:id/editar" element={<TripEditorPage />} />
           <Route path="pasaporte" element={<PassportPage />} />

@@ -93,7 +93,15 @@ export function PrivacyPage() {
         </li>
         <li>
           Mostrar tu perfil a otras personas, solo si activas «Perfil público»: tu consentimiento (art. 6.1.a), que puedes retirar desactivándolo.
-          Los pasaportes nunca se muestran.
+          Se ven tu nombre, avatar, bio, mapa, viajes hechos y cuánta gente te sigue, en una página (/u/tu-usuario) que cualquiera puede abrir
+          y que muestra una vista previa al compartirla. Los pasaportes, los gastos y a quién sigues nunca se muestran.
+        </li>
+        <li>
+          Enlace público de un viaje, solo si lo creas: quien lo tenga ve la ruta, las paradas, los sitios y las fotos de ese viaje, sin cuenta
+          y sin que salga en buscadores. Puedes quitarlo cuando quieras y deja de funcionar al momento.
+        </li>
+        <li>
+          Seguir a otros viajeros: solo a perfiles públicos. Cada uno ve a quién sigue y el número de seguidores, no quiénes son.
         </li>
         <li>
           Viajes compartidos, solo si invitas a alguien o aceptas una invitación: los participantes de ese viaje ven y editan su contenido (paradas,

@@ -15,6 +15,7 @@ const NAV = [
   { to: '/app/pasaporte', label: 'Pasaporte & Badges' },
   { to: '/app/paises', label: 'Países & Regiones' },
   { to: '/app/deseos', label: 'Bucket List' },
+  { to: '/app/amigos', label: 'Amigos' },
 ]
 
 export function Logo({ to = '/' }: { to?: string }) {

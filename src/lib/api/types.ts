@@ -1,4 +1,4 @@
-import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
+import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
@@ -63,6 +63,22 @@ export interface Api {
   addSight(stopId: string, sight: NewSight): Promise<Sight>
   updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position'>>): Promise<Sight>
   deleteSight(id: string): Promise<void>
+
+  // Perfil público, enlaces y amigos
+  /** Perfil por nombre de usuario (null si no existe o es privado y no es el tuyo). */
+  getProfileByUsername(username: string): Promise<Profile | null>
+  /** Crea (true) o quita (false) el enlace público de un viaje; devuelve el token o null. */
+  setTripShare(tripId: string, enabled: boolean): Promise<string | null>
+  getSharedTrip(token: string): Promise<SharedTrip | null>
+  searchProfiles(q: string): Promise<PublicProfile[]>
+  /** Ids de los viajeros que sigues. */
+  listFollowing(): Promise<string[]>
+  getProfiles(ids: string[]): Promise<PublicProfile[]>
+  follow(userId: string): Promise<void>
+  unfollow(userId: string): Promise<void>
+  followCounts(userId: string): Promise<{ followers: number; following: number }>
+  /** Últimos viajes hechos de los viajeros que sigues. */
+  listFriendsTrips(userIds: string[]): Promise<TripWithStops[]>
 
   // Presupuesto y gastos (solo participantes)
   getBudget(tripId: string): Promise<TripBudget | null>

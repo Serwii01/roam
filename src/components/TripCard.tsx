@@ -21,7 +21,8 @@ export function SharedBadge({ trip, size = 15 }: { trip: TripWithStops; size?: n
 }
 
 /** Tarjeta de expedición con portada, como en "Expediciones recientes". */
-export function TripCard({ trip, airports }: { trip: TripWithStops; airports: AirportMap }) {
+/** `to`: adónde lleva la tarjeta (por defecto, la bitácora del viaje en la app). */
+export function TripCard({ trip, airports, to }: { trip: TripWithStops; airports: AirportMap; to?: string }) {
   const { name } = useCountries()
   const cover = trip.cover_url ?? (trip.photos[0] ? api.photoUrl(trip.photos[0].path) : null)
   const modes = tripModes(trip)
@@ -32,7 +33,7 @@ export function TripCard({ trip, airports }: { trip: TripWithStops; airports: Ai
   const label = [trip.style ? TRIP_STYLES[trip.style].label : null, ...modes.slice(0, 2).map((m) => TRANSPORT[m].label)].filter(Boolean).join(' · ')
 
   return (
-    <Link to={`/app/viajes/${trip.id}`} className="card group block overflow-hidden transition hover:-translate-y-0.5">
+    <Link to={to ?? `/app/viajes/${trip.id}`} className="card group block overflow-hidden transition hover:-translate-y-0.5">
       <div className="relative aspect-[16/10] overflow-hidden bg-surface-container">
         {cover ? (
           <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -63,7 +64,8 @@ export function TripCard({ trip, airports }: { trip: TripWithStops; airports: Ai
               <Icon name="photo_camera" size={15} /> {trip.photos.length} capturas
             </span>
             {trip.soundtrack_url && <Icon name="music_note" size={15} className="text-accent" />}
-            <SharedBadge trip={trip} />
+            {/* En perfiles públicos y en la actividad de amigos (con `to`) no aplica. */}
+            {!to && <SharedBadge trip={trip} />}
           </span>
           <span className="text-accent-deep">{formatKm(tripKm(trip, airports))} km</span>
         </div>

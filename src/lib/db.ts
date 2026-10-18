@@ -66,6 +66,8 @@ export interface Trip {
   companions: string[]
   /** Enlace de Spotify con la banda sonora del viaje. */
   soundtrack_url: string | null
+  /** Token del enlace público del viaje (null = no compartido). */
+  share_token?: string | null
   created_at: string
   updated_at: string
 }
@@ -155,6 +157,15 @@ export interface Sight {
 
 /** Viaje con sus paradas, sitios y fotos. `member_count`: compañeros con cuenta que lo comparten (sin contar al creador). */
 export type TripWithStops = Trip & { stops: Stop[]; photos: Photo[]; sights: Sight[]; member_count?: number }
+
+/** Lo que se ve de un viajero en público (búsqueda, seguidos, enlaces). */
+export type PublicProfile = Pick<Profile, 'id' | 'username' | 'display_name' | 'avatar_url' | 'bio' | 'home_country'>
+
+/** Viaje visto por enlace público: sin gastos ni compañeros; del creador, solo nombre y avatar. */
+export interface SharedTrip {
+  trip: TripWithStops
+  owner: { id: string; display_name: string; avatar_url: string | null; username: string | null }
+}
 
 /** Participante de un viaje compartido: solo lo necesario para mostrarlo. */
 export interface TripMember {

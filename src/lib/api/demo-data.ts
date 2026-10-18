@@ -18,6 +18,8 @@ export interface DemoState {
   sights: Sight[]
   budgets: TripBudget[]
   expenses: Expense[]
+  /** Ids de los viajeros de ejemplo que sigue el usuario demo. */
+  follows: string[]
 }
 
 /** Compañera de ejemplo con la que se comparte el viaje a Japón. */
@@ -262,6 +264,7 @@ export function demoState(): DemoState {
     ],
     members: [{ ...DEMO_FRIEND, trip_id: 'kioto' }],
     invites: [],
+    follows: [],
     budgets: [{ trip_id: 'kioto', currency: 'EUR', amount: 3000, updated_at: '2024-10-01T00:00:00Z' }],
     expenses: [
       expense('kioto', null, 'transport', 'Vuelos Madrid – Tokio (ida y vuelta)', 912, 'EUR', 1, '2024-09-02', DEMO_USER_ID),

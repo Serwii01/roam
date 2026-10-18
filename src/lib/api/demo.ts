@@ -4,6 +4,7 @@ import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subd
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
+import { DEMO_PEOPLE, demoPerson } from './demo-people'
 import type { Api } from './types'
 
 const KEY = 'rumbo-demo-v1'
@@ -14,7 +15,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -117,8 +118,8 @@ export const demoApi: Api = {
   },
   nearestAirport: (lat, lon) => nearestAirportLocal(lat, lon),
 
-  async getProfile() {
-    return delay(state.profile)
+  async getProfile(userId) {
+    return delay(demoPerson(userId)?.profile ?? state.profile)
   },
   async updateProfile(_id, patch) {
     state.profile = { ...state.profile, ...patch }
@@ -141,13 +142,16 @@ export const demoApi: Api = {
     save()
   },
 
-  async listTrips() {
+  async listTrips(userId) {
+    const other = demoPerson(userId)
+    if (other) return delay(other.trips)
     const key = (t: Trip) => t.start_date ?? '9999'
     return delay([...state.trips].sort((a, b) => key(b).localeCompare(key(a))).map(withRelations))
   },
   async getTrip(id) {
     const t = state.trips.find((x) => x.id === id)
-    return delay(t ? withRelations(t) : null)
+    const other = DEMO_PEOPLE.flatMap((p) => p.trips).find((x) => x.id === id)
+    return delay(t ? withRelations(t) : (other ?? null))
   },
   async createTrip(fields) {
     const t: Trip = {
@@ -299,6 +303,50 @@ export const demoApi: Api = {
     save()
   },
 
+  async getProfileByUsername(username) {
+    const u = username.toLowerCase()
+    if (u === state.profile.username) return delay(state.profile)
+    return delay(demoPerson(u)?.profile ?? null)
+  },
+  async setTripShare(tripId, enabled) {
+    const token = enabled ? uid() : null
+    state.trips = state.trips.map((t) => (t.id === tripId ? { ...t, share_token: token } : t))
+    save()
+    return delay(token)
+  },
+  async getSharedTrip(token) {
+    const t = state.trips.find((x) => x.share_token && x.share_token === token)
+    if (!t) return delay(null)
+    const p = state.profile
+    return delay({ trip: { ...withRelations(t), share_token: null }, owner: { id: p.id, display_name: p.display_name || p.username, avatar_url: p.avatar_url, username: p.is_public ? p.username : null } })
+  },
+  async searchProfiles(q) {
+    const s = q.trim().toLowerCase()
+    if (s.length < 2) return []
+    return delay(DEMO_PEOPLE.map((x) => x.profile).filter((p) => p.username.includes(s) || (p.display_name ?? '').toLowerCase().includes(s)))
+  },
+  async listFollowing() {
+    return delay(state.follows)
+  },
+  async getProfiles(ids) {
+    return delay(DEMO_PEOPLE.map((x) => x.profile).filter((p) => ids.includes(p.id)))
+  },
+  async follow(userId) {
+    state.follows = [...new Set([...state.follows, userId])]
+    save()
+  },
+  async unfollow(userId) {
+    state.follows = state.follows.filter((x) => x !== userId)
+    save()
+  },
+  async followCounts(userId) {
+    if (userId === DEMO_USER_ID) return delay({ followers: 1, following: state.follows.length })
+    return delay({ followers: state.follows.includes(userId) ? 1 : 0, following: 1 })
+  },
+  async listFriendsTrips(userIds) {
+    return delay(DEMO_PEOPLE.filter((p) => userIds.includes(p.profile.id)).flatMap((p) => p.trips))
+  },
+
   async getBudget(tripId) {
     return delay(state.budgets.find((b) => b.trip_id === tripId) ?? null)
   },
@@ -350,7 +398,12 @@ export const demoApi: Api = {
     return path
   },
 
-  async getVisited() {
+  async getVisited(userId) {
+    const other = demoPerson(userId)
+    if (other) {
+      const cs = [...new Set(other.trips.flatMap((t) => t.stops.map((s) => s.country_code)))]
+      return delay({ countries: cs.map((code) => ({ code, source: 'trip' as const })), subdivisions: [] })
+    }
     const countries = new Map<string, 'trip' | 'manual'>()
     const subs = new Map<string, 'trip' | 'manual'>()
     const done = new Set(state.trips.filter((t) => t.status === 'done').map((t) => t.id))

@@ -270,6 +270,48 @@ await db.exec('set role anon')
 await assert.rejects(db.query('select public.is_trip_participant($1, $2)', [tripId, A]), /permission denied/)
 await db.exec('reset role')
 
+// ── Enlace público de un viaje y seguir a viajeros ──
+await as(A, () => db.query('update profiles set is_public = false where id = $1', [A]))
+const shareToken = await as(A, async () => (await one(`update trips set share_token = gen_random_uuid() where id = $1 returning share_token`, [tripId])).share_token)
+await db.query(`insert into storage.objects (bucket_id, name) values ('trip-photos', $1)`, [`${A}/${tripId}/compartida.jpg`])
+const tripFiles = await count(`select count(*) n from storage.objects where name like $1`, [`%/${tripId}/%`])
+await db.exec('set role anon')
+{
+  const shared = (await one('select public.get_shared_trip($1) j', [shareToken])).j
+  assert.equal(shared.trip.id, tripId)
+  assert.ok(shared.stops.length >= 2 && shared.sights.length >= 1)
+  assert.equal(shared.trip.share_token, undefined, 'el shareToken no se devuelve')
+  assert.equal(shared.owner.username, null, 'perfil privado: sin usuario')
+  assert.equal(shared.expenses, undefined, 'sin gastos')
+  assert.equal((await one('select public.get_shared_trip($1) j', ['00000000-0000-0000-0000-000000000000'])).j, null)
+  assert.equal(await count(`select count(*) n from storage.objects where name like $1`, [`%/${tripId}/%`]), tripFiles, 'las fotos del viaje compartido se pueden firmar')
+  assert.equal(await count('select count(*) n from trips'), 0, 'sin sesión no se listan viajes')
+}
+await db.exec('reset role')
+// Al quitar el enlace deja de funcionar.
+await as(A, () => db.query('update trips set share_token = null where id = $1', [tripId]))
+await db.exec('set role anon')
+assert.equal((await one('select public.get_shared_trip($1) j', [shareToken])).j, null)
+assert.equal(await count(`select count(*) n from storage.objects where name like $1`, [`%/${tripId}/%`]), 0)
+await db.exec('reset role')
+
+// Seguir: solo perfiles públicos; cada uno ve sus seguimientos.
+await as(B, async () => {
+  await assert.rejects(db.query('insert into follows (followee) values ($1)', [A]), /row-level security/, 'Ana es privada')
+})
+await as(A, () => db.query('update profiles set is_public = true where id = $1', [A]))
+await as(B, async () => {
+  await db.query('insert into follows (followee) values ($1)', [A])
+  await assert.rejects(db.query('insert into follows (followee) values ($1)', [B]), /check constraint|row-level security/, 'no a sí mismo')
+  assert.equal(await count('select count(*) n from follows'), 1)
+})
+await as(C, async () => {
+  assert.equal(await count('select count(*) n from follows'), 0, 'Carla no ve a quién sigue Berto')
+  const c = await one('select * from public.follow_counts($1)', [A])
+  assert.equal(c.followers, 1)
+})
+await as(B, async () => assert.equal((await db.query('delete from follows where followee = $1', [A])).affectedRows, 1))
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)

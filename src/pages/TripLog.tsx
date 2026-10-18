@@ -9,6 +9,7 @@ import type { NewSight } from '../lib/api/types'
 import type { Sight } from '../lib/db'
 import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
+import { TripShareLink } from '../components/TripShareLink'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
@@ -24,7 +25,6 @@ export function TripLogPage() {
   const trip = useTrip(id)
   const { name, byCode } = useCountries()
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
-  const [copied, setCopied] = useState(false)
   const [viewer, setViewer] = useState<number | null>(null)
   const [sharing, setSharing] = useState(false)
   const markDone = useTravelMutation(() => api.updateTrip(id!, { status: 'done' }))
@@ -101,16 +101,11 @@ export function TripLogPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              navigator.clipboard?.writeText(location.href)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1800)
-            }}
-          >
-            <Icon name="link" size={18} /> {copied ? 'Enlace copiado' : 'Copiar enlace'}
-          </button>
+          {(t.user_id === me || (t.member_count ?? 0) > 0) && (
+            <a href="#compartir" className="btn btn-ghost">
+              <Icon name={t.share_token ? 'public' : 'link'} size={18} /> {t.share_token ? 'Enlace público' : 'Compartir enlace'}
+            </a>
+          )}
           <button className="btn btn-accent" onClick={() => setSharing(true)}>
             <Icon name="ios_share" size={18} /> Compartir imagen
           </button>
@@ -260,6 +255,7 @@ export function TripLogPage() {
             />
           </div>
 
+          {(t.user_id === me || (t.member_count ?? 0) > 0) && <TripShareLink trip={t} />}
           <TripCrew trip={t} />
           {(t.user_id === me || (t.member_count ?? 0) > 0) && <TripBudget trip={t} />}
 

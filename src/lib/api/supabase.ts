@@ -1,6 +1,6 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
-import type { Airport, Expense, InvitePreview, Photo, Stop, TripMember, TripWithStops } from '../db'
+import type { Airport, Expense, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage } from '../images'
 import { must, supabase } from '../supabase'
 import type { Api } from './types'
@@ -22,6 +22,7 @@ async function signPhotos(paths: string[]) {
 }
 
 const TRIP_SELECT = '*, stops(*), photos(*), sights(*), trip_members(count)'
+const PUBLIC_PROFILE = 'id, username, display_name, avatar_url, bio, home_country'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type TripRow = TripWithStops & { trip_members?: { count: number }[] }
@@ -172,6 +173,61 @@ export const supabaseApi: Api = {
   },
   async deleteSight(id) {
     must(await supabase.from('sights').delete().eq('id', id))
+  },
+
+  async getProfileByUsername(username) {
+    return must(await supabase.from('profiles').select('*').eq('username', username.toLowerCase()).maybeSingle())
+  },
+  async setTripShare(tripId, enabled) {
+    const token = enabled ? crypto.randomUUID() : null
+    must(await supabase.from('trips').update({ share_token: token }).eq('id', tripId))
+    return token
+  },
+  async getSharedTrip(token) {
+    if (!UUID.test(token)) return null
+    const data = must(await supabase.rpc('get_shared_trip', { tok: token })) as { trip: TripWithStops; stops: Stop[]; sights: TripWithStops['sights']; photos: Photo[]; owner: SharedTrip['owner'] } | null
+    if (!data) return null
+    await signPhotos(data.photos.map((p) => p.path))
+    return { trip: sortTrip({ ...data.trip, stops: data.stops, sights: data.sights, photos: data.photos }), owner: data.owner }
+  },
+  async searchProfiles(q) {
+    const s = q.trim().replace(/[%_,()]/g, ' ')
+    if (s.length < 2) return []
+    return must(
+      await supabase
+        .from('profiles')
+        .select(PUBLIC_PROFILE)
+        .eq('is_public', true)
+        .or(`username.ilike.%${s}%,display_name.ilike.%${s}%`)
+        .limit(12),
+    ) as PublicProfile[]
+  },
+  async listFollowing() {
+    const { data: auth } = await supabase.auth.getUser()
+    if (!auth.user) return []
+    return (must(await supabase.from('follows').select('followee').eq('follower', auth.user.id)) as { followee: string }[]).map((r) => r.followee)
+  },
+  async getProfiles(ids) {
+    if (!ids.length) return []
+    return must(await supabase.from('profiles').select(PUBLIC_PROFILE).in('id', ids)) as PublicProfile[]
+  },
+  async follow(userId) {
+    must(await supabase.from('follows').insert({ followee: userId }))
+  },
+  async unfollow(userId) {
+    must(await supabase.from('follows').delete().eq('followee', userId))
+  },
+  async followCounts(userId) {
+    const rows = must(await supabase.rpc('follow_counts', { u: userId })) as { followers: number; following: number }[]
+    return rows[0] ?? { followers: 0, following: 0 }
+  },
+  async listFriendsTrips(userIds) {
+    if (!userIds.length) return []
+    const rows = must(
+      await supabase.from('trips').select(TRIP_SELECT).in('user_id', userIds).eq('status', 'done').order('start_date', { ascending: false, nullsFirst: false }).limit(24),
+    ) as TripRow[]
+    await signPhotos(rows.flatMap((t) => (t.photos ?? []).map((p) => p.path)))
+    return rows.map(sortTrip)
   },
 
   async getBudget(tripId) {
