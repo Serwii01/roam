@@ -26,6 +26,7 @@ const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
 const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
 const ImportPage = page(() => import('./pages/Import'), 'ImportPage')
 const FriendsPage = page(() => import('./pages/Friends'), 'FriendsPage')
+const PlannerPage = page(() => import('./pages/Planner'), 'PlannerPage')
 const SharedTripPage = page(() => import('./pages/Public'), 'SharedTripPage')
 const PublicProfilePage = page(() => import('./pages/Public'), 'PublicProfilePage')
 const PublicTripPage = page(() => import('./pages/Public'), 'PublicTripPage')
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="amigos" element={<FriendsPage />} />
           <Route path="viajes/:id" element={<TripLogPage />} />
           <Route path="viajes/:id/editar" element={<TripEditorPage />} />
+          <Route path="viajes/:id/plan" element={<PlannerPage />} />
           <Route path="pasaporte" element={<PassportPage />} />
           <Route path="paises" element={<CountriesPage />} />
           <Route path="paises/:code" element={<CountryPage />} />

@@ -1,3 +1,4 @@
+import type { DocumentKind, ItineraryItem, PackingItem, TripDocument } from '../db'
 import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
@@ -6,6 +7,9 @@ export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
 export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position'>>
 
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> & Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on'>>
+
+export type NewItineraryItem = Pick<ItineraryItem, 'day' | 'title'> & Partial<Pick<ItineraryItem, 'time' | 'notes' | 'stop_id' | 'position'>>
+export type NewPackingItem = Pick<PackingItem, 'label' | 'category'> & Partial<Pick<PackingItem, 'position'>>
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 
@@ -79,6 +83,22 @@ export interface Api {
   followCounts(userId: string): Promise<{ followers: number; following: number }>
   /** Últimos viajes hechos de los viajeros que sigues. */
   listFriendsTrips(userIds: string[]): Promise<TripWithStops[]>
+
+  // Planificador (solo participantes)
+  listItinerary(tripId: string): Promise<ItineraryItem[]>
+  addItineraryItem(tripId: string, item: NewItineraryItem): Promise<ItineraryItem>
+  updateItineraryItem(id: string, patch: Partial<NewItineraryItem & { done: boolean }>): Promise<ItineraryItem>
+  deleteItineraryItem(id: string): Promise<void>
+  listPacking(tripId: string): Promise<PackingItem[]>
+  /** Añade varios a la vez (los que ya están con el mismo nombre se ignoran). */
+  addPackingItems(tripId: string, items: NewPackingItem[]): Promise<void>
+  updatePackingItem(id: string, patch: Partial<Pick<PackingItem, 'packed' | 'label' | 'category'>>): Promise<PackingItem>
+  deletePackingItem(id: string): Promise<void>
+  listDocuments(tripId: string): Promise<TripDocument[]>
+  uploadDocument(tripId: string, file: File, kind: DocumentKind): Promise<TripDocument>
+  deleteDocument(doc: TripDocument): Promise<void>
+  /** Enlace temporal (unos minutos) para abrir el documento. */
+  documentUrl(doc: TripDocument): Promise<string>
 
   // Presupuesto y gastos (solo participantes)
   getBudget(tripId: string): Promise<TripBudget | null>

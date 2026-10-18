@@ -4,6 +4,8 @@ import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { Stamp } from '../components/Stamp'
 import { YearInReview } from '../components/YearInReview'
+import { PassportAlert } from '../components/Weather'
+import { passportWarnings } from '../lib/passportCheck'
 import { Empty, Eyebrow, Flag, Spinner, formatDate, monthShort, plural } from '../components/ui'
 import { api } from '../lib/api'
 import { BADGE_CATEGORIES, computeBadges, computeStamps, type BadgeCategory } from '../lib/badges'
@@ -84,6 +86,9 @@ export function PassportPage() {
           <ShareSheet data={shareData} onClose={() => setSharing(false)} />
         </Suspense>
       )}
+      <div className="mt-6">
+        <PassportAlert warnings={passportWarnings(trips, passports.data ?? [], profile.data?.home_country ?? 'ES')} />
+      </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="card p-6 md:p-8">

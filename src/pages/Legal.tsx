@@ -112,6 +112,11 @@ export function PrivacyPage() {
           Presupuesto y gastos de un viaje: solo los ven sus participantes, nunca quien mira tu perfil público. Es parte del servicio que pides
           (art. 6.1.b).
         </li>
+        <li>
+          Planificador (itinerario, equipaje y documentos como billetes o reservas): solo lo ven sus participantes. Los documentos se guardan
+          en un almacenamiento privado y se abren con enlaces que caducan en minutos; se borran al borrar el viaje o tu cuenta (si el viaje
+          es tuyo).
+        </li>
         <li>Seguridad y prevención de abusos: interés legítimo (art. 6.1.f).</li>
       </ul>
 
@@ -146,6 +151,9 @@ export function PrivacyPage() {
         </li>
         <li>
           <b>adsbdb</b>, al buscar un vuelo por su número, solo con ese número.
+        </li>
+        <li>
+          <b>Open-Meteo</b>, para enseñar el tiempo de una parada, con sus coordenadas y la fecha.
         </li>
         <li>
           <b>Importar desde fotos o desde Google Maps</b>: los archivos se leen en tu navegador y no se suben para eso. Solo se guardan las
@@ -274,6 +282,7 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
   { what: 'Sitios para ver (ideas y búsqueda)', who: 'Wikipedia en español · Fundación Wikimedia', license: 'API pública; los títulos enlazan a los artículos (CC BY-SA)', url: 'https://es.wikipedia.org' },
+  { what: 'El tiempo', who: 'Open-Meteo', license: 'Datos CC BY 4.0 (uso no comercial gratuito)', url: 'https://open-meteo.com' },
   { what: 'Rutas de vuelos', who: 'adsbdb', license: 'API pública gratuita (código MIT)', url: 'https://www.adsbdb.com' },
   { what: 'Lectura de fotos (EXIF)', who: 'exifr', license: 'MIT', url: 'https://github.com/MikeKovarik/exifr' },
   { what: 'Descomprimir el .zip de Google', who: 'fflate', license: 'MIT', url: 'https://github.com/101arrowz/fflate' },

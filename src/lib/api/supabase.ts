@@ -6,6 +6,7 @@ import { must, supabase } from '../supabase'
 import type { Api } from './types'
 
 const BUCKET = 'trip-photos'
+const DOCS = 'trip-docs'
 
 // ── Enlaces firmados de fotos (bucket privado) ──
 const SIGNED_TTL = 6 * 3600 // segundos
@@ -114,6 +115,8 @@ export const supabaseApi: Api = {
   async deleteTrip(id) {
     const photos = must(await supabase.from('photos').select('path').eq('trip_id', id)) as Pick<Photo, 'path'>[]
     if (photos.length) await supabase.storage.from(BUCKET).remove(photos.map((p) => p.path))
+    const docs = must(await supabase.from('trip_documents').select('path').eq('trip_id', id)) as { path: string }[]
+    if (docs.length) await supabase.storage.from(DOCS).remove(docs.map((d) => d.path))
     must(await supabase.from('trips').delete().eq('id', id))
   },
 
@@ -230,6 +233,54 @@ export const supabaseApi: Api = {
     return rows.map(sortTrip)
   },
 
+  async listItinerary(tripId) {
+    return must(await supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day').order('time', { nullsFirst: false }).order('position'))
+  },
+  async addItineraryItem(tripId, item) {
+    return must(await supabase.from('itinerary_items').insert({ ...item, trip_id: tripId }).select().single())
+  },
+  async updateItineraryItem(id, patch) {
+    return must(await supabase.from('itinerary_items').update(patch).eq('id', id).select().single())
+  },
+  async deleteItineraryItem(id) {
+    must(await supabase.from('itinerary_items').delete().eq('id', id))
+  },
+  async listPacking(tripId) {
+    return must(await supabase.from('packing_items').select('*').eq('trip_id', tripId).order('position').order('created_at'))
+  },
+  async addPackingItems(tripId, items) {
+    if (!items.length) return
+    must(await supabase.from('packing_items').upsert(items.map((i) => ({ ...i, trip_id: tripId })), { onConflict: 'trip_id,label', ignoreDuplicates: true }))
+  },
+  async updatePackingItem(id, patch) {
+    return must(await supabase.from('packing_items').update(patch).eq('id', id).select().single())
+  },
+  async deletePackingItem(id) {
+    must(await supabase.from('packing_items').delete().eq('id', id))
+  },
+  async listDocuments(tripId) {
+    return must(await supabase.from('trip_documents').select('*').eq('trip_id', tripId).order('created_at', { ascending: false }))
+  },
+  async uploadDocument(tripId, file, kind) {
+    if (file.size > 10 * 1024 * 1024) throw new Error('El archivo pasa de 10 MB.')
+    const ext = (file.name.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? '').toLowerCase()
+    const path = `${tripId}/${crypto.randomUUID()}${ext}`
+    const up = await supabase.storage.from(DOCS).upload(path, file, { contentType: file.type || undefined, upsert: false })
+    if (up.error) throw new Error(up.error.message.includes('mime') ? 'Solo PDF o imágenes (JPG, PNG, WebP).' : up.error.message)
+    const row = await supabase.from('trip_documents').insert({ trip_id: tripId, name: file.name.slice(0, 160), kind, path, mime: file.type || null, size: file.size }).select().single()
+    if (row.error) await supabase.storage.from(DOCS).remove([path])
+    return must(row)
+  },
+  async deleteDocument(doc) {
+    await supabase.storage.from(DOCS).remove([doc.path])
+    must(await supabase.from('trip_documents').delete().eq('id', doc.id))
+  },
+  async documentUrl(doc) {
+    const { data, error } = await supabase.storage.from(DOCS).createSignedUrl(doc.path, 300)
+    if (error || !data) throw new Error(error?.message ?? 'No se pudo abrir el documento')
+    return data.signedUrl
+  },
+
   async getBudget(tripId) {
     return must(await supabase.from('trip_budgets').select('*').eq('trip_id', tripId).maybeSingle())
   },
@@ -331,6 +382,10 @@ export const supabaseApi: Api = {
     for (let i = 0; i < photos.length; i += 100) {
       const { error } = await supabase.storage.from(BUCKET).remove(photos.slice(i, i + 100).map((p) => p.path))
       if (error) throw new Error(error.message)
+    }
+    if (owned.length) {
+      const docs = must(await supabase.from('trip_documents').select('path').in('trip_id', owned)) as { path: string }[]
+      for (let i = 0; i < docs.length; i += 100) await supabase.storage.from(DOCS).remove(docs.slice(i, i + 100).map((d) => d.path))
     }
     must(await supabase.rpc('delete_my_account'))
     await supabase.auth.signOut()

@@ -140,6 +140,49 @@ export interface Expense {
   created_at: string
 }
 
+/** Actividad del itinerario de un día (hora opcional, 'HH:MM'). */
+export interface ItineraryItem {
+  id: string
+  trip_id: string
+  stop_id: string | null
+  day: string
+  time: string | null
+  title: string
+  notes: string | null
+  done: boolean
+  position: number
+  user_id: string | null
+  created_at: string
+}
+
+export type PackingCategory = 'docs' | 'clothes' | 'toiletries' | 'electronics' | 'health' | 'other'
+
+export interface PackingItem {
+  id: string
+  trip_id: string
+  category: PackingCategory
+  label: string
+  packed: boolean
+  position: number
+  user_id: string | null
+  created_at: string
+}
+
+export type DocumentKind = 'flight' | 'lodging' | 'insurance' | 'ticket' | 'other'
+
+/** Documento del viaje (billete, reserva…). El archivo está en el bucket privado trip-docs. */
+export interface TripDocument {
+  id: string
+  trip_id: string
+  user_id: string | null
+  name: string
+  kind: DocumentKind
+  path: string
+  mime: string | null
+  size: number | null
+  created_at: string
+}
+
 /** Sitio de una parada: visitado o, en un plan, por ver. */
 export interface Sight {
   id: string

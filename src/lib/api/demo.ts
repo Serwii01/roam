@@ -1,5 +1,6 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
+import type { ItineraryItem } from '../db'
 import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
@@ -15,7 +16,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], itinerary: [], packing: [], documents: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -186,6 +187,9 @@ export const demoApi: Api = {
     state.members = state.members.filter((m) => m.trip_id !== id)
     state.sights = state.sights.filter((x) => x.trip_id !== id)
     state.expenses = state.expenses.filter((x) => x.trip_id !== id)
+    state.itinerary = state.itinerary.filter((x) => x.trip_id !== id)
+    state.packing = state.packing.filter((x) => x.trip_id !== id)
+    state.documents = state.documents.filter((x) => x.trip_id !== id)
     state.budgets = state.budgets.filter((x) => x.trip_id !== id)
     state.invites = state.invites.filter((i) => i.trip_id !== id)
     save()
@@ -345,6 +349,75 @@ export const demoApi: Api = {
   },
   async listFriendsTrips(userIds) {
     return delay(DEMO_PEOPLE.filter((p) => userIds.includes(p.profile.id)).flatMap((p) => p.trips))
+  },
+
+  async listItinerary(tripId) {
+    const key = (i: ItineraryItem) => `${i.day}${i.time ?? '99:99'}${String(i.position).padStart(6, '0')}`
+    return delay(state.itinerary.filter((i) => i.trip_id === tripId).sort((a, b) => key(a).localeCompare(key(b))))
+  },
+  async addItineraryItem(tripId, item) {
+    const i: ItineraryItem = { id: uid(), trip_id: tripId, stop_id: null, time: null, notes: null, done: false, position: 0, user_id: DEMO_USER_ID, created_at: now(), ...item }
+    state.itinerary.push(i)
+    save()
+    return delay(i)
+  },
+  async updateItineraryItem(id, patch) {
+    state.itinerary = state.itinerary.map((i) => (i.id === id ? { ...i, ...patch } : i))
+    save()
+    return delay(state.itinerary.find((i) => i.id === id)!)
+  },
+  async deleteItineraryItem(id) {
+    state.itinerary = state.itinerary.filter((i) => i.id !== id)
+    save()
+  },
+  async listPacking(tripId) {
+    return delay(state.packing.filter((i) => i.trip_id === tripId).sort((a, b) => a.position - b.position))
+  },
+  async addPackingItems(tripId, items) {
+    const have = new Set(state.packing.filter((i) => i.trip_id === tripId).map((i) => i.label.toLowerCase()))
+    for (const it of items) {
+      if (have.has(it.label.toLowerCase())) continue
+      have.add(it.label.toLowerCase())
+      state.packing.push({ id: uid(), trip_id: tripId, packed: false, position: state.packing.length, user_id: DEMO_USER_ID, created_at: now(), ...it })
+    }
+    save()
+  },
+  async updatePackingItem(id, patch) {
+    state.packing = state.packing.map((i) => (i.id === id ? { ...i, ...patch } : i))
+    save()
+    return delay(state.packing.find((i) => i.id === id)!)
+  },
+  async deletePackingItem(id) {
+    state.packing = state.packing.filter((i) => i.id !== id)
+    save()
+  },
+  async listDocuments(tripId) {
+    return delay(state.documents.filter((d) => d.trip_id === tripId).map(({ dataUrl: _, ...d }) => d))
+  },
+  async uploadDocument(tripId, file, kind) {
+    // La demo guarda en el navegador: solo archivos pequeños.
+    if (file.size > 2 * 1024 * 1024) throw new Error('En la demo, los documentos pueden ocupar como mucho 2 MB.')
+    const dataUrl = await new Promise<string>((ok, ko) => {
+      const r = new FileReader()
+      r.onload = () => ok(r.result as string)
+      r.onerror = ko
+      r.readAsDataURL(file)
+    })
+    const doc = { id: uid(), trip_id: tripId, user_id: DEMO_USER_ID, name: file.name, kind, path: `${tripId}/${uid()}`, mime: file.type || null, size: file.size, created_at: now(), dataUrl }
+    state.documents.push(doc)
+    save()
+    const { dataUrl: _, ...rest } = doc
+    return delay(rest)
+  },
+  async deleteDocument(doc) {
+    state.documents = state.documents.filter((d) => d.id !== doc.id)
+    save()
+  },
+  async documentUrl(doc) {
+    // Los navegadores no abren data: en una pestaña: se pasa a un enlace blob: local.
+    const data = state.documents.find((d) => d.id === doc.id)?.dataUrl
+    if (!data) throw new Error('El documento ya no está')
+    return URL.createObjectURL(await (await fetch(data)).blob())
   },
 
   async getBudget(tripId) {

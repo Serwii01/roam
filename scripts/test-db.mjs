@@ -17,7 +17,7 @@ await db.exec(`
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create schema storage;
-  create table storage.buckets (id text primary key, name text, public boolean);
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
   create table storage.objects (bucket_id text, name text, owner uuid);
   alter table storage.objects enable row level security;
   create function storage.foldername(name text) returns text[] language sql as $$ select string_to_array(name, '/') $$;
@@ -311,6 +311,32 @@ await as(C, async () => {
   assert.equal(c.followers, 1)
 })
 await as(B, async () => assert.equal((await db.query('delete from follows where followee = $1', [A])).affectedRows, 1))
+
+// ── Planificador: itinerario, equipaje y documentos (privados del viaje) ──
+await as(A, async () => {
+  await db.query(`insert into itinerary_items (trip_id, stop_id, day, time, title) values ($1, $2, '2025-04-03', '10:00', 'Templo Senso-ji')`, [tripId, stopId])
+  await assert.rejects(db.query(`insert into itinerary_items (trip_id, day, time, title) values ($1, '2025-04-03', '25:00', 'x')`, [tripId]), /check constraint/, 'hora válida')
+  await assert.rejects(db.query(`insert into itinerary_items (trip_id, stop_id, day, title) values ($1, $2, '2025-04-03', 'x')`, [tripId, otherTripStop]), /row-level security/, 'parada del viaje')
+  await db.query(`insert into packing_items (trip_id, category, label) values ($1, 'docs', 'Pasaporte'), ($1, 'electronics', 'Cargador')`, [tripId])
+  await assert.rejects(db.query(`insert into packing_items (trip_id, label) values ($1, 'Pasaporte')`, [tripId]), /unique|duplicate/, 'sin repetidos')
+  await db.query(`insert into trip_documents (trip_id, name, kind, path) values ($1, 'Billete MAD-HND.pdf', 'flight', $2)`, [tripId, `${tripId}/billete.pdf`])
+  await assert.rejects(db.query(`insert into trip_documents (trip_id, name, path) values ($1, 'x', 'otro-viaje/x.pdf')`, [tripId]), /row-level security/, 'la ruta es del viaje')
+  await db.query(`insert into storage.objects (bucket_id, name) values ('trip-docs', $1)`, [`${tripId}/billete.pdf`])
+  assert.equal(await count(`select count(*) n from storage.objects where bucket_id = 'trip-docs'`), 1)
+})
+await as(B, async () => {
+  // Berto no participa (aunque el perfil de Ana sea público).
+  assert.equal(await count('select count(*) n from itinerary_items'), 0)
+  assert.equal(await count('select count(*) n from packing_items'), 0)
+  assert.equal(await count('select count(*) n from trip_documents'), 0)
+  assert.equal(await count(`select count(*) n from storage.objects where bucket_id = 'trip-docs'`), 0, 'no ve los archivos')
+  await assert.rejects(db.query(`insert into storage.objects (bucket_id, name) values ('trip-docs', $1)`, [`${tripId}/intruso.pdf`]), /row-level security/)
+})
+await as(C, async () => {
+  // Carla es compañera: ve y marca el equipaje.
+  assert.equal((await db.query(`update packing_items set packed = true where trip_id = $1`, [tripId])).affectedRows, 2)
+  assert.equal(await count(`select count(*) n from storage.objects where bucket_id = 'trip-docs'`), 1)
+})
 
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))

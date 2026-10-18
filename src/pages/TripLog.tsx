@@ -10,10 +10,12 @@ import type { Sight } from '../lib/db'
 import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
 import { TripShareLink } from '../components/TripShareLink'
+import { PassportAlert, WeatherChip } from '../components/Weather'
+import { passportWarnings } from '../lib/passportCheck'
 import { Empty, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/WorldMap'
 import { api } from '../lib/api'
-import { useAirportMap, useCountries, useTravelMutation, useTrip } from '../lib/hooks'
+import { useAirportMap, useCountries, usePassports, useProfile, useTravelMutation, useTrip } from '../lib/hooks'
 import { formatKm, legKm, tripCountries, tripDays, tripKm, tripModes } from '../lib/stats'
 import { tripCardData } from '../lib/shareData'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
@@ -29,6 +31,8 @@ export function TripLogPage() {
   const [sharing, setSharing] = useState(false)
   const markDone = useTravelMutation(() => api.updateTrip(id!, { status: 'done' }))
   const me = useAuth().user?.id
+  const passports = usePassports()
+  const profile = useProfile()
   const addSight = useTravelMutation(({ stopId, sight }: { stopId: string; sight: NewSight }) => api.addSight(stopId, sight))
   const toggleSight = useTravelMutation((x: Sight) => api.updateSight(x.id, { done: !x.done }))
   const removeSight = useTravelMutation((x: Sight) => api.deleteSight(x.id))
@@ -127,11 +131,22 @@ export function TripLogPage() {
               <Icon name="task_alt" size={18} /> Ya lo hice
             </button>
           )}
+          {(t.user_id === me || (t.member_count ?? 0) > 0) && (
+            <Link to={`/app/viajes/${t.id}/plan`} className={`btn ${t.status === 'planned' ? 'btn-accent' : 'btn-ghost'}`}>
+              <Icon name="checklist" size={18} /> Planificador
+            </Link>
+          )}
           <Link to={`/app/viajes/${t.id}/editar`} className="btn btn-dark">
             <Icon name="edit_note" size={18} /> Editar bitácora
           </Link>
         </div>
       </div>
+
+      {t.status === 'planned' && (t.user_id === me || (t.member_count ?? 0) > 0) && (
+        <div className="mt-6">
+          <PassportAlert warnings={passportWarnings([t], passports.data ?? [], profile.data?.home_country ?? 'ES')} showTrip={false} />
+        </div>
+      )}
 
       <div className="card mt-8 grid grid-cols-2 gap-2 p-2 md:grid-cols-5">
         <StatTile label="Duración" icon="calendar_month" value={days ?? '—'} unit="días" hint={t.start_date ? `${formatDate(t.start_date)} — ${formatDate(t.end_date)}` : 'Sin fechas'} />
@@ -175,7 +190,10 @@ export function TripLogPage() {
                       {s.name}
                       <Flag code={s.country_code} />
                     </h3>
-                    <span className="label-code text-ink-soft">{s.arrived_on ? formatDate(s.arrived_on).toUpperCase() : '—'}</span>
+                    <span className="flex items-center gap-2">
+                      <WeatherChip lat={s.lat} lon={s.lon} date={s.arrived_on} />
+                      <span className="label-code text-ink-soft">{s.arrived_on ? formatDate(s.arrived_on).toUpperCase() : '—'}</span>
+                    </span>
                   </div>
                   {i > 0 && s.transport_in && (
                     <div className="label-code mt-2 flex items-center gap-1.5 text-ink-soft">
