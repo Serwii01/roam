@@ -77,6 +77,8 @@ const tripId = await as(A, async () => {
   )
   await db.query(`update stops set transport_in = 'plane', from_airport = 'MAD', to_airport = 'HND' where trip_id = $1 and position = 1`, [t.id])
   await db.query(`update trips set soundtrack_url = 'https://open.spotify.com/playlist/37i9dQZF1DWWQRwui0ExPn' where id = $1`, [t.id])
+  await db.query(`update stops set flight_no = 'IB6251' where trip_id = $1 and position = 1`, [t.id])
+  await assert.rejects(db.query(`update stops set flight_no = 'vuelo raro' where trip_id = $1 and position = 1`, [t.id]), /check constraint/, 'número de vuelo válido')
   await assert.rejects(db.query(`update trips set soundtrack_url = 'https://evil.example/x' where id = $1`, [t.id]), /check constraint/, 'solo enlaces de Spotify')
   await db.query(`insert into user_countries (country_code) values ('FR')`)
   await db.query(`insert into user_subdivisions (subdivision_code) values ('ES-B')`)

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AirportInput } from '../components/AirportInput'
 import { DateField, DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
+import { AddFlight, FlightField } from '../components/FlightLookup'
 import { Icon } from '../components/Icon'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { SpotifyField } from '../components/Spotify'
@@ -17,7 +18,10 @@ import { useAuth } from '../lib/auth'
 import { computeStamps } from '../lib/badges'
 import type { Sight, Stop, TransportMode, TripStyle, TripWithStops } from '../lib/db'
 import { haversine } from '../lib/geo'
+import type { FlightAirport, FlightRoute } from '../lib/flights'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
+import { appendStops, type DraftStop } from '../lib/import/common'
+import { knownPlaceNear } from '../lib/placesIndex'
 import { nearestAirportLocal, preloadAirports } from '../lib/airportIndex'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
 import { useAirportMap, useCountries, useInvalidateTravel, useProfile, useTrip } from '../lib/hooks'
@@ -203,6 +207,28 @@ export function TripEditorPage() {
     remove: (x) => run('Quitando sitio', () => api.deleteSight(x.id)),
   }
 
+  /** Vuelo por número: añade la ciudad de llegada (y antes la de salida si la ruta no termina allí). */
+  const addFlight = (route: FlightRoute, date: string | null) =>
+    run('Añadiendo vuelo', async () => {
+      const t = await ensureTrip()
+      const known = new Set((await api.getAirports([route.from.iata, route.to.iata])).map((a) => a.iata))
+      const cityOf = async (a: FlightAirport): Promise<DraftStop> => {
+        const q = await knownPlaceNear(a.lat, a.lon, a.countryCode, 50).catch(() => undefined)
+        return { name: q?.es ?? a.city, lat: q?.lat ?? a.lat, lon: q?.lon ?? a.lon, countryCode: a.countryCode, arrived_on: date }
+      }
+      const last = t.stops.at(-1)
+      const drafts: DraftStop[] = []
+      if (!last || haversine([last.lon, last.lat], [route.from.lon, route.from.lat]) > 100) drafts.push(await cityOf(route.from))
+      drafts.push({
+        ...(await cityOf(route.to)),
+        transport: 'plane',
+        from_airport: known.has(route.from.iata) ? route.from.iata : null,
+        to_airport: known.has(route.to.iata) ? route.to.iata : null,
+        flight_no: route.flight,
+      })
+      await appendStops(t, drafts)
+    })
+
   /** Reparte los días del viaje entre las paradas: la primera el día de ida, la última el de vuelta. */
   const spreadDates = () =>
     run('Repartiendo fechas', async () => {
@@ -300,6 +326,7 @@ export function TripEditorPage() {
                   })
                 }
                 onSpread={spreadDates}
+                onAddFlight={addFlight}
                 onEditDates={() => goStep('destino')}
                 home={stops[0]?.country_code ?? profile.data?.home_country ?? undefined}
                 sightOps={sightOps}
@@ -561,6 +588,7 @@ function RutaStep({
   onRemove,
   onMove,
   onSpread,
+  onAddFlight,
   onEditDates,
   home,
   sightOps,
@@ -575,6 +603,7 @@ function RutaStep({
   onRemove: (id: string) => void
   onMove: (i: number, dir: -1 | 1) => void
   onSpread: () => void
+  onAddFlight: (route: FlightRoute, date: string | null) => void
   onEditDates: () => void
   home?: string
   sightOps: SightOps
@@ -608,6 +637,19 @@ function RutaStep({
           </div>
           <div className="mt-4">
             <PlaceSearch onPick={onAdd} home={home} placeholder="Madrid, Barcelona, tu pueblo…" autoFocus />
+          </div>
+          <div className="mt-4">
+            <AddFlight defaultDate={start} onAdd={onAddFlight} busy={!!busy} />
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-surface-highest pt-4 text-sm">
+            <span className="text-ink-soft">¿Ya hiciste el viaje?</span>
+            <Link to="/app/importar" className="inline-flex items-center gap-1 font-semibold text-accent-deep hover:underline">
+              <Icon name="photo_library" size={16} /> Crear la ruta desde tus fotos
+            </Link>
+            <span className="text-ink-soft">o</span>
+            <Link to="/app/importar?de=google" className="inline-flex items-center gap-1 font-semibold text-accent-deep hover:underline">
+              <Icon name="travel_explore" size={16} /> importar de Google Maps
+            </Link>
           </div>
         </div>
       ) : (
@@ -659,6 +701,9 @@ function RutaStep({
               </div>
             </div>
             <PlaceSearch onPick={onAdd} home={home} placeholder="Siguiente ciudad, pueblo o lugar…" autoFocus />
+            <div className="mt-3">
+              <AddFlight defaultDate={stops.at(-1)?.arrived_on ?? start} onAdd={onAddFlight} busy={!!busy} />
+            </div>
           </div>
           {!start && (
             <button type="button" onClick={onEditDates} className="mt-3 text-sm text-ink-soft hover:text-ink">
@@ -719,6 +764,7 @@ function Leg({ stop, km, airports, onChange }: { stop: Stop; km: number; airport
           <AirportInput value={stop.to_airport} airport={airports.get(stop.to_airport ?? '')} placeholder="Aeropuerto de llegada" onChange={(v) => onChange({ to_airport: v })} />
         </div>
       )}
+      {mode === 'plane' && <FlightField key={stop.id} stop={stop} onChange={onChange} />}
     </div>
   )
 }

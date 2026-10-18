@@ -24,6 +24,7 @@ const LegalNoticePage = page(() => import('./pages/Legal'), 'LegalNoticePage')
 const TermsPage = page(() => import('./pages/Legal'), 'TermsPage')
 const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
 const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
+const ImportPage = page(() => import('./pages/Import'), 'ImportPage')
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -58,6 +59,7 @@ export default function App() {
           <Route index element={<ExplorerPage />} />
           <Route path="bitacora" element={<BitacoraPage />} />
           <Route path="viajes/nuevo" element={<TripEditorPage />} />
+          <Route path="importar" element={<ImportPage />} />
           <Route path="viajes/:id" element={<TripLogPage />} />
           <Route path="viajes/:id/editar" element={<TripEditorPage />} />
           <Route path="pasaporte" element={<PassportPage />} />

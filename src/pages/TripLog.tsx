@@ -186,7 +186,7 @@ export function TripLogPage() {
                     <div className="label-code mt-2 flex items-center gap-1.5 text-ink-soft">
                       <Icon name={TRANSPORT[s.transport_in].icon} size={16} className="text-accent" />
                       {TRANSPORT[s.transport_in].label}
-                      {s.transport_in === 'plane' && s.from_airport && s.to_airport && ` · ${s.from_airport} → ${s.to_airport}`}
+                      {s.transport_in === 'plane' && s.from_airport && s.to_airport && ` · ${s.flight_no ? `${s.flight_no} · ` : ''}${s.from_airport} → ${s.to_airport}`}
                       {` · ${formatKm(legs[i - 1].km)} km`}
                     </div>
                   )}

@@ -113,3 +113,21 @@ export async function knownPlaceNear(lat: number, lon: number, cc: string, maxKm
   }
   return best
 }
+
+/** Población conocida más cercana en cualquier país (≤ `maxKm`): para poner nombre a un punto sin conexión. */
+export async function nearestKnownPlace(lat: number, lon: number, maxKm = 35): Promise<KnownPlace | undefined> {
+  let best: KnownPlace | undefined
+  let bestKm = maxKm
+  const dLat = maxKm / 111
+  for (const p of await preloadPlaces()) {
+    if (Math.abs(p.lat - lat) > dLat) continue
+    const km = haversine([lon, lat], [p.lon, p.lat])
+    // A poca distancia de varias, gana la más poblada (Fiumicino → Roma no, pero un barrio → su ciudad sí).
+    const score = km - Math.min(10, Math.log10(Math.max(p.pop, 1)))
+    if (km <= maxKm && (!best || score < bestKm)) {
+      best = p
+      bestKm = score
+    }
+  }
+  return best
+}

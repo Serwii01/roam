@@ -167,6 +167,8 @@ export interface PlaceCodes {
   regionCode?: string
   /** ISO 3166-2 de segundo nivel si existe (provincia, departamento…). */
   provinceCode?: string
+  /** Población del punto (ciudad, pueblo…), en español si OpenStreetMap lo tiene. */
+  name?: string
 }
 
 /** `VITE_NOMINATIM=off` desactiva Nominatim (la OSMF puede pedirlo): las paradas se guardan sin región. */
@@ -217,7 +219,7 @@ export async function lookupPlaceCodes(lat: number, lon: number, signal?: AbortS
   const key = `${lat.toFixed(2)},${lon.toFixed(2)}`
   if (memory[key]) return memory[key]
   return throttled(async () => {
-    const params = new URLSearchParams({ format: 'jsonv2', zoom: '10', addressdetails: '1', lat: String(lat), lon: String(lon) })
+    const params = new URLSearchParams({ format: 'jsonv2', zoom: '10', addressdetails: '1', 'accept-language': 'es', lat: String(lat), lon: String(lon) })
     if (CONTACT) params.set('email', CONTACT)
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, { signal })
     if (!res.ok) return {}
@@ -225,7 +227,12 @@ export async function lookupPlaceCodes(lat: number, lon: number, signal?: AbortS
     const a = json.address ?? {}
     // Nominatim usa distintos niveles según el país; el primero que aparezca es la región.
     const levels = [3, 4, 5, 6, 7, 8].map((n) => a[`ISO3166-2-lvl${n}`]).filter(Boolean)
-    const codes = { countryCode: a.country_code?.toUpperCase(), regionCode: levels[0], provinceCode: levels[1] }
+    const codes = {
+      countryCode: a.country_code?.toUpperCase(),
+      regionCode: levels[0],
+      provinceCode: levels[1],
+      name: a.city ?? a.town ?? a.village ?? a.municipality ?? a.county ?? a.state,
+    }
     remember(key, codes)
     return codes
   })

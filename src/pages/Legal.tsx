@@ -137,6 +137,14 @@ export function PrivacyPage() {
           Nada más: ni el importe ni el viaje.
         </li>
         <li>
+          <b>adsbdb</b>, al buscar un vuelo por su número, solo con ese número.
+        </li>
+        <li>
+          <b>Importar desde fotos o desde Google Maps</b>: los archivos se leen en tu navegador y no se suben para eso. Solo se guardan las
+          paradas que confirmas (y las fotos si eliges subirlas, sin ubicación ni datos de la cámara). Para poner nombre a un punto sin
+          población conocida cerca se consulta Nominatim con sus coordenadas.
+        </li>
+        <li>
           <b>Spotify</b>, solo si pulsas un reproductor o pegas un enlace en el editor. Spotify puede usar sus propias cookies según su política.
         </li>
       </ul>
@@ -258,6 +266,9 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
   { what: 'Sitios para ver (ideas y búsqueda)', who: 'Wikipedia en español · Fundación Wikimedia', license: 'API pública; los títulos enlazan a los artículos (CC BY-SA)', url: 'https://es.wikipedia.org' },
+  { what: 'Rutas de vuelos', who: 'adsbdb', license: 'API pública gratuita (código MIT)', url: 'https://www.adsbdb.com' },
+  { what: 'Lectura de fotos (EXIF)', who: 'exifr', license: 'MIT', url: 'https://github.com/MikeKovarik/exifr' },
+  { what: 'Descomprimir el .zip de Google', who: 'fflate', license: 'MIT', url: 'https://github.com/101arrowz/fflate' },
   { what: 'Tipos de cambio', who: 'currency-api (Fawaz Ahmed), vía jsDelivr', license: 'Datos CC0 1.0', url: 'https://github.com/fawazahmed0/exchange-api' },
   { what: 'Música', who: 'Spotify (reproductor embebido)', license: 'Términos de Spotify', url: 'https://developer.spotify.com/terms' },
 ]

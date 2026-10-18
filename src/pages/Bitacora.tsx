@@ -43,6 +43,9 @@ export function BitacoraPage() {
           <Link to="/app/viajes/nuevo?plan=1" className="chip">
             <Icon name="event_upcoming" size={14} /> Planificar
           </Link>
+          <Link to="/app/importar" className="chip">
+            <Icon name="download" size={14} /> Importar
+          </Link>
         </div>
       </div>
 

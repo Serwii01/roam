@@ -91,6 +91,8 @@ export interface Stop {
   transport_in: TransportMode | null
   from_airport: string | null
   to_airport: string | null
+  /** Número de vuelo del tramo (IB6251). */
+  flight_no?: string | null
 }
 
 export interface Photo {
