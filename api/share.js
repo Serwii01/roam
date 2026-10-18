@@ -1,14 +1,11 @@
 // /u/:usuario, /u/:usuario/:viaje y /v/:token: la misma app, con las etiquetas de vista previa
 // (Open Graph) de ese perfil o viaje, para que WhatsApp y compañía enseñen título, texto e imagen.
-import { loadMeta, type Kind } from './_meta.ts'
-
+import { loadMeta } from './_meta.js'
 export const config = { runtime: 'edge' }
-
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-
-export default async function handler(req: Request): Promise<Response> {
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+export default async function handler(req) {
   const url = new URL(req.url)
-  const kind = (url.searchParams.get('k') ?? 'u') as Kind
+  const kind = url.searchParams.get('k') ?? 'u'
   const id = url.searchParams.get('id') ?? ''
   const username = url.searchParams.get('u') ?? undefined
   const [htmlRes, meta] = await Promise.all([fetch(new URL('/index.html', url)), loadMeta(kind, id, username).catch(() => null)])

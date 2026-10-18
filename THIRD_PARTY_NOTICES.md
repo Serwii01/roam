@@ -20,7 +20,7 @@ ROAM incluye o redistribuye los siguientes datos y componentes. Los textos de li
 | Conversión de fotos HEIC | `dist/assets/heic-to-*.js` (se carga solo al elegir una foto HEIC) | heic-to, con libheif (© struktur AG) y libde265 | LGPL-3.0 ([licencia](licenses/heic-to-libheif-LGPL-3.0.txt), [aviso](licenses/heic-to-NOTICE.txt)). Se usa sin modificar, como módulo independiente que puede sustituirse. Fuente: https://github.com/hoppergee/heic-to y https://github.com/strukturag/libheif |
 | Lectura de EXIF de las fotos | dentro de `dist/assets` (se carga al importar fotos) | exifr (© Mike Kovařík) | MIT |
 | Descompresión de .zip | dentro de `dist/assets` (se carga al importar de Google) | fflate (© Arjun Barrett) | MIT |
-| Imágenes de vista previa | `api/og.ts` (función de Vercel) | @vercel/og (Vercel), con la fuente Geist | MPL-2.0 (se usa sin modificar). Geist: SIL OFL 1.1 |
+| Imágenes de vista previa | `api/og.js` (función de Vercel) | @vercel/og (Vercel), con la fuente Geist | MPL-2.0 (se usa sin modificar). Geist: SIL OFL 1.1 |
 | Motor de mapas | dentro de `dist/assets` | MapLibre GL JS | BSD-3-Clause ([texto](licenses/maplibre-gl-BSD-3-Clause.txt)) |
 
 ## Servicios externos que usa la app (no se redistribuyen)
