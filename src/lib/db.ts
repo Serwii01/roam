@@ -1,7 +1,23 @@
 // Tipos de las tablas de Supabase (ver supabase/migrations).
 
 export type TransportMode = 'plane' | 'train' | 'car' | 'bus' | 'boat' | 'bike' | 'walk'
-export type TripStyle = 'backpacker' | 'roadtrip' | 'relax' | 'cultural' | 'adventure' | 'business'
+export type TripStyle =
+  | 'backpacker'
+  | 'roadtrip'
+  | 'relax'
+  | 'cultural'
+  | 'adventure'
+  | 'business'
+  | 'family'
+  | 'romantic'
+  | 'gastro'
+  | 'nature'
+  | 'beach'
+  | 'snow'
+  | 'city'
+  | 'festival'
+  | 'friends'
+  | 'study'
 export type ContinentCode = 'AF' | 'AN' | 'AS' | 'EU' | 'NA' | 'OC' | 'SA'
 
 export interface Country {
@@ -114,7 +130,24 @@ export interface Wish {
   created_at: string
 }
 
-export type ExpenseCategory = 'transport' | 'lodging' | 'food' | 'activities' | 'shopping' | 'fees' | 'other'
+export type ExpenseCategory =
+  | 'transport'
+  | 'flights'
+  | 'lodging'
+  | 'food'
+  | 'drinks'
+  | 'activities'
+  | 'tours'
+  | 'shopping'
+  | 'gifts'
+  | 'health'
+  | 'connectivity'
+  | 'tips'
+  | 'fees'
+  | 'other'
+
+/** Cómo se reparte un gasto. */
+export type SplitMode = 'equal' | 'percent' | 'amount' | 'shares'
 
 /** Presupuesto del viaje y moneda en la que se suman los gastos. Solo lo ven los participantes. */
 export interface TripBudget {
@@ -137,6 +170,11 @@ export interface Expense {
   currency: string
   rate: number
   spent_on: string | null
+  /** Quién pagó: 'u:<id>' (con cuenta) o 'g:<nombre>' (compañero sin cuenta). */
+  payer_key?: string | null
+  split_mode?: SplitMode
+  /** Personas y valor según el modo; null (gastos antiguos) = a partes iguales entre quienes tienen cuenta. */
+  split?: { k: string; v: number }[] | null
   created_at: string
 }
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Spinner } from './components/ui'
@@ -31,6 +31,28 @@ const SharedTripPage = page(() => import('./pages/Public'), 'SharedTripPage')
 const PublicProfilePage = page(() => import('./pages/Public'), 'PublicProfilePage')
 const PublicTripPage = page(() => import('./pages/Public'), 'PublicTripPage')
 
+/** Cada página nueva empieza arriba (o en su #ancla), también al venir del pie de página. */
+function ScrollToTop() {
+  const { pathname, hash } = useLocation()
+  useLayoutEffect(() => {
+    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [pathname, hash])
+  useEffect(() => {
+    if (!hash) return
+    // La página puede tardar en cargar: se reintenta hasta que aparece el ancla.
+    let tries = 0
+    const id = setInterval(() => {
+      const el = document.getElementById(decodeURIComponent(hash.slice(1)))
+      if (el || ++tries > 20) {
+        clearInterval(id)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+    return () => clearInterval(id)
+  }, [pathname, hash])
+  return null
+}
+
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
@@ -49,6 +71,7 @@ function GuestOnly({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <ErrorBoundary>
         <Suspense fallback={<Spinner />}>
       <Routes>

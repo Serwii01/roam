@@ -1,14 +1,21 @@
 // Dinero del viaje: monedas, moneda de cada país, tipos de cambio y formato.
 // Tipos de cambio: currency-api de Fawaz Ahmed (datos CC0, gratis y sin clave, servidos por jsDelivr), con
 // histórico diario: https://github.com/fawazahmed0/exchange-api
-import type { ExpenseCategory } from './db'
+import type { Expense, ExpenseCategory } from './db'
 
 export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string; icon: string; color: string }> = {
-  transport: { label: 'Transporte', icon: 'commute', color: '#d53e00' },
+  flights: { label: 'Vuelos', icon: 'flight', color: '#b33200' },
+  transport: { label: 'Transporte', icon: 'commute', color: '#e2581e' },
   lodging: { label: 'Alojamiento', icon: 'hotel', color: '#1a1c1d' },
-  food: { label: 'Comida', icon: 'restaurant', color: '#e8833a' },
-  activities: { label: 'Actividades', icon: 'local_activity', color: '#5b6cff' },
+  food: { label: 'Comida', icon: 'restaurant', color: '#e8933a' },
+  drinks: { label: 'Bebidas y ocio', icon: 'local_bar', color: '#a8458f' },
+  activities: { label: 'Entradas', icon: 'local_activity', color: '#5b6cff' },
+  tours: { label: 'Excursiones', icon: 'tour', color: '#2f7fb8' },
   shopping: { label: 'Compras', icon: 'shopping_bag', color: '#2e9e6b' },
+  gifts: { label: 'Regalos', icon: 'redeem', color: '#d4a017' },
+  health: { label: 'Salud', icon: 'medical_services', color: '#c43c4c' },
+  connectivity: { label: 'Internet y SIM', icon: 'sim_card', color: '#4b9a9a' },
+  tips: { label: 'Propinas', icon: 'volunteer_activism', color: '#9a7b4b' },
   fees: { label: 'Trámites y seguros', icon: 'description', color: '#8a8d93' },
   other: { label: 'Otros', icon: 'more_horiz', color: '#c4c6cb' },
 }
@@ -94,12 +101,48 @@ export function exchangeRate(from: string, to: string, date?: string | null): Pr
   return rates.get(key)!
 }
 
-/** Quién debe a quién para quedar en paz, repartiendo cada gasto a partes iguales entre todos. */
-export function settle(paid: Map<string, number>, people: string[]): { from: string; to: string; amount: number }[] {
-  if (people.length < 2) return []
-  const total = [...paid.values()].reduce((a, b) => a + b, 0)
-  const share = total / people.length
-  const balance = people.map((p) => ({ p, v: (paid.get(p) ?? 0) - share }))
+/**
+ * Lo que le toca a cada persona de un gasto, en la moneda del viaje. `people`: todas las del viaje.
+ * Sin reparto guardado (gastos de antes de poder elegirlo) se divide entre quienes tienen cuenta, como entonces:
+ * así, añadir después a un compañero sin cuenta no cambia lo que ya estaba repartido.
+ */
+export function sharesOf(e: Pick<Expense, 'amount' | 'rate' | 'split_mode' | 'split'>, people: string[]): Map<string, number> {
+  const total = e.amount * e.rate
+  const out = new Map<string, number>()
+  const split = (e.split ?? []).filter((x) => x.v > 0)
+  const mode = e.split_mode ?? 'equal'
+  if (!split.length || mode === 'equal') {
+    const members = people.filter((k) => k.startsWith('u:'))
+    const who = split.length ? split.map((x) => x.k) : members.length ? members : people
+    for (const k of who) out.set(k, total / Math.max(1, who.length))
+  } else if (mode === 'percent') {
+    for (const x of split) out.set(x.k, (total * x.v) / 100)
+  } else if (mode === 'amount') {
+    for (const x of split) out.set(x.k, x.v * e.rate)
+  } else {
+    const sum = split.reduce((a, x) => a + x.v, 0)
+    for (const x of split) out.set(x.k, (total * x.v) / sum)
+  }
+  return out
+}
+
+/** Saldo de cada persona (pagado − lo que le toca): positivo = le deben, negativo = debe. */
+export function balancesOf(expenses: Expense[], people: string[]) {
+  const paid = new Map<string, number>(people.map((p) => [p, 0]))
+  const owed = new Map<string, number>(people.map((p) => [p, 0]))
+  for (const e of expenses) {
+    const payer = e.payer_key ?? (e.paid_by ? `u:${e.paid_by}` : null)
+    if (!payer) continue // sin «pagó» no entra en las cuentas
+    paid.set(payer, (paid.get(payer) ?? 0) + e.amount * e.rate)
+    for (const [k, v] of sharesOf(e, people)) owed.set(k, (owed.get(k) ?? 0) + v)
+  }
+  return { paid, owed }
+}
+
+/** Quién paga a quién para quedar en paz, con el mínimo de pagos (de mayor deudor a mayor acreedor). */
+export function settleBalances(paid: Map<string, number>, owed: Map<string, number>): { from: string; to: string; amount: number }[] {
+  const keys = [...new Set([...paid.keys(), ...owed.keys()])]
+  const balance = keys.map((p) => ({ p, v: (paid.get(p) ?? 0) - (owed.get(p) ?? 0) }))
   const debtors = balance.filter((b) => b.v < -0.005).sort((a, b) => a.v - b.v)
   const creditors = balance.filter((b) => b.v > 0.005).sort((a, b) => b.v - a.v)
   const out: { from: string; to: string; amount: number }[] = []

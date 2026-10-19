@@ -341,10 +341,11 @@ export function TripEditorPage() {
                 onAdd={addPlace}
                 onChange={(stopId, patch) => run('Guardando', () => api.updateStop(stopId, patch))}
                 onRemove={(stopId) => run('Quitando parada', () => api.deleteStop(stopId))}
-                onMove={(i, dir) =>
+                onMove={(from, to) =>
                   run('Reordenando', () => {
                     const next = [...stops]
-                    ;[next[i], next[i + dir]] = [next[i + dir], next[i]]
+                    const [moved] = next.splice(from, 1)
+                    next.splice(to, 0, moved)
                     return api.reorderStops(next)
                   })
                 }
@@ -621,13 +622,15 @@ function RutaStep({
   onAdd: (p: Place) => void
   onChange: (id: string, patch: Partial<Stop>) => void
   onRemove: (id: string) => void
-  onMove: (i: number, dir: -1 | 1) => void
+  /** Mueve la parada de la posición `from` a la `to`. */
+  onMove: (from: number, to: number) => void
   onSpread: () => void
   onAddFlight: (route: FlightRoute, date: string | null) => void
   onEditDates: () => void
   home?: string
 }) {
   const stops = trip?.stops ?? []
+  const drag = useStopDrag(stops.length, onMove)
   const [start, end] = range
   const undated = stops.filter((s) => !s.arrived_on).length
   // Las paradas nuevas heredan el día de la anterior: si todas comparten fecha en un viaje de varios días, conviene repartir.
@@ -689,9 +692,19 @@ function RutaStep({
             </div>
           )}
 
-          <ol className="mt-5">
+          {stops.length > 1 && (
+            <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-soft">
+              <Icon name="drag_indicator" size={16} /> Arrastra una parada desde el asa para cambiar el orden.
+            </p>
+          )}
+          <ol className="mt-3" ref={drag.list}>
             {stops.map((s, i) => (
-              <li key={s.id}>
+              <li
+                key={s.id}
+                data-stop-index={i}
+                className={drag.state?.from === i ? 'relative z-20' : drag.state ? 'transition-transform duration-150' : undefined}
+                style={drag.style(i)}
+              >
                 {i > 0 && <Leg stop={s} km={legKm(stops, i, airports)} airports={airports} onChange={(patch) => onChange(s.id, patch)} />}
                 <StopCard
                   stop={s}
@@ -704,7 +717,9 @@ function RutaStep({
                   photos={trip?.photos.filter((p) => p.stop_id === s.id).length ?? 0}
                   onChange={(patch) => onChange(s.id, patch)}
                   onRemove={() => onRemove(s.id)}
-                  onMove={(dir) => onMove(i, dir)}
+                  onMove={(dir) => onMove(i, i + dir)}
+                  dragging={drag.state?.from === i}
+                  handle={drag.handle(i)}
                 />
               </li>
             ))}
@@ -800,6 +815,8 @@ function StopCard({
   onChange,
   onRemove,
   onMove,
+  dragging,
+  handle,
 }: {
   stop: Stop
   index: number
@@ -812,12 +829,15 @@ function StopCard({
   onChange: (patch: Partial<Stop>) => void
   onRemove: () => void
   onMove: (dir: -1 | 1) => void
+  dragging?: boolean
+  handle?: ReactNode
 }) {
   const [name, setName] = useState(s.name)
   useEffect(() => setName(s.name), [s.name])
   const label = i === 0 ? 'Salida' : homeReturn ? 'Vuelta a casa' : i === total - 1 && total > 1 ? 'Última parada' : `Parada ${i + 1}`
   return (
-    <div className="flex items-start gap-3 rounded-md bg-surface-low p-3 sm:items-center">
+    <div data-stop-card className={`flex items-start gap-2 rounded-md bg-surface-low p-3 transition-shadow sm:items-center sm:gap-3 ${dragging ? 'shadow-[0_12px_32px_rgba(0,0,0,0.22)] ring-2 ring-accent' : ''}`}>
+      {handle}
       <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full font-display font-bold text-white sm:mt-0 ${i === 0 || homeReturn ? 'bg-accent' : 'bg-ink'}`}>
         {homeReturn ? <Icon name="home" size={20} /> : i + 1}
       </span>
@@ -1170,4 +1190,83 @@ interface SightOps {
 function tripFields<T extends { title: string; start_date?: string | null; end_date?: string | null }>(d: T): T {
   const end = d.start_date && d.end_date && d.end_date < d.start_date ? d.start_date : d.end_date
   return { ...d, title: d.title.trim().slice(0, 120) || 'Nueva expedición', end_date: end }
+}
+
+/**
+ * Arrastrar paradas para reordenar, con ratón o con el dedo (pointer events), desde un asa. La parada
+ * sigue al puntero y las demás se apartan para dejarle hueco; al soltar se guarda el nuevo orden.
+ */
+function useStopDrag(count: number, onMove: (from: number, to: number) => void) {
+  const list = useRef<HTMLOListElement>(null)
+  const [state, setState] = useState<{ from: number; to: number; dy: number; h: number } | null>(null)
+  const info = useRef<{ startY: number; scroll0: number; mids: number[] } | null>(null)
+
+  const handle = (i: number) =>
+    count > 1 ? (
+      <button
+        type="button"
+        aria-label="Arrastrar para cambiar el orden"
+        title="Arrastra para cambiar el orden"
+        className="-ml-1 grid h-10 w-7 shrink-0 cursor-grab touch-none place-items-center self-center rounded-xs text-ink-soft hover:bg-surface-container hover:text-ink active:cursor-grabbing"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          e.preventDefault()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          const items = [...(list.current?.querySelectorAll<HTMLElement>(':scope > li[data-stop-index]') ?? [])]
+          // El centro de cada tarjeta (sin el tramo de transporte de encima) decide dónde cae.
+          const cards = items.map((el) => el.querySelector<HTMLElement>('[data-stop-card]') ?? el)
+          info.current = {
+            startY: e.clientY,
+            scroll0: scrollY,
+            mids: cards.map((el) => {
+              const r = el.getBoundingClientRect()
+              return r.top + scrollY + r.height / 2
+            }),
+          }
+          setState({ from: i, to: i, dy: 0, h: items[i]?.getBoundingClientRect().height ?? 0 })
+        }}
+        onPointerMove={(e) => {
+          const d = info.current
+          if (!d || !state) return
+          // Desplaza la página si se arrastra cerca del borde (útil en el móvil).
+          if (e.clientY < 90) scrollBy(0, -12)
+          else if (e.clientY > innerHeight - 90) scrollBy(0, 12)
+          const dy = e.clientY - d.startY + (scrollY - d.scroll0)
+          const y = d.mids[state.from] + dy
+          let to = 0
+          d.mids.forEach((m, j) => j !== state.from && m < y && to++)
+          setState({ ...state, to, dy })
+        }}
+        onPointerUp={() => {
+          if (state && state.to !== state.from) onMove(state.from, state.to)
+          info.current = null
+          setState(null)
+        }}
+        onPointerCancel={() => {
+          info.current = null
+          setState(null)
+        }}
+        onKeyDown={(e) => {
+          // Con teclado: flechas arriba y abajo.
+          const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1
+          if (to >= 0 && to < count) {
+            e.preventDefault()
+            onMove(i, to)
+          }
+        }}
+      >
+        <Icon name="drag_indicator" size={20} />
+      </button>
+    ) : null
+
+  const style = (i: number): React.CSSProperties | undefined => {
+    if (!state) return undefined
+    const { from, to, dy, h } = state
+    if (i === from) return { transform: `translateY(${dy}px)` }
+    if (from < to && i > from && i <= to) return { transform: `translateY(${-h}px)` }
+    if (from > to && i < from && i >= to) return { transform: `translateY(${h}px)` }
+    return undefined
+  }
+
+  return { list, state, handle, style }
 }

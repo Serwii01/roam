@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DateRangeField, formatDay } from './DatePicker'
+import { DateRangeField, TimeField, formatDay } from './DatePicker'
 import { Icon } from './Icon'
 import { WeatherChip } from './Weather'
 import { Flag, plural } from './ui'
@@ -80,7 +80,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="min-w-0">
         {/* Saltar a un día */}
-        <nav aria-label="Días" className="sticky top-[104px] z-20 -mx-1 mb-4 xl:top-16 flex gap-1 overflow-x-auto bg-card/95 px-1 py-2 backdrop-blur [scrollbar-width:none]">
+        <nav aria-label="Días" className="sticky top-16 z-20 -mx-1 mb-4 flex gap-1 overflow-x-auto bg-card/95 px-1 py-2 backdrop-blur [scrollbar-width:none]">
           {days.map((d, i) => {
             const n = byDay.get(d)?.length ?? 0
             return (
@@ -316,15 +316,9 @@ function SightRow({
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-white">{index + 1}</span>
         )}
         {editable ? (
-          <input
-            type="time"
-            aria-label={`Hora de ${s.name}`}
-            className="w-[5.4rem] shrink-0 rounded-xs bg-card px-1 py-1 text-xs tabular-nums ring-1 ring-outline-soft"
-            defaultValue={s.time ?? ''}
-            onBlur={(e) => (e.target.value || null) !== (s.time ?? null) && onTime(e.target.value || null)}
-          />
+          <TimeField value={s.time ?? null} label={`Hora de ${s.name}`} onChange={(t) => t !== (s.time?.slice(0, 5) ?? null) && onTime(t)} />
         ) : (
-          s.time && <span className="w-12 shrink-0 text-xs tabular-nums text-ink-soft">{s.time}</span>
+          s.time && <span className="w-12 shrink-0 text-xs tabular-nums text-ink-soft">{s.time.slice(0, 5)}</span>
         )}
         {editable ? (
           <input

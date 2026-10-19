@@ -385,6 +385,7 @@ export function DateField({
   max,
   placeholder = 'Añadir fecha',
   label = 'Fecha de llegada',
+  variant = 'chip',
 }: {
   value: string | null
   onChange: (d: string | null) => void
@@ -392,6 +393,8 @@ export function DateField({
   max?: string | null
   placeholder?: string
   label?: string
+  /** 'chip': pastilla pequeña; 'field': campo de formulario a todo el ancho, con su etiqueta. */
+  variant?: 'chip' | 'field'
 }) {
   const anchor = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
@@ -407,10 +410,24 @@ export function DateField({
           setView(initialView(value ?? min))
           setOpen(true)
         }}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${value ? 'bg-card text-ink ring-1 ring-outline-soft hover:ring-ink' : 'border border-dashed border-outline text-ink-soft hover:border-ink hover:text-ink'}`}
+        aria-label={variant === 'field' ? `${label}: ${value ? formatDay(value) : 'sin fecha'}` : undefined}
+        className={
+          variant === 'field'
+            ? 'field flex w-full items-center gap-2 py-2! text-left'
+            : `inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${value ? 'bg-card text-ink ring-1 ring-outline-soft hover:ring-ink' : 'border border-dashed border-outline text-ink-soft hover:border-ink hover:text-ink'}`
+        }
       >
-        <Icon name="calendar_today" size={14} className={value ? 'text-accent' : ''} />
-        {value ? formatDay(value) : placeholder}
+        <Icon name="calendar_today" size={variant === 'field' ? 18 : 14} className={value ? 'text-accent' : 'text-ink-soft'} />
+        {variant === 'field' ? (
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="label-stamp block text-ink-soft">{label}</span>
+            <span className={value ? 'font-semibold' : 'text-ink-soft'}>{value ? formatDay(value) : placeholder}</span>
+          </span>
+        ) : value ? (
+          formatDay(value)
+        ) : (
+          placeholder
+        )}
       </button>
       <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} title={label} width={340}>
         {inTrip && <p className="mb-2 text-sm text-ink-soft">En gris, los días del viaje.</p>}
@@ -438,6 +455,82 @@ export function DateField({
             Quitar fecha
           </button>
         )}
+      </Popover>
+    </>
+  )
+}
+
+const TIME_PRESETS = [
+  { label: 'Mañana', icon: 'wb_twilight', t: '09:00' },
+  { label: 'Mediodía', icon: 'light_mode', t: '13:00' },
+  { label: 'Tarde', icon: 'wb_sunny', t: '17:00' },
+  { label: 'Noche', icon: 'dark_mode', t: '21:00' },
+]
+
+/** Hora 'HH:MM' con el diseño de la web: atajos (mañana, tarde…), hora y minutos. */
+export function TimeField({ value, onChange, label = 'Hora' }: { value: string | null; onChange: (t: string | null) => void; label?: string }) {
+  const anchor = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+  const current = value ? value.slice(0, 5) : null
+  const [hour, setHour] = useState<number | null>(current ? Number(current.slice(0, 2)) : null)
+  const pick = (t: string | null) => {
+    onChange(t)
+    setOpen(false)
+  }
+  const cell = (on: boolean) =>
+    `h-9 rounded-sm text-sm tabular-nums transition ${on ? 'bg-accent font-semibold text-white' : 'bg-surface-low hover:bg-surface-container'}`
+
+  return (
+    <>
+      <button
+        ref={anchor}
+        type="button"
+        aria-label={label}
+        onClick={() => {
+          setHour(current ? Number(current.slice(0, 2)) : null)
+          setOpen(true)
+        }}
+        className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-semibold tabular-nums transition ${current ? 'bg-card text-ink ring-1 ring-outline-soft hover:ring-ink' : 'border border-dashed border-outline text-ink-soft hover:border-ink hover:text-ink'}`}
+      >
+        <Icon name="schedule" size={14} className={current ? 'text-accent' : ''} />
+        {current ?? 'Hora'}
+      </button>
+      <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} title={label} width={300}>
+        <div className="grid grid-cols-4 gap-1.5">
+          {TIME_PRESETS.map((p) => (
+            <button key={p.t} type="button" onClick={() => pick(p.t)} className={`flex flex-col items-center gap-0.5 rounded-sm py-2 text-[11px] transition ${current === p.t ? 'bg-accent text-white' : 'bg-surface-low hover:bg-surface-container'}`}>
+              <Icon name={p.icon} size={18} />
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="label-stamp mt-3 mb-1.5 text-ink-soft">Hora</div>
+        <div className="grid grid-cols-6 gap-1">
+          {Array.from({ length: 24 }, (_, h) => (
+            <button key={h} type="button" aria-label={`${pad(h)} h`} aria-pressed={hour === h} onClick={() => setHour(h)} className={cell(hour === h)}>
+              {pad(h)}
+            </button>
+          ))}
+        </div>
+        <div className="label-stamp mt-3 mb-1.5 text-ink-soft">Minutos</div>
+        <div className="grid grid-cols-4 gap-1">
+          {[0, 15, 30, 45].map((m) => {
+            const t = hour === null ? null : `${pad(hour)}:${pad(m)}`
+            return (
+              <button key={m} type="button" disabled={hour === null} onClick={() => t && pick(t)} className={`${cell(!!t && current === t)} disabled:opacity-40`}>
+                :{pad(m)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-3 flex justify-between gap-2">
+          <button type="button" className="btn btn-ghost px-3!" onClick={() => pick(null)} disabled={!current}>
+            Sin hora
+          </button>
+          <button type="button" className="btn btn-dark px-3!" disabled={hour === null} onClick={() => hour !== null && pick(`${pad(hour)}:${current && Number(current.slice(0, 2)) === hour ? current.slice(3) : '00'}`)}>
+            Listo
+          </button>
+        </div>
       </Popover>
     </>
   )

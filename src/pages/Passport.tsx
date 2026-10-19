@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
+import { DateField } from '../components/DatePicker'
 import { Icon } from '../components/Icon'
 import { Stamp } from '../components/Stamp'
 import { YearInReview } from '../components/YearInReview'
@@ -495,7 +496,7 @@ function PassportDocs({ passports }: { passports: Passport[] }) {
       </ul>
       {draft && (
         <form
-          className="mt-4 grid gap-3 rounded-sm bg-surface-low p-4 sm:grid-cols-3"
+          className="mt-4 grid grid-cols-1 gap-3 rounded-sm bg-surface-low p-4 sm:grid-cols-3"
           onSubmit={async (e) => {
             e.preventDefault()
             if (!draft.country_code) return
@@ -512,8 +513,8 @@ function PassportDocs({ passports }: { passports: Passport[] }) {
               </option>
             ))}
           </select>
-          <input type="date" className="field py-2!" title="Expedido" value={draft.issued_on ?? ''} onChange={(e) => setDraft({ ...draft, issued_on: e.target.value || null })} />
-          <input type="date" className="field py-2!" title="Caduca" value={draft.expires_on ?? ''} onChange={(e) => setDraft({ ...draft, expires_on: e.target.value || null })} />
+          <DateField variant="field" label="Expedido" placeholder="Elegir fecha" value={draft.issued_on ?? null} onChange={(d) => setDraft({ ...draft, issued_on: d })} />
+          <DateField variant="field" label="Caduca" placeholder="Elegir fecha" value={draft.expires_on ?? null} onChange={(d) => setDraft({ ...draft, expires_on: d })} />
           <div className="flex gap-2 sm:col-span-3">
             <button className="btn btn-dark" type="submit">
               Guardar

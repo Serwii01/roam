@@ -252,6 +252,16 @@ await as(A, async () => {
   await assert.rejects(db.query(`insert into expenses (trip_id, stop_id, category, amount, currency) values ($1, $2, 'food', 5, 'EUR')`, [tripId, otherTripStop]), /row-level security/, 'la parada es del viaje')
   assert.equal(Number((await one('select sum(amount * rate) n from expenses where trip_id = $1', [tripId])).n), 60000 * 0.0061 + 850)
 })
+// Reparto: pagado por un compañero sin cuenta y repartido por porcentajes.
+await as(A, async () => {
+  await db.query(`insert into expenses (trip_id, category, amount, currency, payer_key, split_mode, split) values ($1, 'drinks', 40, 'EUR', 'g:Lucía', 'percent', $2)`, [tripId, JSON.stringify([{ k: `u:${A}`, v: 70 }, { k: 'g:Lucía', v: 30 }])])
+  await db.query(`update trips set style = 'gastro' where id = $1`, [tripId])
+  await assert.rejects(db.query(`update trips set style = 'crucero espacial' where id = $1`, [tripId]), /check constraint/)
+  await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency, payer_key) values ($1, 'food', 5, 'EUR', 'x:raro')`, [tripId]), /check constraint/, 'persona válida')
+  await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency, payer_key, paid_by) values ($1, 'food', 5, 'EUR', $2, $3)`, [tripId, `u:${B}`, A]), /check constraint/, 'paid_by y payer_key coinciden')
+  await db.query(`delete from expenses where category = 'drinks' and trip_id = $1`, [tripId])
+})
+
 // Carla entra en el viaje: puede pagar y ver los gastos.
 await db.query('insert into trip_members (trip_id, user_id) values ($1, $2)', [tripId, C])
 await as(C, async () => {

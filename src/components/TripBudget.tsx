@@ -9,14 +9,55 @@ import type { NewExpense } from '../lib/api/types'
 import { useUser } from '../lib/auth'
 import { localeCountry } from '../lib/geocode'
 import { useProfile } from '../lib/hooks'
-import type { Expense, ExpenseCategory, TripMember, TripWithStops } from '../lib/db'
-import { CATEGORY_ORDER, CURRENCIES, EXPENSE_CATEGORIES, currencyForCountry, currencyName, exchangeRate, formatMoney, settle } from '../lib/money'
+import type { Expense, ExpenseCategory, SplitMode, TripMember, TripWithStops } from '../lib/db'
+import { CATEGORY_ORDER, CURRENCIES, EXPENSE_CATEGORIES, balancesOf, currencyForCountry, currencyName, exchangeRate, formatMoney, settleBalances, sharesOf } from '../lib/money'
 
 const parseAmount = (s: string) => {
   const n = Number(s.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'))
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null
 }
 const today = () => new Date().toISOString().slice(0, 10)
+const parseNum = (s: string) => {
+  const n = Number(s.replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+const fmtNum = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',')
+
+/** Una persona del reparto: con cuenta ('u:<id>') o compañero añadido a mano ('g:<nombre>'). */
+export interface Person {
+  key: string
+  name: string
+  me: boolean
+  guest: boolean
+  avatar: { id: string; avatar_url: string | null; display_name?: string | null; username?: string }
+}
+
+/** Participantes con cuenta más los compañeros sin cuenta (sin repetir a quien ya está por nombre). */
+export function tripPeople(members: TripMember[], companions: string[], me: string): Person[] {
+  const out: Person[] = members.map((m) => ({
+    key: `u:${m.user_id}`,
+    name: m.user_id === me ? 'Tú' : m.display_name || m.username,
+    me: m.user_id === me,
+    guest: false,
+    avatar: { id: m.user_id, avatar_url: m.avatar_url, display_name: m.display_name, username: m.username },
+  }))
+  const taken = new Set(members.flatMap((m) => [m.display_name, m.username].filter(Boolean).map((n) => n!.trim().toLowerCase())))
+  for (const raw of companions) {
+    const name = raw.trim().slice(0, 80)
+    if (!name || taken.has(name.toLowerCase())) continue
+    taken.add(name.toLowerCase())
+    out.push({ key: `g:${name}`, name, me: false, guest: true, avatar: { id: `g:${name}`, avatar_url: null, display_name: name } })
+  }
+  return out
+}
+const payerOf = (e: Expense) => e.payer_key ?? (e.paid_by ? `u:${e.paid_by}` : null)
+
+const MODES: { id: SplitMode; label: string; hint: string }[] = [
+  { id: 'equal', label: 'Igual', hint: 'A partes iguales entre los marcados' },
+  { id: 'percent', label: '%', hint: 'Cada uno un porcentaje (tiene que sumar 100 %)' },
+  { id: 'amount', label: 'Importe', hint: 'Cuánto le toca exactamente a cada uno' },
+  { id: 'shares', label: 'Partes', hint: 'Por partes: quien tiene 2 paga el doble que quien tiene 1' },
+]
 
 /** Presupuesto y gastos del viaje. Solo para participantes (la base de datos tampoco los enseña a nadie más). */
 export function TripBudget({ trip }: { trip: TripWithStops }) {
@@ -33,7 +74,8 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
   const homeCurrency = currencyForCountry(profile.data?.home_country) ?? currencyForCountry(localeCountry()) ?? 'EUR'
   const currency = budget.data?.currency ?? homeCurrency
   const list = useMemo(() => expenses.data ?? [], [expenses.data])
-  const people = members.data ?? []
+  const people = useMemo(() => tripPeople(members.data ?? [], trip.companions ?? [], user.id), [members.data, trip.companions, user.id])
+  const keys = people.map((p) => p.key)
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['expenses', trip.id] }), qc.invalidateQueries({ queryKey: ['budget', trip.id] })])
 
   const total = list.reduce((a, e) => a + e.amount * e.rate, 0)
@@ -43,11 +85,10 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
   const pct = limit ? total / limit : null
   const planned = trip.status === 'planned'
 
-  // Cuentas claras: lo que pagó cada uno, a partes iguales entre todos los participantes.
-  const paid = new Map<string, number>()
-  for (const e of list) if (e.paid_by) paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + e.amount * e.rate)
-  const transfers = settle(paid, people.map((p) => p.user_id))
-  const who = (id: string | null) => people.find((p) => p.user_id === id)
+  // Cuentas claras: lo que pagó cada uno frente a lo que le toca según el reparto de cada gasto.
+  const { paid, owed } = balancesOf(list, keys)
+  const transfers = settleBalances(paid, owed)
+  const who = (k: string | null) => people.find((p) => p.key === k)
 
   const groups = useMemo(() => {
     const g = new Map<string, Expense[]>()
@@ -182,7 +223,16 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
                 {items.map((e) => {
                   const cat = EXPENSE_CATEGORIES[e.category]
                   const stop = trip.stops.find((s) => s.id === e.stop_id)
-                  const payer = who(e.paid_by)
+                  const payer = who(payerOf(e))
+                  const n = e.split?.filter((x) => x.v > 0).length
+                  const splitNote =
+                    people.length > 1 && payer
+                      ? e.split_mode && e.split_mode !== 'equal'
+                        ? `reparto por ${e.split_mode === 'percent' ? '%' : e.split_mode === 'amount' ? 'importes' : 'partes'}`
+                        : n && n < people.length
+                          ? `para ${n}`
+                          : null
+                      : null
                   return (
                     <li key={e.id}>
                       <button type="button" onClick={() => setForm(e)} className="flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container">
@@ -192,7 +242,7 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-semibold">{e.description || cat.label}</span>
                           <span className="block truncate text-xs text-ink-soft">
-                            {[stop?.name, people.length > 1 && payer ? `pagó ${payer.user_id === user.id ? 'tú' : payer.display_name || payer.username}` : null].filter(Boolean).join(' · ') || cat.label}
+                            {[stop?.name, people.length > 1 && payer ? `pagó ${payer.me ? 'tú' : payer.name}` : null, splitNote].filter(Boolean).join(' · ') || cat.label}
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
@@ -209,34 +259,50 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
         </div>
       )}
 
-      {people.length > 1 && list.some((e) => e.paid_by) && (
-        <div className="mt-5 rounded-sm border border-surface-highest p-3">
+      {people.length > 1 && list.some((e) => payerOf(e)) && (
+        <div className="mt-5 rounded-sm border border-surface-highest p-3" id="cuentas">
           <div className="mb-2 flex items-center gap-2 font-display font-semibold">
             <Icon name="handshake" size={18} className="text-accent" /> Cuentas claras
           </div>
-          <ul className="space-y-1 text-sm">
-            {people.map((p) => (
-              <li key={p.user_id} className="flex items-center gap-2">
-                <Avatar profile={{ id: p.user_id, avatar_url: p.avatar_url, display_name: p.display_name, username: p.username }} className="h-6 w-6" />
-                <span className="min-w-0 flex-1 truncate">{p.user_id === user.id ? 'Tú' : p.display_name || p.username}</span>
-                <span className="text-ink-soft">pagó {formatMoney(paid.get(p.user_id) ?? 0, currency)}</span>
-              </li>
-            ))}
+          <ul className="space-y-1.5 text-sm">
+            {people.map((p) => {
+              const raw = (paid.get(p.key) ?? 0) - (owed.get(p.key) ?? 0)
+              const bal = Math.abs(raw) < 0.005 ? 0 : raw
+              return (
+                <li key={p.key} className="flex items-center gap-2">
+                  <Avatar profile={p.avatar} className="h-6 w-6" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {p.name}
+                      {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
+                    </span>
+                    <span className="block text-xs text-ink-soft">
+                      pagó {formatMoney(paid.get(p.key) ?? 0, currency)} · le toca {formatMoney(owed.get(p.key) ?? 0, currency)}
+                    </span>
+                  </span>
+                  <span className={`font-display font-semibold ${bal > 0 ? 'text-emerald-700' : bal < 0 ? 'text-red-700' : 'text-ink-soft'}`}>
+                    {bal > 0 ? '+' : ''}
+                    {formatMoney(bal, currency)}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
           <div className="mt-3 space-y-1 border-t border-surface-highest pt-2 text-sm">
+            <div className="label-stamp text-ink-soft">Para quedar en paz</div>
             {transfers.length ? (
               transfers.map((t) => (
                 <div key={`${t.from}${t.to}`} className="flex items-center gap-1.5">
-                  <b>{t.from === user.id ? 'Tú' : who(t.from)?.display_name || who(t.from)?.username}</b>
+                  <b>{who(t.from)?.name}</b>
                   <Icon name="arrow_forward" size={14} className="text-ink-soft" />
-                  <b>{t.to === user.id ? 'ti' : who(t.to)?.display_name || who(t.to)?.username}</b>
+                  <b>{who(t.to)?.me ? 'ti' : who(t.to)?.name}</b>
                   <span className="ml-auto font-display font-semibold text-accent-deep">{formatMoney(t.amount, currency)}</span>
                 </div>
               ))
             ) : (
               <span className="text-ink-soft">Estáis en paz.</span>
             )}
-            <p className="pt-1 text-xs text-ink-soft">A partes iguales entre {people.length}. Los gastos sin «pagó» no cuentan aquí.</p>
+            <p className="pt-1 text-xs text-ink-soft">Cada gasto se reparte como se apuntó. Los gastos sin «pagó» no cuentan aquí.</p>
           </div>
         </div>
       )}
@@ -329,7 +395,7 @@ function ExpenseForm({
   trip: TripWithStops
   currency: string
   hasBudget: boolean
-  people: TripMember[]
+  people: Person[]
   me: string
   editing: Expense | null
   onDone: () => void
@@ -345,7 +411,18 @@ function ExpenseForm({
   const [touchedCurrency, setTouchedCurrency] = useState(!!editing)
   const [description, setDescription] = useState(editing?.description ?? '')
   const [date, setDate] = useState<string | null>(editing ? editing.spent_on : inTrip ? today() : (trip.start_date ?? null))
-  const [paidBy, setPaidBy] = useState<string | null>(editing ? editing.paid_by : me)
+  const [payer, setPayer] = useState<string | null>(editing ? payerOf(editing) : `u:${me}`)
+  const initial = editing?.split?.length ? editing.split : null
+  const [mode, setMode] = useState<SplitMode>(initial ? (editing?.split_mode ?? 'equal') : 'equal')
+  // Un gasto nuevo es de todos; uno antiguo sin reparto, de quienes tienen cuenta (como se calculaba).
+  const [included, setIncluded] = useState<Set<string>>(
+    () => new Set(initial ? initial.filter((x) => x.v > 0).map((x) => x.k) : people.filter((p) => !editing || !p.guest).map((p) => p.key)),
+  )
+  // Los importes propuestos se recalculan con el total mientras nadie los toque a mano.
+  const [autoFill, setAutoFill] = useState(false)
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    initial && editing?.split_mode !== 'equal' ? Object.fromEntries(initial.map((x) => [x.k, fmtNum(x.v)])) : {},
+  )
   const [rate, setRate] = useState<number | null>(editing && editing.currency === currency ? editing.rate : null)
   const [rateError, setRateError] = useState(false)
   const [manualRate, setManualRate] = useState('')
@@ -369,6 +446,54 @@ function ExpenseForm({
 
   const value = parseAmount(amount)
   const effectiveRate = rate ?? (manualRate ? parseAmount(manualRate) : null)
+
+  // Reparto: personas marcadas y el valor de cada una según el modo.
+  const chosen = people.filter((p) => included.has(p.key))
+  const num = (k: string) => parseNum(values[k] ?? '') ?? 0
+  const sum = chosen.reduce((a, p) => a + num(p.key), 0)
+  const splitError =
+    people.length < 2
+      ? null
+      : !chosen.length
+        ? 'Marca al menos a una persona'
+        : mode === 'percent' && Math.abs(sum - 100) > 0.01
+          ? `Los porcentajes suman ${fmtNum(sum)} % (${sum < 100 ? 'faltan' : 'sobran'} ${fmtNum(Math.abs(100 - sum))} %)`
+          : mode === 'amount' && value && Math.abs(sum - value) > 0.009
+            ? `Los importes suman ${formatMoney(sum, currency)} de ${formatMoney(value, currency)}`
+            : mode === 'shares' && sum <= 0
+              ? 'Pon al menos una parte'
+              : null
+  // Se guarda siempre quién entra, para que añadir a alguien más tarde no cambie los gastos ya repartidos.
+  const split =
+    people.length < 2
+      ? null
+      : chosen.map((p) => ({ k: p.key, v: mode === 'equal' ? 1 : Math.round(num(p.key) * 100) / 100 })).filter((x) => x.v > 0)
+  const preview = value && !splitError ? sharesOf({ amount: value, rate: 1, split_mode: split ? mode : 'equal', split }, people.map((p) => p.key)) : null
+
+  /** Reparte `total` en `n` trozos de céntimo, con el resto en el último. */
+  const even = (total: number, n: number) => {
+    const part = Math.floor((total * 100) / n) / 100
+    return Array.from({ length: n }, (_, i) => (i === n - 1 ? Math.round((total - part * (n - 1)) * 100) / 100 : part))
+  }
+  /** Al cambiar de modo se rellenan valores a partes iguales para los marcados. */
+  const switchMode = (m: SplitMode) => {
+    setMode(m)
+    const parts = m === 'percent' ? even(100, chosen.length || 1) : m === 'amount' && value ? even(value, chosen.length || 1) : null
+    setAutoFill(true)
+    if (parts) setValues(Object.fromEntries(chosen.map((p, i) => [p.key, fmtNum(parts[i])])))
+    else if (m === 'shares') setValues(Object.fromEntries(chosen.map((p) => [p.key, '1'])))
+  }
+  const toggle = (k: string) => {
+    const next = new Set(included)
+    if (next.has(k)) next.delete(k)
+    else next.add(k)
+    setIncluded(next)
+    // Se vuelve a repartir a partes iguales entre los marcados (lo más habitual al quitar o poner a alguien).
+    const list = people.filter((p) => next.has(p.key))
+    if (mode === 'percent' && list.length) setValues(Object.fromEntries(list.map((p, i) => [p.key, fmtNum(even(100, list.length)[i])])))
+    else if (mode === 'amount' && value && list.length) setValues(Object.fromEntries(list.map((p, i) => [p.key, fmtNum(even(value, list.length)[i])])))
+    else if (mode === 'shares' && !values[k]) setValues({ ...values, [k]: '1' })
+  }
   const save = useMutation({
     mutationFn: async () => {
       // La moneda del viaje se fija con el primer gasto: los cambios guardados se refieren a ella.
@@ -379,7 +504,10 @@ function ExpenseForm({
         currency,
         rate: effectiveRate ?? 1,
         stop_id: stopId,
-        paid_by: paidBy,
+        paid_by: payer?.startsWith('u:') ? payer.slice(2) : null,
+        payer_key: payer,
+        split_mode: split ? mode : 'equal',
+        split,
         description: description.trim() || null,
         spent_on: date,
       }
@@ -394,7 +522,7 @@ function ExpenseForm({
       className="mt-4 rounded-sm bg-surface-low p-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (value && effectiveRate) save.mutate()
+        if (value && effectiveRate && !splitError) save.mutate()
       }}
     >
       <div className="mb-2 font-display font-semibold">{editing ? 'Editar gasto' : 'Nuevo gasto'}</div>
@@ -426,7 +554,15 @@ function ExpenseForm({
           inputMode="decimal"
           placeholder="0,00"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value)
+            // En «Importe», si aún no se ha repartido nada, se propone a partes iguales.
+            const v = parseAmount(e.target.value)
+            if (mode === 'amount' && v && chosen.length && (autoFill || chosen.every((p) => !num(p.key)))) {
+              setAutoFill(true)
+              setValues(Object.fromEntries(chosen.map((p, i) => [p.key, fmtNum(even(v, chosen.length)[i])])))
+            }
+          }}
           autoFocus
         />
         <CurrencySelect
@@ -492,17 +628,90 @@ function ExpenseForm({
             ))}
           </select>
         )}
-        {people.length > 1 && (
-          <select aria-label="Pagó" className="h-8 rounded-full bg-card px-3 text-xs font-semibold ring-1 ring-outline-soft" value={paidBy ?? ''} onChange={(e) => setPaidBy(e.target.value || null)}>
-            {people.map((p) => (
-              <option key={p.user_id} value={p.user_id}>
-                Pagó {p.user_id === me ? 'yo' : p.display_name || p.username}
-              </option>
-            ))}
-            <option value="">Pagó: no lo sé</option>
-          </select>
-        )}
       </div>
+
+      {people.length > 1 && (
+        <div className="mt-4 rounded-sm bg-card p-3 ring-1 ring-outline-soft">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="label-stamp w-20 shrink-0 text-ink-soft">Pagó</span>
+            <select aria-label="Pagó" className="field min-w-0 flex-1 py-2!" value={payer ?? ''} onChange={(e) => setPayer(e.target.value || null)}>
+              {people.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.me ? 'Yo' : p.name}
+                  {p.guest ? ' (sin cuenta)' : ''}
+                </option>
+              ))}
+              <option value="">No lo sé / no cuenta</option>
+            </select>
+          </label>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="label-stamp text-ink-soft">Para quién</span>
+            <div className="flex rounded-full bg-surface-low p-0.5" role="radiogroup" aria-label="Cómo se reparte">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m.id}
+                  title={m.hint}
+                  onClick={() => switchMode(m.id)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === m.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-ink-soft">{MODES.find((m) => m.id === mode)!.hint}</p>
+          <ul className="mt-2 space-y-0.5">
+            {people.map((p) => {
+              const on = included.has(p.key)
+              const share = on ? preview?.get(p.key) : undefined
+              return (
+                <li key={p.key} className={`flex min-h-9 items-center gap-2 rounded-sm px-1 ${on ? '' : 'opacity-55'}`}>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={on}
+                    aria-label={`Incluir a ${p.me ? 'mí' : p.name}`}
+                    onClick={() => toggle(p.key)}
+                    className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-sm"
+                  >
+                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-xs ring-1 ${on ? 'bg-accent text-white ring-accent' : 'bg-card ring-outline-soft'}`}>
+                      {on && <Icon name="check" size={14} />}
+                    </span>
+                    <Avatar profile={p.avatar} className="h-6 w-6 shrink-0" />
+                    <span className="min-w-0 truncate">
+                      {p.me ? 'Yo' : p.name}
+                      {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
+                    </span>
+                  </button>
+                  {mode !== 'equal' && on && (
+                    <span className="flex shrink-0 items-center gap-1">
+                      <input
+                        aria-label={`${mode === 'percent' ? 'Porcentaje' : mode === 'amount' ? 'Importe' : 'Partes'} de ${p.me ? 'mí' : p.name}`}
+                        className="w-16 rounded-xs bg-surface-low px-2 py-1 text-right text-sm ring-1 ring-outline-soft outline-none focus:ring-accent"
+                        inputMode="decimal"
+                        value={values[p.key] ?? ''}
+                        placeholder="0"
+                        onChange={(e) => {
+                          setAutoFill(false)
+                          setValues({ ...values, [p.key]: e.target.value })
+                        }}
+                      />
+                      <span className="w-7 text-xs text-ink-soft">{mode === 'percent' ? '%' : mode === 'amount' ? currency : '×'}</span>
+                    </span>
+                  )}
+                  {/* En «Importe» el valor ya es el importe: no se repite. */}
+                  {mode !== 'amount' && <span className="w-16 shrink-0 text-right text-xs font-semibold">{share !== undefined ? formatMoney(share, currency) : ''}</span>}
+                </li>
+              )
+            })}
+          </ul>
+          {splitError && value ? <p className="mt-2 text-xs font-semibold text-red-700">{splitError}</p> : null}
+        </div>
+      )}
 
       <ErrorNote error={save.error ?? remove.error} />
       <div className="mt-4 flex items-center justify-between gap-2">
@@ -517,7 +726,7 @@ function ExpenseForm({
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-accent" disabled={!value || !effectiveRate || save.isPending}>
+          <button type="submit" className="btn btn-accent" disabled={!value || !effectiveRate || !!splitError || save.isPending}>
             {save.isPending ? 'Guardando…' : editing ? 'Guardar' : 'Añadir'}
           </button>
         </span>

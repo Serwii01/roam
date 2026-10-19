@@ -1,123 +1,29 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { daysBetween, formatDay } from '../components/DatePicker'
+import { formatDay } from '../components/DatePicker'
 import { Icon } from '../components/Icon'
-import { PassportAlert, useWeather } from '../components/Weather'
-import { Empty, ErrorNote, Flag, Spinner, plural } from '../components/ui'
+import { useWeather } from '../components/Weather'
+import { ErrorNote, Flag } from '../components/ui'
 import { api } from '../lib/api'
 import type { DocumentKind, PackingCategory, Stop, TripDocument, TripWithStops } from '../lib/db'
-import type { NewSight } from '../lib/api/types'
-import { DayPlan } from '../components/DayPlan'
-import { useInvalidateTravel, usePassports, useProfile, useTrip } from '../lib/hooks'
 import { PACKING_CATEGORIES, PACKING_ORDER, PACKING_TEMPLATES, packingSuggestions } from '../lib/packing'
-import { passportWarnings } from '../lib/passportCheck'
 import { KIND_LABEL, weatherFor } from '../lib/weather'
 
-const TABS = [
-  { id: 'itinerario', label: 'Día a día', icon: 'event_note' },
-  { id: 'tiempo', label: 'Tiempo', icon: 'partly_cloudy_day' },
-  { id: 'equipaje', label: 'Equipaje', icon: 'luggage' },
-  { id: 'documentos', label: 'Documentos', icon: 'description' },
-] as const
-type TabId = (typeof TABS)[number]['id']
+// Pestañas del viaje que antes vivían en el planificador (/app/viajes/:id/plan): tiempo, equipaje y
+// documentos. Ahora están en la página del viaje; la dirección antigua lleva a la pestaña equivalente.
+const OLD_TABS: Record<string, string> = { itinerario: 'dias', tiempo: 'resumen', equipaje: 'equipaje', documentos: 'documentos' }
 
-/** /app/viajes/:id/plan — itinerario, tiempo, equipaje y documentos de un viaje. */
 export function PlannerPage() {
   const { id = '' } = useParams()
-  const [params, setParams] = useSearchParams()
-  const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'itinerario') as TabId
-  const trip = useTrip(id)
-  const passports = usePassports()
-  const profile = useProfile()
-  const t = trip.data
-
-  if (trip.isLoading) return <Spinner label="Abriendo el planificador" />
-  if (!t)
-    return (
-      <Empty icon="search_off" title="Este viaje no existe">
-        <Link to="/app/bitacora" className="btn btn-dark mt-4">
-          Volver a la bitácora
-        </Link>
-      </Empty>
-    )
-
-  const warnings = passportWarnings([t], passports.data ?? [], profile.data?.home_country ?? 'ES')
-  const days = t.start_date ? daysBetween(t.start_date, t.end_date ?? t.start_date) : null
-
-  return (
-    <div>
-      <Link to={`/app/viajes/${t.id}`} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink">
-        <Icon name="arrow_back" size={16} /> {t.title}
-      </Link>
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="label-code text-accent-deep">Planificador</div>
-          <h1 className="headline-lg mt-1">{t.title}</h1>
-          <p className="mt-1 text-ink-soft">
-            {t.start_date ? `${formatDay(t.start_date)} – ${formatDay(t.end_date ?? t.start_date)} · ${plural(days ?? 1, 'día', 'días')}` : 'Sin fechas'} · {plural(t.stops.length, 'parada', 'paradas')}
-          </p>
-        </div>
-        <Link to={`/app/viajes/${t.id}/editar?paso=ruta`} className="btn btn-ghost">
-          <Icon name="edit_note" size={18} /> Editar ruta
-        </Link>
-      </div>
-
-      <div className="mt-4">
-        <PassportAlert warnings={warnings} showTrip={false} />
-      </div>
-
-      <nav className="-mx-4 mt-6 flex gap-1 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0" role="tablist">
-        {TABS.map((x) => (
-          <button
-            key={x.id}
-            role="tab"
-            aria-selected={tab === x.id}
-            onClick={() => setParams({ tab: x.id }, { replace: true })}
-            className={`btn shrink-0 ${tab === x.id ? 'btn-dark' : 'btn-ghost'}`}
-          >
-            <Icon name={x.icon} size={18} /> {x.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="mt-6">
-        {tab === 'itinerario' && <DaysTab trip={t} />}
-        {tab === 'tiempo' && <WeatherTab trip={t} />}
-        {tab === 'equipaje' && <PackingTab trip={t} home={profile.data?.home_country ?? 'ES'} />}
-        {tab === 'documentos' && <DocumentsTab trip={t} />}
-      </div>
-    </div>
-  )
-}
-
-// ───────────────────────────── Día a día ─────────────────────────────
-
-/** El mismo plan día a día del editor: lo que se ve cada día, con hora y casilla. */
-function DaysTab({ trip: t }: { trip: TripWithStops }) {
-  const invalidate = useInvalidateTravel()
-  const add = useMutation({ mutationFn: ({ stopId, sight }: { stopId: string; sight: NewSight }) => api.addSight(stopId, sight), onSuccess: () => invalidate() })
-  const update = useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.updateSight>[1] }) => api.updateSight(id, patch), onSuccess: () => invalidate() })
-  const remove = useMutation({ mutationFn: (id: string) => api.deleteSight(id), onSuccess: () => invalidate() })
-  return (
-    <div>
-      <ErrorNote error={add.error ?? update.error ?? remove.error} />
-      <DayPlan
-        trip={t}
-        ops={{ add: (stopId, sight) => add.mutate({ stopId, sight }), update: (id, patch) => update.mutate({ id, patch }), remove: (id) => remove.mutate(id) }}
-      />
-      {!t.start_date && (
-        <Link to={`/app/viajes/${t.id}/editar?paso=destino`} className="btn btn-dark mt-4">
-          Poner fechas
-        </Link>
-      )}
-    </div>
-  )
+  const [params] = useSearchParams()
+  const tab = OLD_TABS[params.get('tab') ?? 'itinerario'] ?? 'dias'
+  return <Navigate to={`/app/viajes/${id}${tab === 'resumen' ? '' : `?tab=${tab}`}`} replace />
 }
 
 // ───────────────────────────── Tiempo ─────────────────────────────
 
-function WeatherTab({ trip: t }: { trip: TripWithStops }) {
+export function WeatherTab({ trip: t }: { trip: TripWithStops }) {
   const stops = t.stops.map((s) => ({ s, date: s.arrived_on ?? t.start_date }))
   return (
     <div>
@@ -173,7 +79,7 @@ function WeatherCard({ stop, date, n }: { stop: Stop; date: string | null; n: nu
 
 // ───────────────────────────── Equipaje ─────────────────────────────
 
-function PackingTab({ trip: t, home }: { trip: TripWithStops; home: string }) {
+export function PackingTab({ trip: t, home }: { trip: TripWithStops; home: string }) {
   const qc = useQueryClient()
   const items = useQuery({ queryKey: ['packing', t.id], queryFn: () => api.listPacking(t.id) })
   const refresh = () => qc.invalidateQueries({ queryKey: ['packing', t.id] })
@@ -333,7 +239,7 @@ const DOC_KINDS: Record<DocumentKind, { label: string; icon: string }> = {
   other: { label: 'Otro', icon: 'description' },
 }
 
-function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
+export function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
   const qc = useQueryClient()
   const docs = useQuery({ queryKey: ['documents', t.id], queryFn: () => api.listDocuments(t.id) })
   const refresh = () => qc.invalidateQueries({ queryKey: ['documents', t.id] })
