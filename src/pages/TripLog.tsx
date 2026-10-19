@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ask, deleteTripQuestion } from '../components/ConfirmDialog'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
@@ -121,10 +122,15 @@ export function TripLogPage() {
   const destinations = countries.filter((c) => c !== first?.country_code)
   const planned = t.status === 'planned'
 
-  const setStatus = (status: 'planned' | 'done') => {
+  const setStatus = async (status: 'planned' | 'done') => {
     if (status === t.status) return
     const future = t.start_date && t.start_date > today()
-    if (status === 'done' && future && !confirm('Las fechas de este viaje aún no han llegado. ¿Marcarlo igualmente como realizado?')) return
+    if (
+      status === 'done' &&
+      future &&
+      !(await ask({ title: '¿Marcarlo como realizado?', body: 'Las fechas de este viaje aún no han llegado.', confirm: 'Sí, ya lo hice', icon: 'task_alt' }))
+    )
+      return
     save.mutate({ status })
   }
   const counts: Partial<Record<TripTab, number>> = { fotos: t.photos.length, ruta: t.stops.length, dias: t.sights.length }
@@ -194,8 +200,8 @@ export function TripLogPage() {
               tripId={t.id}
               owner={owner}
               deleting={remove.isPending}
-              onDelete={() => {
-                if (confirm(`¿Eliminar «${t.title}» con sus paradas, fotos, gastos y documentos? No se puede deshacer.`)) remove.mutate()
+              onDelete={async () => {
+                if (await ask(deleteTripQuestion(t.title))) remove.mutate()
               }}
             />
           )}

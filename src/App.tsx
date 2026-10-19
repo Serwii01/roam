@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react'
+import { ConfirmHost } from './components/ConfirmDialog'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Spinner } from './components/ui'
@@ -72,6 +73,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <ConfirmHost />
       <ErrorBoundary>
         <Suspense fallback={<Spinner />}>
       <Routes>

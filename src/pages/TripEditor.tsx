@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ask, deleteTripQuestion } from '../components/ConfirmDialog'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AirportInput } from '../components/AirportInput'
@@ -20,7 +21,7 @@ import type { Sight, Stop, TransportMode, TripStyle, TripWithStops } from '../li
 import { haversine } from '../lib/geo'
 import type { FlightAirport, FlightRoute } from '../lib/flights'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
-import { isReturnHome } from '../lib/days'
+import { datesAfterEdit, datesAfterMove, isReturnHome } from '../lib/days'
 import { appendStops, type DraftStop } from '../lib/import/common'
 import { knownPlaceNear } from '../lib/placesIndex'
 import { nearestAirportLocal, preloadAirports } from '../lib/airportIndex'
@@ -173,7 +174,9 @@ export function TripEditorPage() {
         province_code: codes.provinceCode && known.has(codes.provinceCode) ? codes.provinceCode : null,
         lat: p.lat,
         lon: p.lon,
-        arrived_on: prev?.arrived_on ?? draft.start_date ?? null,
+        // Volver a la ciudad de salida es la vuelta a casa: por defecto, el último día del viaje.
+        arrived_on:
+          t.stops.length && draft.end_date && haversine([t.stops[0].lon, t.stops[0].lat], [p.lon, p.lat]) < 30 ? draft.end_date : (prev?.arrived_on ?? draft.start_date ?? null),
         transport_in: transport,
         from_airport,
         to_airport,
@@ -339,14 +342,24 @@ export function TripEditorPage() {
                 range={[draft.start_date ?? null, draft.end_date ?? null]}
                 busy={busy}
                 onAdd={addPlace}
-                onChange={(stopId, patch) => run('Guardando', () => api.updateStop(stopId, patch))}
+                onChange={(stopId, patch) =>
+                  run('Guardando', async () => {
+                    const i = stops.findIndex((x) => x.id === stopId)
+                    // Al cambiar un día de llegada, el resto de fechas se ajusta solo.
+                    if (i < 0 || !('arrived_on' in patch) || Object.keys(patch).length > 1) return api.updateStop(stopId, patch)
+                    const changes = datesAfterEdit(stops, i, patch.arrived_on ?? null, draft.end_date ?? null)
+                    await Promise.all([...changes].map(([sid, d]) => api.updateStop(sid, { arrived_on: d })))
+                  })
+                }
                 onRemove={(stopId) => run('Quitando parada', () => api.deleteStop(stopId))}
                 onMove={(from, to) =>
                   run('Reordenando', () => {
                     const next = [...stops]
                     const [moved] = next.splice(from, 1)
                     next.splice(to, 0, moved)
-                    return api.reorderStops(next)
+                    // Las fechas siguen a las posiciones: los días se quedan y cambia qué ciudad va cada día.
+                    const changes = datesAfterMove(next, draft.end_date ?? null)
+                    return Promise.all([api.reorderStops(next), ...[...changes].map(([sid, d]) => api.updateStop(sid, { arrived_on: d }))])
                   })
                 }
                 onSpread={spreadDates}
@@ -376,8 +389,8 @@ export function TripEditorPage() {
                 countryName={countries.name}
                 onStatus={(s) => update({ status: s })}
                 canDelete={!!id && isOwner}
-                onDelete={() => {
-                  if (id && confirm(`¿Eliminar «${draft.title || 'este viaje'}» y sus fotos? No se puede deshacer.`))
+                onDelete={async () => {
+                  if (id && (await ask(deleteTripQuestion(draft.title || 'este viaje'))))
                     run('Eliminando', () => api.deleteTrip(id)).then(() => navigate('/app/bitacora'))
                 }}
               />
@@ -401,9 +414,10 @@ export function TripEditorPage() {
                     place={stamps[0].place}
                     date={stamps[0].date}
                     airport={stamps[0].airport}
+                    domestic={stamps[0].domestic}
                   />
                 ) : (
-                  <span className="text-center text-sm text-ink-soft">Aparece al añadir un destino en otro país.</span>
+                  <span className="text-center text-sm text-ink-soft">Aparece al añadir un destino en otro país o un vuelo nacional.</span>
                 )}
               </div>
             </div>
@@ -870,8 +884,12 @@ function StopCard({
           icon="delete"
           label="Quitar parada"
           danger
-          onClick={() => {
-            if (!(s.notes || photos) || confirm(`¿Quitar ${s.name}? Se borrarán sus notas${photos ? ' y las fotos quedarán sin parada' : ''}.`)) onRemove()
+          onClick={async () => {
+            if (
+              !(s.notes || photos) ||
+              (await ask({ title: `¿Quitar ${s.name}?`, body: `Se borrarán sus notas${photos ? ' y las fotos quedarán sin parada' : ''}.`, confirm: 'Quitar', danger: true }))
+            )
+              onRemove()
           }}
         />
       </div>
@@ -1115,12 +1133,12 @@ function ResumenStep({
             <div className="grid gap-6 rounded-md bg-surface-low p-6 sm:grid-cols-2">
               {stamps.map((s) => (
                 <div key={s.key} className="grid place-items-center py-4">
-                  <Stamp stampKey={s.key} countryCode={s.countryCode} countryName={countryName(s.countryCode)} place={s.place} date={s.date} airport={s.airport} />
+                  <Stamp stampKey={s.key} countryCode={s.countryCode} countryName={countryName(s.countryCode)} place={s.place} date={s.date} airport={s.airport} domestic={s.domestic} />
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-md bg-surface-low p-5 text-sm text-ink-soft">Cada país distinto del de salida te da un sello.</p>
+            <p className="rounded-md bg-surface-low p-5 text-sm text-ink-soft">Cada país distinto del de salida te da un sello, y cada vuelo nacional también.</p>
           )}
           <button type="button" className="mt-3 text-sm text-ink-soft underline-offset-2 hover:text-ink hover:underline" onClick={() => onStatus('planned')}>
             ¿Aún no lo has hecho? Pásalo a planificado
@@ -1270,3 +1288,4 @@ function useStopDrag(count: number, onMove: (from: number, to: number) => void) 
 
   return { list, state, handle, style }
 }
+

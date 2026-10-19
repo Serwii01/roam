@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ask } from '../components/ConfirmDialog'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
@@ -110,8 +111,8 @@ export function SettingsPage() {
         {demo && (
           <button
             className="btn btn-ghost"
-            onClick={() => {
-              if (confirm('¿Restaurar los datos de ejemplo? Se perderán los cambios del modo demo.')) {
+            onClick={async () => {
+              if (await ask({ title: '¿Restaurar los datos de ejemplo?', body: 'Se perderán los cambios del modo demo.', confirm: 'Restaurar', danger: true, icon: 'restart_alt' })) {
                 resetDemo()
                 qc.invalidateQueries()
               }

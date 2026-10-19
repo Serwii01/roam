@@ -1,6 +1,7 @@
 // Insignias e hitos, calculados a partir de los viajes (no se guardan en la base de datos).
 import type { Country, TripWithStops } from './db'
 import { haversine } from './geo'
+import { isReturnHome } from './days'
 import { isDone, legEndpoints, tripDays, tripYear, type AirportMap, type Stats } from './stats'
 
 export type BadgeCategory = 'explore' | 'distance' | 'transport' | 'rhythm' | 'memories'
@@ -173,17 +174,41 @@ export interface StampData {
   mode: string | null
   lat: number
   tripId: string
+  /** Sello de un vuelo nacional (dentro del mismo país), no de entrada a un país nuevo. */
+  domestic?: boolean
 }
 
-/** Un sello por cada entrada a un país distinto del de origen del viaje. */
+/**
+ * Un sello por cada entrada a un país distinto del de origen del viaje y, además, uno por cada aeropuerto
+ * al que se llega en un vuelo nacional (p. ej. Madrid → Tenerife o Tokio → Sapporo). La vuelta a casa no sella.
+ */
 export function computeStamps(trips: TripWithStops[]): StampData[] {
   const out: StampData[] = []
   for (const t of trips.filter(isDone)) {
     const origin = t.stops[0]?.country_code
     const seen = new Set<string>()
-    for (const s of t.stops) {
-      if (s.country_code === origin || seen.has(s.country_code)) continue
+    const airports = new Set<string>()
+    for (const [i, s] of t.stops.entries()) {
+      if (s.country_code === origin || seen.has(s.country_code)) {
+        const domestic = i > 0 && s.transport_in === 'plane' && s.to_airport && t.stops[i - 1].country_code === s.country_code
+        if (domestic && !isReturnHome(t.stops, i) && !airports.has(s.to_airport!)) {
+          airports.add(s.to_airport!)
+          out.push({
+            key: `${t.id}-${s.id}-air`,
+            countryCode: s.country_code,
+            place: s.name,
+            date: s.arrived_on ?? t.start_date,
+            airport: s.to_airport,
+            mode: 'plane',
+            lat: s.lat,
+            tripId: t.id,
+            domestic: true,
+          })
+        }
+        continue
+      }
       seen.add(s.country_code)
+      if (s.transport_in === 'plane' && s.to_airport) airports.add(s.to_airport)
       out.push({
         key: `${t.id}-${s.country_code}`,
         countryCode: s.country_code,

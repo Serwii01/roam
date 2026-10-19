@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ask } from '../components/ConfirmDialog'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDay } from '../components/DatePicker'
@@ -293,7 +294,7 @@ export function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
                   type="button"
                   aria-label={`Borrar ${d.name}`}
                   className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-red-50 hover:text-red-700"
-                  onClick={() => confirm(`¿Borrar «${d.name}»?`) && remove.mutate(d)}
+                  onClick={async () => (await ask({ title: `¿Borrar «${d.name}»?`, body: 'El archivo se elimina para todos los participantes.', confirm: 'Borrar', danger: true })) && remove.mutate(d)}
                 >
                   <Icon name="delete" size={18} />
                 </button>

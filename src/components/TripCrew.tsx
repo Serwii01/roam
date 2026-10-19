@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ask } from './ConfirmDialog'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Avatar } from './Avatar'
@@ -85,10 +86,10 @@ export function TripCrew({ trip }: { trip: TripWithStops }) {
                   className="btn btn-ghost px-2! py-1! text-sm"
                   disabled={remove.isPending}
                   title={me ? 'Salir del viaje' : `Quitar a ${m.display_name || m.username}`}
-                  onClick={() => {
+                  onClick={async () => {
                     const ok = me
-                      ? confirm(`¿Salir de «${trip.title}»? Dejará de contar en tu pasaporte. Tus paradas se quedan en el viaje.`)
-                      : confirm(`¿Quitar a ${m.display_name || m.username} del viaje? Sus paradas y fotos se quedan.`)
+                      ? await ask({ title: `¿Salir de «${trip.title}»?`, body: 'Dejará de contar en tu pasaporte. Tus paradas se quedan en el viaje.', confirm: 'Salir', danger: true, icon: 'logout' })
+                      : await ask({ title: `¿Quitar a ${m.display_name || m.username} del viaje?`, body: 'Sus paradas y fotos se quedan.', confirm: 'Quitar', danger: true, icon: 'person_remove' })
                     if (ok) remove.mutate(m)
                   }}
                 >

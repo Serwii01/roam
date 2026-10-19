@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
+import { ask } from '../components/ConfirmDialog'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { DateField } from '../components/DatePicker'
@@ -217,7 +218,7 @@ export function PassportPage() {
               <div key={s.key} className="card flex flex-col p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="label-stamp text-accent-deep">Control fronterizo</div>
+                    <div className="label-stamp text-accent-deep">{s.domestic ? 'Vuelo nacional' : 'Control fronterizo'}</div>
                     <div className="font-display font-semibold uppercase">
                       {countries.name(s.countryCode)} // {s.place}
                     </div>
@@ -225,10 +226,10 @@ export function PassportPage() {
                   <span className="label-code bg-surface-container px-2 py-0.5">{s.date?.slice(0, 4)}</span>
                 </div>
                 <div className="grid flex-1 place-items-center py-8">
-                  <Stamp stampKey={s.key} countryCode={s.countryCode} countryName={countries.name(s.countryCode)} place={s.place} date={s.date} airport={s.airport} />
+                  <Stamp stampKey={s.key} countryCode={s.countryCode} countryName={countries.name(s.countryCode)} place={s.place} date={s.date} airport={s.airport} domestic={s.domestic} />
                 </div>
                 <div className="label-stamp flex justify-between text-ink-soft">
-                  <span>{s.airport ? `Puerto: ${s.airport}` : s.mode ? `Acceso: ${TRANSPORT[s.mode as keyof typeof TRANSPORT]?.label ?? s.mode}` : 'Acceso terrestre'}</span>
+                  <span>{s.domestic ? `Vuelo nacional · ${s.airport}` : s.airport ? `Puerto: ${s.airport}` : s.mode ? `Acceso: ${TRANSPORT[s.mode as keyof typeof TRANSPORT]?.label ?? s.mode}` : 'Acceso terrestre'}</span>
                   <span>
                     Lat: {Math.abs(s.lat).toFixed(4)}° {s.lat >= 0 ? 'N' : 'S'}
                   </span>
@@ -479,7 +480,7 @@ function PassportDocs({ passports }: { passports: Passport[] }) {
               </button>
               <button
                 onClick={async () => {
-                  if (confirm('¿Eliminar este pasaporte?')) {
+                  if (await ask({ title: '¿Eliminar este pasaporte?', confirm: 'Eliminar', danger: true })) {
                     await api.deletePassport(p.id)
                     refresh()
                   }

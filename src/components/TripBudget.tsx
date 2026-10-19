@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ask } from './ConfirmDialog'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Avatar } from './Avatar'
 import { DateField, daysBetween, formatDay } from './DatePicker'
@@ -750,7 +751,7 @@ function ExpenseForm({
       <ErrorNote error={save.error ?? remove.error} />
       <div className="mt-4 flex items-center justify-between gap-2">
         {editing ? (
-          <button type="button" className="btn text-red-700 hover:bg-red-50" disabled={remove.isPending} onClick={() => confirm('¿Borrar este gasto?') && remove.mutate()}>
+          <button type="button" className="btn text-red-700 hover:bg-red-50" disabled={remove.isPending} onClick={async () => (await ask({ title: '¿Borrar este gasto?', body: description.trim() || EXPENSE_CATEGORIES[category].label, confirm: 'Borrar', danger: true })) && remove.mutate()}>
             <Icon name="delete" size={18} />
           </button>
         ) : (

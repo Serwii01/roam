@@ -12,6 +12,49 @@ export function isReturnHome(stops: Stop[], i: number) {
   return haversine([stops[0].lon, stops[0].lat], [stops[i].lon, stops[i].lat]) < 30
 }
 
+const diffDays = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY)
+
+/**
+ * Fechas tras reordenar: los días se quedan en su sitio y las ciudades cambian de orden (las fechas de las
+ * paradas con fecha se reparten en orden por las nuevas posiciones). La vuelta a casa va el último día.
+ * Devuelve solo los cambios.
+ */
+export function datesAfterMove(stops: Stop[], end: string | null): Map<string, string | null> {
+  const dated = stops.map((s, i) => ({ s, i })).filter(({ s }) => s.arrived_on)
+  const sorted = dated.map(({ s }) => s.arrived_on!).sort()
+  const out = new Map<string, string | null>()
+  dated.forEach(({ s }, k) => sorted[k] !== s.arrived_on && out.set(s.id, sorted[k]))
+  const last = stops.length - 1
+  if (end && isReturnHome(stops, last) && (out.get(stops[last].id) ?? stops[last].arrived_on) !== end) out.set(stops[last].id, end)
+  return out
+}
+
+/**
+ * Fechas tras cambiar el día de llegada a la parada `i`: las siguientes se mueven los mismos días para
+ * conservar cuánto se está en cada sitio (sin pasar del último día del viaje) y las anteriores no pueden
+ * quedar después. La vuelta a casa se queda en el último día. Devuelve solo los cambios (incluida `i`).
+ */
+export function datesAfterEdit(stops: Stop[], i: number, date: string | null, end: string | null): Map<string, string | null> {
+  const out = new Map<string, string | null>([[stops[i].id, date]])
+  if (!date) return out
+  const old = stops[i].arrived_on
+  const delta = old ? diffDays(old, date) : 0
+  const clamp = (d: string) => (end && d > end ? end : d)
+  for (let j = i + 1; j < stops.length; j++) {
+    const s = stops[j]
+    let d: string | null = s.arrived_on
+    if (end && isReturnHome(stops, j)) d = end
+    else if (d && delta) d = clamp(addDays(d, delta))
+    if (d && d < date) d = date
+    if (d !== s.arrived_on) out.set(s.id, d)
+  }
+  for (let j = 0; j < i; j++) {
+    const s = stops[j]
+    if (s.arrived_on && s.arrived_on > date) out.set(s.id, date)
+  }
+  return out
+}
+
 /** Días del viaje: de la ida a la vuelta o, si no hay fechas, de la primera a la última fecha de parada (máx. 60). */
 export function tripDays(t: TripWithStops): string[] {
   const dates = t.stops.map((s) => s.arrived_on).filter((d): d is string => !!d).sort()

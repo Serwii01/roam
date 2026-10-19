@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import { loadWorldShapes, type Shapes } from '../lib/countries'
 import type { Stop, TransportMode, TripWithStops } from '../lib/db'
-import { bendLine, bounds, greatCircle, type LngLat } from '../lib/geo'
+import { bendLine, bounds, greatCircle, offsetLine, type LngLat } from '../lib/geo'
 import { useCountries } from '../lib/hooks'
 import { loadModernStyle } from '../lib/mapStyle'
 import { formatKm, legEndpoints, tripCountries, tripDays, tripKm, tripModes, type AirportMap } from '../lib/stats'
@@ -118,14 +118,27 @@ export function WorldMap({
 
   const lines = useMemo(() => {
     const features: FeatureCollection<LineString, RouteProps>['features'] = []
+    // Vuelos repetidos (la ida y la vuelta, o el mismo trayecto en varios viajes): cada uno algo más separado,
+    // para que las líneas discontinuas no se fundan en una sola.
+    const seen: Record<string, number> = {}
+    const key = (p: LngLat) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`
     for (const t of trips) {
       for (let i = 1; i < t.stops.length; i++) {
         const m = t.stops[i].transport_in ?? 'car'
         const [a, b] = legEndpoints(t.stops, i, airports)
+        let coordinates: LngLat[]
+        if (m === 'plane') {
+          const k = `${key(a)}>${key(b)}`
+          const nth = seen[k] ?? 0
+          seen[k] = nth + 1
+          const arc = greatCircle(a, b)
+          const span = Math.hypot(b[0] - a[0], b[1] - a[1])
+          coordinates = offsetLine(arc, Math.min(span * 0.025, 1.6) * (1 + nth))
+        } else coordinates = bendLine(a, b)
         features.push({
           type: 'Feature',
           properties: { mode: m, active: !highlight || t.id === highlight, tripId: t.id },
-          geometry: { type: 'LineString', coordinates: m === 'plane' ? greatCircle(a, b) : bendLine(a, b) },
+          geometry: { type: 'LineString', coordinates },
         })
       }
     }

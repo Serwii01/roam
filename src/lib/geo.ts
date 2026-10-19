@@ -37,6 +37,23 @@ export function greatCircle(a: LngLat, b: LngLat, steps = 64): LngLat[] {
   return pts
 }
 
+/**
+ * Separa una línea hacia su derecha (según el sentido de la marcha), más en el centro que en los extremos.
+ * Así la ida y la vuelta de un mismo vuelo no se pisan: van una a cada lado.
+ */
+export function offsetLine(pts: LngLat[], amount: number): LngLat[] {
+  if (pts.length < 3 || !amount) return pts
+  const n = pts.length - 1
+  return pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)]
+    const b = pts[Math.min(n, i + 1)]
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+    const len = Math.hypot(dx, dy) || 1
+    const k = amount * Math.sin((Math.PI * i) / n)
+    return [p[0] + (dy / len) * k, p[1] - (dx / len) * k]
+  })
+}
+
 /** Curva suave para rutas terrestres (como en el diseño), en vez de una recta. */
 export function bendLine(a: LngLat, b: LngLat, steps = 24): LngLat[] {
   const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
