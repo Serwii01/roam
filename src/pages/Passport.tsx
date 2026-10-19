@@ -379,10 +379,13 @@ export function PassportPage() {
         <PassportDocs passports={passports.data ?? []} />
         <section className="card p-6">
           <div className="label-stamp text-ink-soft">Terminales registradas</div>
-          <h3 className="headline-md mt-1 uppercase">Aeropuertos</h3>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <h3 className="headline-md uppercase">Aeropuertos</h3>
+            {stats.airports.length > 0 && <span className="label-code text-ink-soft">{stats.airports.length} en total</span>}
+          </div>
           {stats.airports.length ? (
             <ul className="mt-4 divide-y divide-surface-highest">
-              {stats.airports.slice(0, 8).map(({ airport: a, visits }) => (
+              {stats.airports.map(({ airport: a, visits }) => (
                 <li key={a.iata} className="flex items-center gap-3 py-2.5 text-sm">
                   <span className="w-12 font-display font-bold">{a.iata}</span>
                   <span className="min-w-0 flex-1 truncate">
