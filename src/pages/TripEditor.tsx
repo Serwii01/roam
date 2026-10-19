@@ -402,20 +402,30 @@ export function TripEditorPage() {
             <RouteMap trip={t} airports={airports} />
             <PhotoStrip trip={t} onUpload={(f) => uploadFiles(f)} />
             <div className="rounded-md bg-surface-container p-5">
-              <div className="label-code mb-3">{planned ? 'Sello' : 'Vista previa del sello'}</div>
+              <div className="label-code mb-3 flex justify-between">
+                <span>{planned ? 'Sellos' : 'Vista previa de los sellos'}</span>
+                {!planned && stamps.length > 1 && <span className="text-ink-soft">{stamps.length}</span>}
+              </div>
               <div className="grid min-h-40 place-items-center rounded-md border-2 border-dashed border-accent/60 p-6">
                 {planned ? (
                   <span className="text-center text-sm text-ink-soft">Los sellos se estampan cuando marques el viaje como realizado.</span>
-                ) : stamps[0] ? (
-                  <Stamp
-                    stampKey={stamps[0].key}
-                    countryCode={stamps[0].countryCode}
-                    countryName={countries.name(stamps[0].countryCode)}
-                    place={stamps[0].place}
-                    date={stamps[0].date}
-                    airport={stamps[0].airport}
-                    domestic={stamps[0].domestic}
-                  />
+                ) : stamps.length ? (
+                  // Todos los sellos del viaje, en el orden de la ruta.
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    {[...stamps].reverse().map((x) => (
+                      <Stamp
+                        key={x.key}
+                        size={stamps.length > 1 ? 'sm' : 'md'}
+                        stampKey={x.key}
+                        countryCode={x.countryCode}
+                        countryName={countries.name(x.countryCode)}
+                        place={x.place}
+                        date={x.date}
+                        airport={x.airport}
+                        domestic={x.domestic}
+                      />
+                    ))}
+                  </div>
                 ) : (
                   <span className="text-center text-sm text-ink-soft">Aparece al añadir un destino en otro país o al llegar en avión a un aeropuerto nacional.</span>
                 )}
