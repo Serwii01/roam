@@ -1,6 +1,6 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops } from '../db'
+import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops, LegDetail, Lodging } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
@@ -15,7 +15,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], lodgings: [], legs: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -190,6 +190,8 @@ export const demoApi: Api = {
     state.expenses = state.expenses.filter((x) => x.trip_id !== id)
     state.packing = state.packing.filter((x) => x.trip_id !== id)
     state.documents = state.documents.filter((x) => x.trip_id !== id)
+    state.lodgings = state.lodgings.filter((x) => x.trip_id !== id)
+    state.legs = state.legs.filter((x) => x.trip_id !== id)
     state.budgets = state.budgets.filter((x) => x.trip_id !== id)
     state.invites = state.invites.filter((i) => i.trip_id !== id)
     save()
@@ -390,6 +392,35 @@ export const demoApi: Api = {
     const { dataUrl: _, ...rest } = doc
     return delay(rest)
   },
+  async listLodgings(tripId) {
+    return delay(state.lodgings.filter((l) => l.trip_id === tripId).sort((a, b) => (a.check_in ?? '').localeCompare(b.check_in ?? '')))
+  },
+  async addLodging(tripId, input) {
+    const l: Lodging = { id: uid(), trip_id: tripId, stop_id: null, address: null, check_in: null, check_in_time: null, check_out: null, check_out_time: null, booking_ref: null, url: null, notes: null, user_id: DEMO_USER_ID, created_at: now(), ...input }
+    state.lodgings.push(l)
+    save()
+    return delay(l)
+  },
+  async updateLodging(id, patch) {
+    state.lodgings = state.lodgings.map((l) => (l.id === id ? { ...l, ...patch } : l))
+    save()
+    return delay(state.lodgings.find((l) => l.id === id)!)
+  },
+  async deleteLodging(id) {
+    state.lodgings = state.lodgings.filter((l) => l.id !== id)
+    save()
+  },
+  async listLegDetails(tripId) {
+    return delay(state.legs.filter((l) => l.trip_id === tripId))
+  },
+  async saveLegDetail(tripId, stopId, patch) {
+    const cur = state.legs.find((l) => l.stop_id === stopId)
+    const next: LegDetail = { depart_on: null, depart_time: null, arrive_time: null, carrier: null, booking_ref: null, notes: null, ...cur, ...patch, stop_id: stopId, trip_id: tripId, updated_at: now() }
+    state.legs = [...state.legs.filter((l) => l.stop_id !== stopId), next]
+    save()
+    return delay(next)
+  },
+
   async deleteDocument(doc) {
     state.documents = state.documents.filter((d) => d.id !== doc.id)
     save()

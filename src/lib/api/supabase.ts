@@ -288,6 +288,31 @@ export const supabaseApi: Api = {
     if (row.error) await supabase.storage.from(DOCS).remove([path])
     return must(row)
   },
+  async listLodgings(tripId) {
+    return must(await supabase.from('lodgings').select('*').eq('trip_id', tripId).order('check_in', { nullsFirst: true }).order('created_at'))
+  },
+  async addLodging(tripId, lodging) {
+    return must(await supabase.from('lodgings').insert({ ...lodging, trip_id: tripId }).select().single())
+  },
+  async updateLodging(id, patch) {
+    return must(await supabase.from('lodgings').update(patch).eq('id', id).select().single())
+  },
+  async deleteLodging(id) {
+    must(await supabase.from('lodgings').delete().eq('id', id))
+  },
+  async listLegDetails(tripId) {
+    return must(await supabase.from('leg_details').select('*').eq('trip_id', tripId))
+  },
+  async saveLegDetail(tripId, stopId, patch) {
+    return must(
+      await supabase
+        .from('leg_details')
+        .upsert({ ...patch, stop_id: stopId, trip_id: tripId, updated_at: new Date().toISOString() }, { onConflict: 'stop_id' })
+        .select()
+        .single(),
+    )
+  },
+
   async deleteDocument(doc) {
     await supabase.storage.from(DOCS).remove([doc.path])
     must(await supabase.from('trip_documents').delete().eq('id', doc.id))

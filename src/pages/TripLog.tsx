@@ -10,6 +10,7 @@ import { SpotifyLogo, SpotifyPlayer } from '../components/Spotify'
 import { StopSights } from '../components/StopSights'
 import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
+import { TripLogistics } from '../components/TripLogistics'
 import { TripShareLink } from '../components/TripShareLink'
 import { PassportAlert, WeatherChip } from '../components/Weather'
 import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
@@ -242,6 +243,7 @@ export function TripLogPage() {
                 <StatTile label="Paradas" icon="pin_drop" value={t.stops.length} hint={plural(t.photos.length, 'foto', 'fotos')} />
               </div>
               {t.stops.length > 0 && <Destinations trip={t} onOpen={() => goTab('ruta')} />}
+              {participant && <TripLogistics trip={t} />}
               {participant && <BudgetGlance trip={t} onOpen={(start) => goTab('gastos', start)} />}
               {planned && participant && <PassportAlert warnings={passportWarnings([t], passports.data ?? [], profile.data?.home_country ?? 'ES')} showTrip={false} />}
               {planned && participant && <PrepChecklist trip={t} onTab={goTab} />}

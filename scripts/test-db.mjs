@@ -346,6 +346,29 @@ await as(C, async () => {
   assert.equal(await count(`select count(*) n from storage.objects where bucket_id = 'trip-docs'`), 1)
 })
 
+// ── Alojamiento y transporte (privados del viaje) ──
+await as(A, async () => {
+  await db.query(`insert into lodgings (trip_id, name, check_in, check_in_time, check_out, check_out_time) values ($1, 'Apartamento todo el viaje', '2025-04-01', '15:00', '2025-04-08', '11:00')`, [tripId])
+  await db.query(`insert into lodgings (trip_id, stop_id, name, booking_ref) values ($1, $2, 'Ryokan', 'ABC123')`, [tripId, stopId])
+  await assert.rejects(db.query(`insert into lodgings (trip_id, stop_id, name) values ($1, $2, 'Ajeno')`, [tripId, otherTripStop]), /row-level security/, 'la parada es del viaje')
+  await assert.rejects(db.query(`insert into lodgings (trip_id, name, check_in, check_out) values ($1, 'Al revés', '2025-04-08', '2025-04-01')`, [tripId]), /check constraint/, 'la salida no es antes de la entrada')
+  await assert.rejects(db.query(`insert into lodgings (trip_id, name, check_in_time) values ($1, 'x', '24:30')`, [tripId]), /check constraint/, 'hora válida')
+  await assert.rejects(db.query(`insert into lodgings (trip_id, name, url) values ($1, 'x', 'javascript:alert(1)')`, [tripId]), /check constraint/, 'solo enlaces web')
+  await db.query(`insert into leg_details (stop_id, trip_id, depart_on, depart_time, arrive_time, carrier, booking_ref) values ($1, $2, '2025-04-01', '09:10', '13:45', 'Iberia', 'XYZ789')`, [stopId, tripId])
+  await assert.rejects(db.query(`insert into leg_details (stop_id, trip_id) values ($1, $2)`, [otherTripStop, tripId]), /row-level security/, 'el tramo es del viaje')
+})
+await as(C, async () => {
+  assert.equal(await count('select count(*) n from lodgings where trip_id = $1', [tripId]), 2, 'Carla los ve')
+  assert.equal((await db.query(`update leg_details set arrive_time = '14:00' where trip_id = $1`, [tripId])).affectedRows, 1, 'y los edita')
+})
+await as(B, async () => {
+  assert.equal(await count('select count(*) n from lodgings'), 0, 'alojamientos privados')
+  assert.equal(await count('select count(*) n from leg_details'), 0, 'horarios privados')
+})
+await db.exec('set role anon')
+assert.equal(await count('select count(*) n from lodgings'), 0)
+await db.exec('reset role')
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)

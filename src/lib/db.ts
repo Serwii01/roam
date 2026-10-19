@@ -193,6 +193,38 @@ export interface PackingItem {
 
 export type DocumentKind = 'flight' | 'lodging' | 'insurance' | 'ticket' | 'other'
 
+/** Alojamiento: de toda la estancia (stop_id null) o de una parada. Privado del viaje. */
+export interface Lodging {
+  id: string
+  trip_id: string
+  stop_id: string | null
+  name: string
+  address: string | null
+  check_in: string | null
+  /** 'HH:MM' */
+  check_in_time: string | null
+  check_out: string | null
+  check_out_time: string | null
+  booking_ref: string | null
+  url: string | null
+  notes: string | null
+  user_id: string | null
+  created_at: string
+}
+
+/** Horarios y reserva del tramo que llega a una parada (stop_id). Privado del viaje. */
+export interface LegDetail {
+  stop_id: string
+  trip_id: string
+  depart_on: string | null
+  depart_time: string | null
+  arrive_time: string | null
+  carrier: string | null
+  booking_ref: string | null
+  notes: string | null
+  updated_at: string
+}
+
 /** Documento del viaje (billete, reserva…). El archivo está en el bucket privado trip-docs. */
 export interface TripDocument {
   id: string

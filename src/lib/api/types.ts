@@ -1,4 +1,4 @@
-import type { DocumentKind, PackingItem, TripDocument } from '../db'
+import type { DocumentKind, LegDetail, Lodging, PackingItem, TripDocument } from '../db'
 import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
@@ -9,6 +9,8 @@ export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' |
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> &
   Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split'>>
 
+export type NewLodging = Pick<Lodging, 'name'> & Partial<Omit<Lodging, 'id' | 'trip_id' | 'user_id' | 'created_at' | 'name'>>
+export type LegPatch = Partial<Omit<LegDetail, 'stop_id' | 'trip_id' | 'updated_at'>>
 export type NewPackingItem = Pick<PackingItem, 'label' | 'category'> & Partial<Pick<PackingItem, 'position'>>
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
@@ -91,6 +93,15 @@ export interface Api {
   addPackingItems(tripId: string, items: NewPackingItem[]): Promise<void>
   updatePackingItem(id: string, patch: Partial<Pick<PackingItem, 'packed' | 'label' | 'category'>>): Promise<PackingItem>
   deletePackingItem(id: string): Promise<void>
+  // Alojamiento y transporte
+  listLodgings(tripId: string): Promise<Lodging[]>
+  addLodging(tripId: string, lodging: NewLodging): Promise<Lodging>
+  updateLodging(id: string, patch: Partial<NewLodging>): Promise<Lodging>
+  deleteLodging(id: string): Promise<void>
+  listLegDetails(tripId: string): Promise<LegDetail[]>
+  /** Crea o actualiza los detalles del tramo que llega a `stopId`. */
+  saveLegDetail(tripId: string, stopId: string, patch: LegPatch): Promise<LegDetail>
+
   listDocuments(tripId: string): Promise<TripDocument[]>
   uploadDocument(tripId: string, file: File, kind: DocumentKind): Promise<TripDocument>
   deleteDocument(doc: TripDocument): Promise<void>
