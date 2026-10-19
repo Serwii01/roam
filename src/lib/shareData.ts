@@ -5,14 +5,14 @@ import type { CardData } from './shareCard'
 import { UN_COUNTRY_COUNT } from './countries'
 import { TRANSPORT } from './transport'
 import { MONTHS_LONG, type YearReview } from './yearReview'
-import { formatKm, isDone, legEndpoints, tripCountries, tripDays, tripKm, type AirportMap, type Stats } from './stats'
+import { formatKm, isDone, legLine, tripCountries, tripDays, tripKm, type AirportMap, type Stats } from './stats'
 
 const km = (n: number) => ({ value: formatKm(n, n >= 1_000_000), unit: 'km' })
 
-function legsOf(trips: TripWithStops[], airports: AirportMap): CardData['legs'] {
+function legsOf(trips: TripWithStops[]): CardData['legs'] {
   return trips.flatMap((t) =>
     t.stops.slice(1).map((s, j) => {
-      const [from, to] = legEndpoints(t.stops, j + 1, airports)
+      const [from, to] = legLine(t.stops, j + 1)
       return { from, to, flight: s.transport_in === 'plane' }
     }),
   )
@@ -35,13 +35,13 @@ export function tripCardData(t: TripWithStops, airports: AirportMap, countryName
       { label: visited.length === 1 ? 'País' : 'Países', value: String(visited.length) },
       { label: 'Paradas', value: String(t.stops.length) },
     ],
-    legs: legsOf([t], airports),
+    legs: legsOf([t]),
     stops: t.stops.map((s) => [s.lon, s.lat]),
     countries,
   }
 }
 
-export function worldCardData(profile: Profile | undefined, stats: Stats, trips: TripWithStops[], airports: AirportMap): Omit<CardData, 'photo'> {
+export function worldCardData(profile: Profile | undefined, stats: Stats, trips: TripWithStops[], _airports: AirportMap): Omit<CardData, 'photo'> {
   const done = trips.filter(isDone)
   const pct = Math.round((stats.countries.length / UN_COUNTRY_COUNT) * 100)
   const years = stats.years.map((y) => y.year)
@@ -62,13 +62,13 @@ export function worldCardData(profile: Profile | undefined, stats: Stats, trips:
       { label: 'Viajes', value: String(stats.trips) },
       { label: 'Ciudades', value: String(stats.cities) },
     ],
-    legs: legsOf(done, airports),
+    legs: legsOf(done),
     stops: done.flatMap((t) => t.stops.map((s): [number, number] => [s.lon, s.lat])),
     countries: stats.countries,
   }
 }
 
-export function yearCardData(r: YearReview, airports: AirportMap, owner: string | undefined, countryName: (code: string) => string): Omit<CardData, 'photo'> {
+export function yearCardData(r: YearReview, _airports: AirportMap, owner: string | undefined, countryName: (code: string) => string): Omit<CardData, 'photo'> {
   const highlights: CardData['highlights'] = []
   if (r.longestTrip) highlights.push({ label: 'Viaje más largo', value: `${r.longestTrip.trip.title} · ${formatKm(r.longestTrip.km)} km` })
   if (r.newCountries.length)
@@ -93,7 +93,7 @@ export function yearCardData(r: YearReview, airports: AirportMap, owner: string 
       { label: r.trips.length === 1 ? 'Viaje' : 'Viajes', value: String(r.trips.length) },
       { label: 'Días fuera', value: String(r.days) },
     ],
-    legs: legsOf(r.trips, airports),
+    legs: legsOf(r.trips),
     stops: r.trips.flatMap((t) => t.stops.map((s): [number, number] => [s.lon, s.lat])),
     countries: r.countries,
     highlights,

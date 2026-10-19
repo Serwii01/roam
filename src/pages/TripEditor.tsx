@@ -417,7 +417,7 @@ export function TripEditorPage() {
                     domestic={stamps[0].domestic}
                   />
                 ) : (
-                  <span className="text-center text-sm text-ink-soft">Aparece al añadir un destino en otro país o un vuelo nacional.</span>
+                  <span className="text-center text-sm text-ink-soft">Aparece al añadir un destino en otro país o al llegar en avión a un aeropuerto nacional.</span>
                 )}
               </div>
             </div>
@@ -1138,7 +1138,7 @@ function ResumenStep({
               ))}
             </div>
           ) : (
-            <p className="rounded-md bg-surface-low p-5 text-sm text-ink-soft">Cada país distinto del de salida te da un sello, y cada vuelo nacional también.</p>
+            <p className="rounded-md bg-surface-low p-5 text-sm text-ink-soft">Cada país distinto del de salida te da un sello, y cada aeropuerto nacional al que llegas en avión también.</p>
           )}
           <button type="button" className="mt-3 text-sm text-ink-soft underline-offset-2 hover:text-ink hover:underline" onClick={() => onStatus('planned')}>
             ¿Aún no lo has hecho? Pásalo a planificado

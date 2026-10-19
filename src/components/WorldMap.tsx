@@ -10,7 +10,7 @@ import type { Stop, TransportMode, TripWithStops } from '../lib/db'
 import { bendLine, bounds, greatCircle, offsetLine, type LngLat } from '../lib/geo'
 import { useCountries } from '../lib/hooks'
 import { loadModernStyle } from '../lib/mapStyle'
-import { formatKm, legEndpoints, tripCountries, tripDays, tripKm, tripModes, type AirportMap } from '../lib/stats'
+import { formatKm, legLine, tripCountries, tripDays, tripKm, tripModes, type AirportMap } from '../lib/stats'
 import { TRANSPORT } from '../lib/transport'
 import { Icon } from './Icon'
 import { Flag, coords, formatRange } from './ui'
@@ -125,7 +125,7 @@ export function WorldMap({
     for (const t of trips) {
       for (let i = 1; i < t.stops.length; i++) {
         const m = t.stops[i].transport_in ?? 'car'
-        const [a, b] = legEndpoints(t.stops, i, airports)
+        const [a, b] = legLine(t.stops, i)
         let coordinates: LngLat[]
         if (m === 'plane') {
           const k = `${key(a)}>${key(b)}`

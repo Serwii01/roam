@@ -174,7 +174,7 @@ export interface StampData {
   mode: string | null
   lat: number
   tripId: string
-  /** Sello de un vuelo nacional (dentro del mismo país), no de entrada a un país nuevo. */
+  /** Sello de un aeropuerto nacional (del país de salida o un vuelo interior), no de entrada a un país nuevo. */
   domestic?: boolean
 }
 
@@ -190,7 +190,9 @@ export function computeStamps(trips: TripWithStops[]): StampData[] {
     const airports = new Set<string>()
     for (const [i, s] of t.stops.entries()) {
       if (s.country_code === origin || seen.has(s.country_code)) {
-        const domestic = i > 0 && s.transport_in === 'plane' && s.to_airport && t.stops[i - 1].country_code === s.country_code
+        // Aeropuerto nacional: llegar en avión a un aeropuerto del país de salida (Milán → Palma) o un vuelo
+        // interior en otro país (Lima → Cusco). Solo aeropuertos: las ciudades del propio país no sellan.
+        const domestic = i > 0 && s.transport_in === 'plane' && s.to_airport && (s.country_code === origin || t.stops[i - 1].country_code === s.country_code)
         if (domestic && !isReturnHome(t.stops, i) && !airports.has(s.to_airport!)) {
           airports.add(s.to_airport!)
           out.push({

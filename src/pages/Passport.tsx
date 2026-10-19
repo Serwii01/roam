@@ -218,7 +218,7 @@ export function PassportPage() {
               <div key={s.key} className="card flex flex-col p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="label-stamp text-accent-deep">{s.domestic ? 'Vuelo nacional' : 'Control fronterizo'}</div>
+                    <div className="label-stamp text-accent-deep">{s.domestic ? 'Aeropuerto nacional' : 'Control fronterizo'}</div>
                     <div className="font-display font-semibold uppercase">
                       {countries.name(s.countryCode)} // {s.place}
                     </div>
@@ -229,7 +229,7 @@ export function PassportPage() {
                   <Stamp stampKey={s.key} countryCode={s.countryCode} countryName={countries.name(s.countryCode)} place={s.place} date={s.date} airport={s.airport} domestic={s.domestic} />
                 </div>
                 <div className="label-stamp flex justify-between text-ink-soft">
-                  <span>{s.domestic ? `Vuelo nacional · ${s.airport}` : s.airport ? `Puerto: ${s.airport}` : s.mode ? `Acceso: ${TRANSPORT[s.mode as keyof typeof TRANSPORT]?.label ?? s.mode}` : 'Acceso terrestre'}</span>
+                  <span>{s.domestic ? `Aeropuerto nacional · ${s.airport}` : s.airport ? `Puerto: ${s.airport}` : s.mode ? `Acceso: ${TRANSPORT[s.mode as keyof typeof TRANSPORT]?.label ?? s.mode}` : 'Acceso terrestre'}</span>
                   <span>
                     Lat: {Math.abs(s.lat).toFixed(4)}° {s.lat >= 0 ? 'N' : 'S'}
                   </span>

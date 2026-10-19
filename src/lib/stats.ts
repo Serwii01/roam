@@ -16,6 +16,12 @@ export function legEndpoints(stops: Stop[], i: number, airports: AirportMap): [L
   return [from ? [from.lon, from.lat] : [a.lon, a.lat], to ? [to.lon, to.lat] : [b.lon, b.lat]]
 }
 
+/** Para dibujar un tramo: de ciudad a ciudad (los aeropuertos pueden estar lejos, como Beauvais de París). */
+export const legLine = (stops: Stop[], i: number): [LngLat, LngLat] => [
+  [stops[i - 1].lon, stops[i - 1].lat],
+  [stops[i].lon, stops[i].lat],
+]
+
 export const legKm = (stops: Stop[], i: number, airports: AirportMap) => haversine(...legEndpoints(stops, i, airports))
 
 export function tripKm(t: TripWithStops, airports: AirportMap): number {
