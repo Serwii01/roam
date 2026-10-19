@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Avatar } from './Avatar'
 import { DateField, daysBetween, formatDay } from './DatePicker'
@@ -60,14 +60,15 @@ const MODES: { id: SplitMode; label: string; hint: string }[] = [
 ]
 
 /** Presupuesto y gastos del viaje. Solo para participantes (la base de datos tampoco los enseña a nadie más). */
-export function TripBudget({ trip }: { trip: TripWithStops }) {
+export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir directamente el formulario. */ start?: 'budget' | 'expense' }) {
   const user = useUser()
   const qc = useQueryClient()
   const budget = useQuery({ queryKey: ['budget', trip.id], queryFn: () => api.getBudget(trip.id) })
   const expenses = useQuery({ queryKey: ['expenses', trip.id], queryFn: () => api.listExpenses(trip.id) })
   const members = useQuery({ queryKey: ['members', trip.id], queryFn: () => api.listTripMembers(trip.id) })
-  const [form, setForm] = useState<Expense | 'new' | null>(null)
-  const [editBudget, setEditBudget] = useState(false)
+  const [form, setForm] = useState<Expense | 'new' | null>(start === 'expense' ? 'new' : null)
+  const [editBudget, setEditBudget] = useState(start === 'budget')
+  const editingId = form && form !== 'new' ? form.id : null
 
   const profile = useProfile()
   // Moneda del viaje: la guardada o, si aún no hay, la de tu país (perfil o navegador).
@@ -191,21 +192,26 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
           )}
 
           {form === null && (
-            <button type="button" className="btn btn-dark mt-4 w-full" onClick={() => setForm('new')}>
-              <Icon name="add" size={18} /> Apuntar gasto
-            </button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" className="btn btn-ghost" onClick={() => setEditBudget(true)}>
+                <Icon name="savings" size={18} /> {limit ? 'Editar presupuesto' : 'Fijar presupuesto'}
+              </button>
+              <button type="button" className="btn btn-dark" onClick={() => setForm('new')}>
+                <Icon name="add" size={18} /> Apuntar gasto
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {form !== null && (
+      {form === 'new' && (
         <ExpenseForm
           trip={trip}
           currency={currency}
           hasBudget={!!budget.data}
           people={people}
           me={user.id}
-          editing={form === 'new' ? null : form}
+          editing={null}
           onDone={() => (setForm(null), refresh())}
           onCancel={() => setForm(null)}
         />
@@ -233,9 +239,30 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
                           ? `para ${n}`
                           : null
                       : null
+                  // Al editar, el formulario se abre en el sitio del gasto.
+                  if (editingId === e.id)
+                    return (
+                      <li key={e.id}>
+                        <ExpenseForm
+                          trip={trip}
+                          currency={currency}
+                          hasBudget={!!budget.data}
+                          people={people}
+                          me={user.id}
+                          editing={e}
+                          onDone={() => (setForm(null), refresh())}
+                          onCancel={() => setForm(null)}
+                        />
+                      </li>
+                    )
                   return (
                     <li key={e.id}>
-                      <button type="button" onClick={() => setForm(e)} className="flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container">
+                      <button
+                        type="button"
+                        onClick={() => setForm(e)}
+                        aria-label={`Editar ${e.description || cat.label}`}
+                        className="group flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
+                      >
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: cat.color }}>
                           <Icon name={cat.icon} size={16} />
                         </span>
@@ -249,6 +276,7 @@ export function TripBudget({ trip }: { trip: TripWithStops }) {
                           <span className="block font-display font-semibold">{formatMoney(e.amount * e.rate, currency)}</span>
                           {e.currency !== currency && <span className="block text-xs text-ink-soft">{formatMoney(e.amount, e.currency)}</span>}
                         </span>
+                        <Icon name="edit" size={16} className="shrink-0 text-ink-soft opacity-50 transition group-hover:opacity-100" />
                       </button>
                     </li>
                   )
@@ -517,9 +545,15 @@ function ExpenseForm({
   })
   const remove = useMutation({ mutationFn: () => api.deleteExpense(editing!.id), onSuccess: onDone })
 
+  const formRef = useRef<HTMLFormElement>(null)
+  useEffect(() => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
+
   return (
     <form
-      className="mt-4 rounded-sm bg-surface-low p-3"
+      ref={formRef}
+      className={`${editing ? 'my-2 ring-2 ring-accent' : 'mt-4'} rounded-sm bg-surface-low p-3`}
       onSubmit={(e) => {
         e.preventDefault()
         if (value && effectiveRate && !splitError) save.mutate()

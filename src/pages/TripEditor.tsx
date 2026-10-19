@@ -11,7 +11,7 @@ import { Stamp } from '../components/Stamp'
 import { DayPlan } from '../components/DayPlan'
 import { TripBudget } from '../components/TripBudget'
 import { ErrorNote, Flag, Spinner, plural } from '../components/ui'
-import { WorldMap } from '../components/WorldMap'
+import { WorldMap } from '../components/LazyWorldMap'
 import { api, type TripFields } from '../lib/api'
 import type { NewSight } from '../lib/api/types'
 import { useAuth } from '../lib/auth'
@@ -1033,7 +1033,7 @@ function RecuerdosStep({
                 .filter((p) => p.stop_id === s.id)
                 .map((p) => (
                   <div key={p.id} className="relative h-20 w-28 overflow-hidden rounded-sm">
-                    <img src={api.photoUrl(p.path)} alt="" className="h-full w-full object-cover" />
+                    <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
                     <button type="button" onClick={() => onDeletePhoto(p)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-ink/80 text-white" aria-label="Eliminar foto">
                       <Icon name="close" size={16} />
                     </button>
@@ -1154,7 +1154,7 @@ function PhotoStrip({ trip, onUpload }: { trip: TripWithStops | undefined | null
       <div className="grid grid-cols-3 gap-2">
         {photos.slice(0, 2).map((p) => (
           <div key={p.id} className="relative aspect-square overflow-hidden rounded-sm bg-surface-container">
-            <img src={api.photoUrl(p.path)} alt="" className="h-full w-full object-cover" />
+            <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
           </div>
         ))}
         <label

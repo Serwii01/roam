@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { DateRangeField } from '../components/DatePicker'
+import { DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
 import { DayPlan } from '../components/DayPlan'
 import { Icon } from '../components/Icon'
 import { PhotoViewer, type ViewerPhoto } from '../components/PhotoViewer'
@@ -12,12 +12,14 @@ import { TripCrew } from '../components/TripCrew'
 import { TripShareLink } from '../components/TripShareLink'
 import { PassportAlert, WeatherChip } from '../components/Weather'
 import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
-import { WorldMap } from '../components/WorldMap'
+import { WorldMap } from '../components/LazyWorldMap'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { NewSight } from '../lib/api/types'
 import type { Sight, Stop, TripStyle, TripWithStops } from '../lib/db'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
+import { isReturnHome } from '../lib/days'
+import { formatMoney } from '../lib/money'
 import { useAirportMap, useCountries, useInvalidateTravel, usePassports, useProfile, useTravelMutation, useTrip } from '../lib/hooks'
 import { passportWarnings } from '../lib/passportCheck'
 import { tripCardData } from '../lib/shareData'
@@ -66,13 +68,16 @@ export function TripLogPage() {
     },
   })
   const tabsRef = useRef<HTMLElement>(null)
+  // Desde el resumen se puede ir directo a «editar presupuesto» o «apuntar gasto».
+  const [budgetStart, setBudgetStart] = useState<'budget' | 'expense' | undefined>()
 
   const t = trip.data
   const participant = !!t && (t.user_id === me || (t.member_count ?? 0) > 0)
   const owner = !!t && t.user_id === me
   const tabs = TABS.filter((x) => participant || !x.private)
   const tab: TripTab = tabs.find((x) => x.id === params.get('tab'))?.id ?? 'resumen'
-  const goTab = (next: TripTab) => {
+  const goTab = (next: TripTab, start?: 'budget' | 'expense') => {
+    setBudgetStart(start)
     setParams(next === 'resumen' ? {} : { tab: next }, { replace: true })
     // Si la barra de pestañas quedó arriba, se vuelve a ella para ver el principio de la pestaña.
     const top = tabsRef.current?.getBoundingClientRect().top ?? 0
@@ -80,7 +85,7 @@ export function TripLogPage() {
   }
 
   // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
-  const gallery = useMemo<(ViewerPhoto & { stopId: string | null; stopName?: string })[]>(() => {
+  const gallery = useMemo<(ViewerPhoto & { thumb: string; stopId: string | null; stopName?: string })[]>(() => {
     if (!t) return []
     const order = new Map(t.stops.map((s, i) => [s.id, i]))
     return [...t.photos]
@@ -88,7 +93,7 @@ export function TripLogPage() {
       .map((p) => {
         const stop = t.stops.find((s) => s.id === p.stop_id)
         const when = stop?.arrived_on ? formatDate(stop.arrived_on, 'long') : null
-        return { id: p.id, url: api.photoUrl(p.path), stopId: p.stop_id, stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
+        return { id: p.id, url: api.photoUrl(p.path), thumb: api.photoThumbUrl(p.path), stopId: p.stop_id, stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
       })
   }, [t])
   // `name` cambia en cada render; lo que importa es `byCode`.
@@ -230,6 +235,8 @@ export function TripLogPage() {
                 <StatTile label="Países" icon="public" value={countries.length} hint={countries.join(' · ') || '—'} />
                 <StatTile label="Paradas" icon="pin_drop" value={t.stops.length} hint={plural(t.photos.length, 'foto', 'fotos')} />
               </div>
+              {t.stops.length > 0 && <Destinations trip={t} onOpen={() => goTab('ruta')} />}
+              {participant && <BudgetGlance trip={t} onOpen={(start) => goTab('gastos', start)} />}
               {planned && participant && <PassportAlert warnings={passportWarnings([t], passports.data ?? [], profile.data?.home_country ?? 'ES')} showTrip={false} />}
               {planned && participant && <PrepChecklist trip={t} onTab={goTab} />}
               {participant ? (
@@ -297,7 +304,7 @@ export function TripLogPage() {
 
         {tab === 'gastos' && (
           <div className="max-w-3xl">
-            <TripBudget trip={t} />
+            <TripBudget key={budgetStart ?? 'gastos'} trip={t} start={budgetStart} />
           </div>
         )}
 
@@ -429,6 +436,110 @@ function MoreMenu({ tripId, owner, deleting, onDelete }: { tripId: string; owner
 }
 
 // ───────────────────────────── Resumen ─────────────────────────────
+
+/** Los destinos del viaje (sin la salida ni la vuelta a casa), con sus fechas y noches. */
+function Destinations({ trip: t, onOpen }: { trip: TripWithStops; onOpen: () => void }) {
+  const stops = t.stops
+  const back = stops.some((_, i) => isReturnHome(stops, i))
+  const list = stops.map((s, i) => ({ s, i })).filter(({ i }) => stops.length === 1 || (i > 0 && !isReturnHome(stops, i)))
+  const nights = (i: number) => {
+    const a = stops[i].arrived_on
+    const b = stops[i + 1]?.arrived_on ?? (i === stops.length - 1 ? t.end_date : null)
+    return a && b && b > a ? daysBetween(a, b) - 1 : null
+  }
+  return (
+    <section className="card p-4">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="headline-sm flex items-center gap-2 uppercase">
+          <Icon name="pin_drop" className="text-accent" /> Destinos
+        </h2>
+        {stops.length > 1 && (
+          <span className="text-xs text-ink-soft">
+            Desde {stops[0].name}
+            {back ? ' · con vuelta a casa' : ''}
+          </span>
+        )}
+      </div>
+      {list.length ? (
+        <ol className="space-y-1.5">
+          {list.map(({ s, i }, n) => {
+            const nn = nights(i)
+            const prev = i > 0 ? s.transport_in : null
+            return (
+              <li key={s.id}>
+                <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2.5 text-left transition hover:bg-surface-container">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink font-display text-sm font-bold text-white">{n + 1}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2 font-display font-semibold">
+                      <span className="truncate">{s.name}</span> <Flag code={s.country_code} />
+                    </span>
+                    <span className="block truncate text-xs text-ink-soft">
+                      {[s.arrived_on && formatDay(s.arrived_on, false), nn !== null && (nn === 0 ? 'de paso' : plural(nn, 'noche', 'noches')), t.sights.filter((x) => x.stop_id === s.id).length > 0 && plural(t.sights.filter((x) => x.stop_id === s.id).length, 'sitio', 'sitios')]
+                        .filter(Boolean)
+                        .join(' · ') || 'Sin fecha'}
+                    </span>
+                  </span>
+                  {prev && <Icon name={TRANSPORT[prev].icon} size={18} className="shrink-0 text-accent" />}
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+      ) : (
+        <p className="text-sm text-ink-soft">Solo está la salida. Añade a dónde vas en la pestaña Ruta.</p>
+      )}
+    </section>
+  )
+}
+
+/** Presupuesto y gasto de un vistazo, con acceso directo a editarlos. */
+function BudgetGlance({ trip: t, onOpen }: { trip: TripWithStops; onOpen: (start?: 'budget' | 'expense') => void }) {
+  const budget = useQuery({ queryKey: ['budget', t.id], queryFn: () => api.getBudget(t.id) })
+  const expenses = useQuery({ queryKey: ['expenses', t.id], queryFn: () => api.listExpenses(t.id) })
+  if (budget.isLoading || expenses.isLoading) return <div className="card h-32 animate-pulse" />
+  const list = expenses.data ?? []
+  const currency = budget.data?.currency ?? 'EUR'
+  const spent = list.reduce((a, e) => a + e.amount * e.rate, 0)
+  const limit = budget.data?.amount ?? null
+  const pct = limit ? spent / limit : null
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="headline-sm flex items-center gap-2 uppercase">
+          <Icon name="savings" className="text-accent" /> Presupuesto
+        </h2>
+        {list.length > 0 && (
+          <button type="button" className="label-code text-accent-deep hover:underline" onClick={() => onOpen()}>
+            {plural(list.length, 'gasto', 'gastos')} →
+          </button>
+        )}
+      </div>
+      {list.length || limit ? (
+        <>
+          <div className="flex items-end justify-between gap-2">
+            <span className="font-display text-3xl font-bold tracking-tight">{formatMoney(spent, currency)}</span>
+            <span className="text-sm text-ink-soft">{limit ? <>de <b className="text-ink">{formatMoney(limit, currency)}</b></> : 'sin presupuesto fijado'}</span>
+          </div>
+          {pct !== null && (
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-container">
+              <div className={`h-full rounded-full ${pct > 1 ? 'bg-red-600' : pct > 0.85 ? 'bg-accent' : 'bg-ink'}`} style={{ width: `${Math.min(100, pct * 100)}%` }} />
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-ink-soft">{t.status === 'planned' ? 'Fija cuánto quieres gastar y apunta lo que ya hayas reservado.' : 'Apunta lo que gastasteis y reparte las cuentas.'}</p>
+      )}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button type="button" className="btn btn-ghost" onClick={() => onOpen('budget')}>
+          <Icon name="edit" size={18} /> {limit ? 'Editar presupuesto' : 'Fijar presupuesto'}
+        </button>
+        <button type="button" className="btn btn-dark" onClick={() => onOpen('expense')}>
+          <Icon name="add" size={18} /> Apuntar gasto
+        </button>
+      </div>
+    </section>
+  )
+}
 
 /** Lo que falta para tener el viaje listo, con un toque a la pestaña donde se hace. */
 function PrepChecklist({ trip: t, onTab }: { trip: TripWithStops; onTab: (tab: TripTab) => void }) {
@@ -737,7 +848,7 @@ function RouteTab({
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   {photos.slice(0, 6).map((p) => (
                     <button key={p.id} onClick={() => onPhoto(p.id)} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-container" aria-label={`Ver foto de ${s.name}`}>
-                      <img src={api.photoUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -809,7 +920,7 @@ function PhotosTab({
   onOpen,
 }: {
   trip: TripWithStops
-  gallery: (ViewerPhoto & { stopId: string | null; stopName?: string })[]
+  gallery: (ViewerPhoto & { thumb: string; stopId: string | null; stopName?: string })[]
   participant: boolean
   onOpen: (i: number) => void
 }) {
@@ -837,7 +948,7 @@ function PhotosTab({
       const key = p.stopId ?? ''
       let grp = g.find((x) => x.key === key)
       if (!grp) g.push((grp = { key, title: p.stopName ?? 'Sin parada', items: [] }))
-      grp.items.push({ i, url: p.url, id: p.id })
+      grp.items.push({ i, url: p.thumb, id: p.id })
     })
     return g
   }, [gallery])

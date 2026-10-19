@@ -109,6 +109,8 @@ export interface Api {
   uploadPhoto(tripId: string, file: File, stopId?: string | null): Promise<Photo>
   deletePhoto(photo: Photo): Promise<void>
   photoUrl(path: string): string
+  /** Versión pequeña (miniaturas y portadas de tarjeta); si no la hay, la foto entera. */
+  photoThumbUrl(path: string): string
 
   // Lugares
   getVisited(userId: string): Promise<Visited>

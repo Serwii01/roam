@@ -7,7 +7,7 @@ import { PhotoViewer, type ViewerPhoto } from './PhotoViewer'
 import { SpotifyPlayer } from './Spotify'
 import { StopSights } from './StopSights'
 import { Flag, StatTile, formatDate, formatRange, plural } from './ui'
-import { WorldMap } from './WorldMap'
+import { WorldMap } from './LazyWorldMap'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { TripWithStops } from '../lib/db'
@@ -154,7 +154,7 @@ export function PublicTripView({ trip: t, owner }: { trip: TripWithStops; owner:
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     {photos.map((p) => (
                       <button key={p.id} onClick={() => open(p.id)} aria-label={`Ver foto de ${s.name}`} className="aspect-square overflow-hidden rounded-sm bg-surface-container">
-                        <img src={api.photoUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
                       </button>
                     ))}
                   </div>

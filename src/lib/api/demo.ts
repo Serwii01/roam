@@ -451,6 +451,9 @@ export const demoApi: Api = {
   photoUrl(path) {
     return path
   },
+  photoThumbUrl(path) {
+    return path
+  },
 
   async getVisited(userId) {
     const other = demoPerson(userId)

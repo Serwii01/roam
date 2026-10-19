@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import { useUser } from './auth'
-import type { Country } from './db'
+import type { Country, TripWithStops } from './db'
 import { computeStats, type AirportMap } from './stats'
 
 const REF = { staleTime: Infinity, gcTime: Infinity }
@@ -34,7 +34,20 @@ export function useTrips() {
 }
 
 export function useTrip(id: string | undefined) {
-  return useQuery({ queryKey: ['trip', id], queryFn: () => api.getTrip(id!), enabled: !!id })
+  const qc = useQueryClient()
+  return useQuery({
+    queryKey: ['trip', id],
+    queryFn: () => api.getTrip(id!),
+    enabled: !!id,
+    // Al venir de la bitácora el viaje ya está cargado: se enseña al momento y se actualiza por detrás.
+    placeholderData: () => {
+      for (const [, list] of qc.getQueriesData<TripWithStops[]>({ queryKey: ['trips'] })) {
+        const t = list?.find((x) => x.id === id)
+        if (t) return t
+      }
+      return undefined
+    },
+  })
 }
 
 export function useVisited() {

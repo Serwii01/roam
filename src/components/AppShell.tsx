@@ -40,9 +40,10 @@ export function AppShell() {
     const token = takePendingInvite()
     if (token) navigate(`/invitacion/${token}`, { replace: true })
   }, [navigate])
-  // El mapa del mundo empieza a descargarse ya, en paralelo con el motor de mapas.
+  // El mapa del mundo (siluetas de países) se descarga cuando la página ya se ha pintado.
   useEffect(() => {
-    loadWorldShapes().catch(() => {})
+    const id = setTimeout(() => loadWorldShapes().catch(() => {}), 1500)
+    return () => clearTimeout(id)
   }, [])
   const pct = ((stats.countries.length / UN_COUNTRY_COUNT) * 100).toFixed(0)
 

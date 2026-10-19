@@ -24,7 +24,7 @@ export function SharedBadge({ trip, size = 15 }: { trip: TripWithStops; size?: n
 /** `to`: adónde lleva la tarjeta (por defecto, la bitácora del viaje en la app). */
 export function TripCard({ trip, airports, to }: { trip: TripWithStops; airports: AirportMap; to?: string }) {
   const { name } = useCountries()
-  const cover = trip.cover_url ?? (trip.photos[0] ? api.photoUrl(trip.photos[0].path) : null)
+  const cover = trip.cover_url ?? (trip.photos[0] ? api.photoThumbUrl(trip.photos[0].path) : null)
   const modes = tripModes(trip)
   const ratings = trip.stops.map((s) => s.rating).filter((r): r is number => !!r)
   const rating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null

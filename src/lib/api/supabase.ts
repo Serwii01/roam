@@ -12,14 +12,43 @@ const DOCS = 'trip-docs'
 const SIGNED_TTL = 6 * 3600 // segundos
 const signed = new Map<string, { url: string; expires: number }>()
 
-/** Firma de golpe las fotos que aún no tienen un enlace vigente (≥30 min de margen). */
+/** Miniatura de cada foto (640 px), guardada junto a ella al subirla. Las fotos antiguas no la tienen. */
+const thumbOf = (path: string) => path.replace(/\.jpg$/, '.t.jpg')
+
+/** Firma de golpe las fotos (y sus miniaturas) que aún no tienen un enlace vigente (≥30 min de margen). */
 async function signPhotos(paths: string[]) {
   const now = Date.now()
-  const missing = [...new Set(paths)].filter((p) => (signed.get(p)?.expires ?? 0) - now < 30 * 60_000)
+  const all = paths.flatMap((p) => (p.endsWith('.jpg') ? [p, thumbOf(p)] : [p]))
+  const missing = [...new Set(all)].filter((p) => (signed.get(p)?.expires ?? 0) - now < 30 * 60_000)
   if (!missing.length) return
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(missing, SIGNED_TTL)
   if (error) throw new Error(error.message)
-  for (const d of data ?? []) if (d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, expires: now + SIGNED_TTL * 1000 })
+  // Sin enlace (p. ej. una foto antigua sin miniatura) se apunta vacío para no volver a pedirlo en un rato.
+  for (const d of data ?? []) if (d.path) signed.set(d.path, { url: d.signedUrl ?? '', expires: now + SIGNED_TTL * 1000 })
+  setTimeout(() => void backfillThumbs(paths), 4000)
+}
+
+/** Crea en segundo plano las miniaturas que faltan de tus fotos antiguas (unas pocas cada vez). */
+const backfilled = new Set<string>()
+async function backfillThumbs(paths: string[]) {
+  const uid = (await supabase.auth.getSession()).data.session?.user.id
+  if (!uid) return
+  const todo = [...new Set(paths)]
+    .filter((p) => p.startsWith(`${uid}/`) && p.endsWith('.jpg') && !backfilled.has(p) && signed.get(p)?.url && signed.get(thumbOf(p))?.url === '')
+    .slice(0, 12)
+  for (const p of todo) {
+    backfilled.add(p)
+    try {
+      const blob = await (await fetch(signed.get(p)!.url)).blob()
+      const thumb = await prepareImage(new File([blob], 'foto.jpg', { type: 'image/jpeg' }), 640)
+      const up = await supabase.storage.from(BUCKET).upload(thumbOf(p), thumb, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
+      if (up.error) continue
+      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(thumbOf(p), SIGNED_TTL)
+      if (data?.signedUrl) signed.set(thumbOf(p), { url: data.signedUrl, expires: Date.now() + SIGNED_TTL * 1000 })
+    } catch {
+      /* se intentará en otra sesión */
+    }
+  }
 }
 
 const TRIP_SELECT = '*, stops(*), photos(*), sights(*), trip_members(count)'
@@ -114,7 +143,7 @@ export const supabaseApi: Api = {
   },
   async deleteTrip(id) {
     const photos = must(await supabase.from('photos').select('path').eq('trip_id', id)) as Pick<Photo, 'path'>[]
-    if (photos.length) await supabase.storage.from(BUCKET).remove(photos.map((p) => p.path))
+    if (photos.length) await supabase.storage.from(BUCKET).remove(photos.flatMap((p) => [p.path, thumbOf(p.path)]))
     const docs = must(await supabase.from('trip_documents').select('path').eq('trip_id', id)) as { path: string }[]
     if (docs.length) await supabase.storage.from(DOCS).remove(docs.map((d) => d.path))
     must(await supabase.from('trips').delete().eq('id', id))
@@ -298,16 +327,27 @@ export const supabaseApi: Api = {
     const path = `${auth.user.id}/${tripId}/${crypto.randomUUID()}.jpg`
     const up = await supabase.storage.from(BUCKET).upload(path, small, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
     if (up.error) throw new Error(up.error.message)
+    // Miniatura para las cuadrículas: si falla, se usa la foto entera.
+    try {
+      const thumb = await prepareImage(small, 640)
+      await supabase.storage.from(BUCKET).upload(thumbOf(path), thumb, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
+    } catch {
+      /* sin miniatura */
+    }
     return must(await supabase.from('photos').insert({ trip_id: tripId, stop_id: stopId ?? null, path }).select().single())
   },
   async deletePhoto(photo) {
-    await supabase.storage.from(BUCKET).remove([photo.path])
+    await supabase.storage.from(BUCKET).remove([photo.path, thumbOf(photo.path)])
     signed.delete(photo.path)
+    signed.delete(thumbOf(photo.path))
     must(await supabase.from('photos').delete().eq('id', photo.id))
   },
   photoUrl(path) {
     // Las fotos se firman al cargar los viajes (listTrips/getTrip); aquí solo se lee el enlace vigente.
     return signed.get(path)?.url ?? ''
+  },
+  photoThumbUrl(path) {
+    return signed.get(thumbOf(path))?.url || signed.get(path)?.url || ''
   },
 
   async getVisited(userId) {
