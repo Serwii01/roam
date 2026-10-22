@@ -13,6 +13,7 @@ import { isNote, type Sight, type Stop, type TripWithStops } from '../lib/db'
 import { useAirportMap } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
+import { dayHops, dayPoints, dayTotals, distance, minutes, routeLegs, type Hop } from '../lib/hops'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
 export interface DayPlanOps {
@@ -220,7 +221,21 @@ function DayCard({
   const apply = (patches: DayPatch[]) => patches.forEach(({ id, ...patch }) => ops.update(id, patch))
   // Arrastrar (o Subir/Bajar): el orden lo decides tú y las horas se quedan en su sitio (src/lib/days.ts).
   const reorder = (from: number, to: number) => to >= 0 && to < sights.length && apply(reorderDay(sights, from, to))
-  const drag = useDragOrder(editable ? sights.length : 0, reorder)
+  const drag = useDragOrder(editable ? sights.length : 0, reorder, { card: '[data-sight-card]' })
+  // Trayectos entre sitios: estimación al momento y, con red, la ruta a pie real (src/lib/hops.ts).
+  const pairs = dayPoints(sights)
+  const pairsKey = pairs.map(([a, b]) => `${a.lat.toFixed(5)},${a.lon.toFixed(5)}>${b.lat.toFixed(5)},${b.lon.toFixed(5)}`).join('|')
+  const route = useQuery({
+    queryKey: ['walk-route', pairsKey],
+    queryFn: ({ signal }) => routeLegs(pairs, signal),
+    enabled: pairs.length > 0,
+    staleTime: Infinity,
+    gcTime: 30 * 86_400_000,
+    retry: false,
+  })
+  const hops = dayHops(sights, route.data)
+  const hopTo = new Map(hops.map((h) => [h.to.id, h]))
+  const totals = dayTotals(hops)
   const toDay = (s: Sight, d: string) => {
     const target = infos.find((x) => x.day === d)?.stop
     ops.update(s.id, { day: d, ...(target && target.id !== s.stop_id ? { stop_id: target.id } : {}) })
@@ -294,6 +309,8 @@ function DayCard({
               dragging={drag.state?.from === i}
               settling={!!drag.state && drag.state.from !== i}
               sight={s}
+              hop={hopTo.get(s.id)}
+              stop={stop}
               index={i}
               number={numberOf.get(s.id) ?? 0}
               total={sights.length}
@@ -309,6 +326,22 @@ function DayCard({
             />
           ))}
         </ol>
+      )}
+      {hops.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-soft">
+          <span className="inline-flex items-center gap-1">
+            <Icon name={totals.walkMin > 0 ? 'directions_walk' : 'directions_subway'} size={14} className="text-accent" />
+            {hops.some((h) => !h.routed) ? '≈' : ''}
+            {minutes(totals.minutes)} de trayectos en el día
+          </span>
+          {totals.walkMin > 0 && <span>{distance(totals.km)} andando</span>}
+          {totals.transitMin > 0 && totals.walkMin > 0 && <span>{minutes(totals.transitMin)} en transporte</span>}
+          {hops.some((h) => h.tight != null) && (
+            <span className="inline-flex items-center gap-1 font-semibold text-red-700">
+              <Icon name="warning" size={14} /> {plural(hops.filter((h) => h.tight != null).length, 'trayecto no cabe', 'trayectos no caben')} en las horas apuntadas
+            </span>
+          )}
+        </p>
       )}
       {stop && <GoogleMapsDay sights={places} stop={stop} />}
 
@@ -339,6 +372,8 @@ function SightRow({
   dragging,
   settling,
   sight: s,
+  hop,
+  stop,
   index,
   number,
   total,
@@ -358,6 +393,9 @@ function SightRow({
   dragging: boolean
   settling: boolean
   sight: Sight
+  /** Trayecto desde el sitio anterior hasta este. */
+  hop?: Hop<Sight>
+  stop?: Stop
   index: number
   /** Número del sitio en el día (las notas no cuentan). */
   number: number
@@ -377,92 +415,121 @@ function SightRow({
   useEffect(() => setName(s.name), [s.name])
   const note = isNote(s)
   return (
-    <li
-      style={dragStyle}
-      className={`rounded-sm px-2 py-1.5 ${note ? 'border border-dashed border-outline-soft bg-card' : 'bg-surface-low'} ${dragging ? 'relative z-20 shadow-2xl ring-2 ring-accent' : settling ? 'transition-transform duration-150' : ''}`}
-    >
-      <div className="flex items-center gap-1.5">
-        {handle}
-        {note ? (
-          <span className="grid h-7 w-7 shrink-0 place-items-center text-ink-soft" aria-label="Nota">
-            <Icon name="sticky_note_2" size={18} />
-          </span>
-        ) : planned ? (
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={s.done}
-            disabled={!editable}
-            onClick={onToggle}
-            aria-label={s.done ? `Desmarcar ${s.name}` : `Marcar ${s.name} como visto`}
-            className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition ${s.done ? 'border-accent bg-accent text-white' : 'border-ink text-ink hover:bg-surface-container'}`}
-          >
-            {s.done ? <Icon name="check" size={16} /> : number}
-          </button>
-        ) : (
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-white">{number}</span>
-        )}
-        {editable ? (
-          <TimeField value={s.time ?? null} label={`Hora de ${s.name}`} onChange={(t) => t !== (s.time?.slice(0, 5) ?? null) && onTime(t)} />
-        ) : (
-          s.time && <span className="w-12 shrink-0 text-xs tabular-nums text-ink-soft">{s.time.slice(0, 5)}</span>
-        )}
-        {editable ? (
-          <input
-            aria-label={note ? 'Nota' : 'Sitio'}
-            className={`min-w-0 flex-1 rounded-xs bg-transparent px-1 py-1 outline-none focus:bg-card ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => name.trim() && name !== s.name && onRename(name.trim().slice(0, 160))}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          />
-        ) : (
-          <span className={`min-w-0 flex-1 truncate ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}>{s.name}</span>
-        )}
-        {s.wiki_url && (
-          <a href={s.wiki_url} target="_blank" rel="noreferrer" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label={`${s.name} en Wikipedia`}>
-            <Icon name="open_in_new" size={16} />
-          </a>
-        )}
-        {editable && (
-          <button type="button" aria-label={`Opciones de ${s.name}`} aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink">
-            <Icon name="more_vert" size={18} />
-          </button>
+    <li style={dragStyle} className={dragging ? 'relative z-20' : settling ? 'transition-transform duration-150' : ''}>
+      {hop && <HopLine hop={hop} stop={stop} faded={dragging || settling} />}
+      <div data-sight-card className={`rounded-sm px-2 py-1.5 ${note ? 'border border-dashed border-outline-soft bg-card' : 'bg-surface-low'} ${dragging ? 'shadow-2xl ring-2 ring-accent' : ''}`}>
+        <div className="flex items-center gap-1.5">
+          {handle}
+          {note ? (
+            <span className="grid h-7 w-7 shrink-0 place-items-center text-ink-soft" aria-label="Nota">
+              <Icon name="sticky_note_2" size={18} />
+            </span>
+          ) : planned ? (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={s.done}
+              disabled={!editable}
+              onClick={onToggle}
+              aria-label={s.done ? `Desmarcar ${s.name}` : `Marcar ${s.name} como visto`}
+              className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition ${s.done ? 'border-accent bg-accent text-white' : 'border-ink text-ink hover:bg-surface-container'}`}
+            >
+              {s.done ? <Icon name="check" size={16} /> : number}
+            </button>
+          ) : (
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-white">{number}</span>
+          )}
+          {editable ? (
+            <TimeField value={s.time ?? null} label={`Hora de ${s.name}`} onChange={(t) => t !== (s.time?.slice(0, 5) ?? null) && onTime(t)} />
+          ) : (
+            s.time && <span className="w-12 shrink-0 text-xs tabular-nums text-ink-soft">{s.time.slice(0, 5)}</span>
+          )}
+          {editable ? (
+            <input
+              aria-label={note ? 'Nota' : 'Sitio'}
+              className={`min-w-0 flex-1 rounded-xs bg-transparent px-1 py-1 outline-none focus:bg-card ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => name.trim() && name !== s.name && onRename(name.trim().slice(0, 160))}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            />
+          ) : (
+            <span className={`min-w-0 flex-1 truncate ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}>{s.name}</span>
+          )}
+          {s.wiki_url && (
+            <a href={s.wiki_url} target="_blank" rel="noreferrer" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label={`${s.name} en Wikipedia`}>
+              <Icon name="open_in_new" size={16} />
+            </a>
+          )}
+          {editable && (
+            <button type="button" aria-label={`Opciones de ${s.name}`} aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink">
+              <Icon name="more_vert" size={18} />
+            </button>
+          )}
+        </div>
+        {menu && editable && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-surface-highest pt-1.5 text-sm">
+            <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">
+              <Icon name="arrow_upward" size={14} /> Subir
+            </button>
+            <button type="button" disabled={index === total - 1} onClick={() => onMove(1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">
+              <Icon name="arrow_downward" size={14} /> Bajar
+            </button>
+            <label className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft">
+              <Icon name="event" size={14} /> Pasar al
+              <select
+                aria-label="Pasar a otro día"
+                className="bg-transparent outline-none"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onDay(e.target.value)
+                  setMenu(false)
+                }}
+              >
+                <option value="">día…</option>
+                {days.map((d, i) => (
+                  <option key={d} value={d}>
+                    Día {i + 1} · {formatDay(d, false)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={onRemove} className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-red-700 hover:bg-red-50">
+              <Icon name="delete" size={14} /> Quitar
+            </button>
+          </div>
         )}
       </div>
-      {menu && editable && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-surface-highest pt-1.5 text-sm">
-          <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">
-            <Icon name="arrow_upward" size={14} /> Subir
-          </button>
-          <button type="button" disabled={index === total - 1} onClick={() => onMove(1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">
-            <Icon name="arrow_downward" size={14} /> Bajar
-          </button>
-          <label className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft">
-            <Icon name="event" size={14} /> Pasar al
-            <select
-              aria-label="Pasar a otro día"
-              className="bg-transparent outline-none"
-              value=""
-              onChange={(e) => {
-                if (e.target.value) onDay(e.target.value)
-                setMenu(false)
-              }}
-            >
-              <option value="">día…</option>
-              {days.map((d, i) => (
-                <option key={d} value={d}>
-                  Día {i + 1} · {formatDay(d, false)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" onClick={onRemove} className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-red-700 hover:bg-red-50">
-            <Icon name="delete" size={14} /> Quitar
-          </button>
-        </div>
-      )}
     </li>
+  )
+}
+
+/**
+ * Entre dos sitios: «12 min andando · 950 m» (abre el tramo en Google Maps); si andando es mucho, también en
+ * transporte; y un aviso si las horas apuntadas no dan para llegar.
+ */
+function HopLine({ hop, stop, faded }: { hop: Hop<Sight>; stop?: Stop; faded: boolean }) {
+  const approx = hop.routed ? '' : '≈'
+  const near = hop.walkMin <= 2
+  const link = (mode: 'walking' | 'transit') => googleMapsDayLinks([hop.from, hop.to], stop, mode)[0]
+  return (
+    <div className={`mb-1 ml-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 border-l-2 border-dotted border-outline-soft py-0.5 pl-4 text-xs text-ink-soft transition-opacity ${faded ? 'opacity-30' : ''}`}>
+      <a href={link('walking')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-ink hover:underline" title={`De ${hop.from.name} a ${hop.to.name} andando, en Google Maps`}>
+        <Icon name="directions_walk" size={14} className="text-accent" />
+        {near ? 'Al lado' : `${approx}${minutes(hop.walkMin)} andando`} · {distance(hop.km)}
+      </a>
+      {hop.transitMin != null && (
+        <a href={link('transit')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-ink hover:underline" title={`De ${hop.from.name} a ${hop.to.name} en transporte, en Google Maps`}>
+          <Icon name="directions_subway" size={14} className="text-accent" />≈{minutes(hop.transitMin)} en metro, bus o taxi
+        </a>
+      )}
+      {hop.tight != null && (
+        <span className="inline-flex items-center gap-1 font-semibold text-red-700">
+          <Icon name="warning" size={14} />
+          {hop.tight === 0 ? 'No da tiempo: misma hora que el anterior' : `No da tiempo: solo ${minutes(hop.tight)} desde las ${hop.from.time!.slice(0, 5)}`}
+        </span>
+      )}
+    </div>
   )
 }
 
