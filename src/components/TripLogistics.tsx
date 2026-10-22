@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask } from './ConfirmDialog'
 import { DateField, TimeField, daysBetween, formatDay } from './DatePicker'
@@ -7,6 +7,7 @@ import { ErrorNote, Flag, plural } from './ui'
 import { api } from '../lib/api'
 import type { LegPatch, NewLodging } from '../lib/api/types'
 import { isReturnHome } from '../lib/days'
+import { searchLodging, type LodgingPlace } from '../lib/geocode'
 import type { LegDetail, Lodging, Stop, TripWithStops } from '../lib/db'
 import { TRANSPORT } from '../lib/transport'
 
@@ -171,11 +172,16 @@ function LodgingCard({ lodging: l, onEdit }: { lodging: Lodging; onEdit: () => v
             .filter(Boolean)
             .join(' · ') || 'Sin fechas'}
         </div>
-        {(l.address || l.booking_ref || l.url) && (
+        {(l.address || l.lat != null || l.booking_ref || l.url) && (
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-            {l.address && (
-              <a className="inline-flex items-center gap-1 text-accent-deep hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${l.name}, ${l.address}`)}`} target="_blank" rel="noreferrer">
-                <Icon name="location_on" size={14} /> {l.address}
+            {(l.address || l.lat != null) && (
+              <a
+                className="inline-flex items-center gap-1 text-accent-deep hover:underline"
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.lat != null && l.lon != null ? `${l.lat},${l.lon}` : `${l.name}, ${l.address}`)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Icon name="location_on" size={14} /> {l.address || 'Ver en el mapa'}
               </a>
             )}
             {l.booking_ref && <span className="text-ink-soft">Ref. {l.booking_ref}</span>}
@@ -196,6 +202,68 @@ function LodgingCard({ lodging: l, onEdit }: { lodging: Lodging; onEdit: () => v
 }
 
 const input = 'w-full rounded-sm bg-card px-3 py-2 text-sm ring-1 ring-outline-soft outline-none focus:ring-2 focus:ring-ink'
+
+/**
+ * Nombre del alojamiento con sugerencias de OpenStreetMap («Barceló Cartuja» → Hotel Barceló Sevilla Cartuja,
+ * con su dirección y ubicación), primero los cercanos a la ciudad de la parada. Se puede escribir cualquier cosa.
+ */
+function LodgingNameField({ value, near, located, onChange, onPick }: { value: string; near?: Stop; located: boolean; onChange: (v: string) => void; onPick: (p: LodgingPlace) => void }) {
+  const [results, setResults] = useState<LodgingPlace[]>([])
+  const [open, setOpen] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const active = open && !located && value.trim().length >= 3
+  useEffect(() => {
+    if (!active) return
+    const ctrl = new AbortController()
+    const id = setTimeout(() => {
+      setSearching(true)
+      searchLodging(value, near ? { lat: near.lat, lon: near.lon } : undefined, ctrl.signal)
+        .then(setResults, () => setResults([]))
+        .finally(() => setSearching(false))
+    }, 350)
+    return () => {
+      clearTimeout(id)
+      ctrl.abort()
+    }
+  }, [value, active, near])
+  return (
+    <div className="relative">
+      <input
+        aria-label="Nombre del alojamiento"
+        className={input}
+        placeholder="Busca el hotel o escribe el nombre"
+        value={value}
+        maxLength={160}
+        autoFocus
+        autoComplete="off"
+        onChange={(e) => (onChange(e.target.value), setOpen(true))}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+      />
+      {active && (results.length > 0 || searching) && (
+        <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-sm bg-card p-1 shadow-2xl ring-1 ring-outline-soft" role="listbox">
+          {results.map((p) => (
+            <li key={`${p.lat},${p.lon}`}>
+              <button
+                type="button"
+                className="flex w-full items-start gap-2 rounded-xs px-2 py-2 text-left text-sm hover:bg-surface-low"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => (onPick(p), setOpen(false), setResults([]))}
+              >
+                <Icon name="hotel" size={16} className="mt-0.5 shrink-0 text-accent" />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{p.name}</span>
+                  {p.address && <span className="block truncate text-xs text-ink-soft">{p.address}</span>}
+                </span>
+              </button>
+            </li>
+          ))}
+          {searching && !results.length && <li className="px-2 py-2 text-xs text-ink-soft">Buscando…</li>}
+          <li className="px-2 pt-1 text-right text-[10px] text-ink-soft">© OpenStreetMap</li>
+        </ul>
+      )}
+    </div>
+  )
+}
 const clean = (v: string) => v.trim() || null
 
 function LodgingForm({
@@ -217,6 +285,8 @@ function LodgingForm({
   const [v, setV] = useState({
     name: editing?.name ?? '',
     address: editing?.address ?? '',
+    lat: editing?.lat ?? null,
+    lon: editing?.lon ?? null,
     check_in: editing ? editing.check_in : stop ? stop.arrived_on : t.start_date,
     check_in_time: editing ? editing.check_in_time : '15:00',
     check_out: editing ? editing.check_out : stop ? (t.stops[i + 1]?.arrived_on ?? t.end_date) : t.end_date,
@@ -235,6 +305,8 @@ function LodgingForm({
         name: v.name.trim().slice(0, 160),
         stop_id: stopId,
         address: clean(v.address),
+        // Solo si se eligió en el buscador (así un alojamiento sin ubicación se guarda igual que antes).
+        ...(v.lat != null && v.lon != null ? { lat: v.lat, lon: v.lon } : editing?.lat != null ? { lat: null, lon: null } : {}),
         check_in: v.check_in,
         check_in_time: v.check_in_time,
         check_out: v.check_out,
@@ -258,7 +330,24 @@ function LodgingForm({
       }}
     >
       <div className="font-display font-semibold">{editing ? 'Editar alojamiento' : stop ? `Alojamiento en ${stop.name}` : 'Alojamiento de todo el viaje'}</div>
-      <input aria-label="Nombre del alojamiento" className={input} placeholder="Hotel, apartamento, camping…" value={v.name} maxLength={160} autoFocus onChange={(e) => set({ name: e.target.value })} />
+      <LodgingNameField
+        value={v.name}
+        near={stop ?? t.stops.find((_, k) => k > 0 && !isReturnHome(t.stops, k))}
+        located={v.lat != null}
+        onChange={(name) => set({ name, ...(v.lat != null ? { lat: null, lon: null } : {}) })}
+        onPick={(p) => set({ name: p.name, address: p.address || v.address, lat: p.lat, lon: p.lon })}
+      />
+      {v.lat != null && v.lon != null && (
+        <div className="flex items-center gap-2 text-xs text-ink-soft">
+          <Icon name="location_on" size={14} className="text-accent" /> Ubicación guardada
+          <a className="text-accent-deep hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${v.lat},${v.lon}`} target="_blank" rel="noreferrer">
+            ver en el mapa
+          </a>
+          <button type="button" className="ml-auto hover:text-ink" onClick={() => set({ lat: null, lon: null })}>
+            quitar
+          </button>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="label-stamp w-14 text-ink-soft">Entrada</span>

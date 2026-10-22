@@ -164,7 +164,8 @@ export interface Expense {
   stop_id: string | null
   user_id: string | null
   paid_by: string | null
-  category: ExpenseCategory
+  /** 'settlement': un pago entre dos personas para saldar cuentas (no es un gasto). */
+  category: ExpenseCategory | 'settlement'
   description: string | null
   amount: number
   currency: string
@@ -208,6 +209,9 @@ export interface Lodging {
   booking_ref: string | null
   url: string | null
   notes: string | null
+  /** Ubicación (si se eligió en el buscador). */
+  lat?: number | null
+  lon?: number | null
   user_id: string | null
   created_at: string
 }

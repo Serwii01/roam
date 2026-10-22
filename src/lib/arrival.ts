@@ -34,13 +34,16 @@ export const duration = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 
  *  · tren, autobús o barco: ~10-15 min para salir + ~20 min por la ciudad.
  *  · coche, bici o a pie: se llega a la puerta (10 min para aparcar o entrar).
  */
-export function transferMinutes(stop: Stop, airports: AirportMap): { minutes: number; how: string } {
+export function transferMinutes(stop: Stop, airports: AirportMap, lodging?: Pick<Lodging, 'lat' | 'lon' | 'name'>): { minutes: number; how: string } {
   const mode = stop.transport_in ?? 'car'
   if (mode === 'plane') {
     const a = stop.to_airport ? airports.get(stop.to_airport) : undefined
-    const km = a ? haversine([a.lon, a.lat], [stop.lon, stop.lat]) : 25
+    // Con la ubicación del alojamiento, la distancia hasta él; si no, hasta el centro de la ciudad.
+    const located = lodging?.lat != null && lodging.lon != null
+    const to: [number, number] = located ? [lodging!.lon!, lodging!.lat!] : [stop.lon, stop.lat]
+    const km = a ? haversine([a.lon, a.lat], to) : 25
     const drive = km < 5 ? 15 : Math.min(120, round5((km / 40) * 60) + 10)
-    return { minutes: 40 + drive, how: `salir del aeropuerto y ${Math.round(km)} km hasta ${stop.name}` }
+    return { minutes: 40 + drive, how: `salir del aeropuerto y ${Math.round(km)} km hasta ${located ? 'el alojamiento' : stop.name}` }
   }
   if (mode === 'train' || mode === 'bus') return { minutes: 30, how: 'salir de la estación y llegar al alojamiento' }
   if (mode === 'boat') return { minutes: 35, how: 'desembarcar y llegar al alojamiento' }
@@ -79,7 +82,7 @@ export function dayLogistics(t: TripWithStops, lodgings: Lodging[], legs: LegDet
 
     const lod = arriveDay ? lodgingFor(t, lodgings, i, arriveDay) : undefined
     if (lod && d?.arrive_time && arriveDay) {
-      const { minutes, how } = transferMinutes(s, airports)
+      const { minutes, how } = transferMinutes(s, airports, lod)
       const at = toMin(hhmm(d.arrive_time)) + minutes
       const early = lod.check_in_time && at < toMin(hhmm(lod.check_in_time))
       arrivals.add(lod.id)

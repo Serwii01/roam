@@ -11,7 +11,7 @@ import { useUser } from '../lib/auth'
 import { localeCountry } from '../lib/geocode'
 import { useProfile } from '../lib/hooks'
 import type { Expense, ExpenseCategory, SplitMode, TripMember, TripWithStops } from '../lib/db'
-import { CATEGORY_ORDER, CURRENCIES, EXPENSE_CATEGORIES, balancesOf, currencyForCountry, currencyName, exchangeRate, formatMoney, settleBalances, sharesOf } from '../lib/money'
+import { CATEGORY_ORDER, CURRENCIES, EXPENSE_CATEGORIES, balancesOf, currencyForCountry, currencyName, exchangeRate, formatMoney, isSettlement, settleBalances, sharesOf, totalSpent } from '../lib/money'
 
 const parseAmount = (s: string) => {
   const n = Number(s.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'))
@@ -60,7 +60,13 @@ const MODES: { id: SplitMode; label: string; hint: string }[] = [
   { id: 'shares', label: 'Partes', hint: 'Por partes: quien tiene 2 paga el doble que quien tiene 1' },
 ]
 
-/** Presupuesto y gastos del viaje. Solo para participantes (la base de datos tampoco los enseña a nadie más). */
+type BudgetTab = 'gastos' | 'saldos' | 'resumen'
+
+/**
+ * Presupuesto y gastos del viaje, al estilo Tricount. Solo para participantes (la base de datos tampoco los
+ * enseña a nadie más). Arriba, tu saldo; debajo, tres pestañas: la lista de gastos, quién debe a quién (con
+ * «Marcar como pagado») y el resumen del presupuesto y las categorías.
+ */
 export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir directamente el formulario. */ start?: 'budget' | 'expense' }) {
   const user = useUser()
   const qc = useQueryClient()
@@ -69,6 +75,7 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   const members = useQuery({ queryKey: ['members', trip.id], queryFn: () => api.listTripMembers(trip.id) })
   const [form, setForm] = useState<Expense | 'new' | null>(start === 'expense' ? 'new' : null)
   const [editBudget, setEditBudget] = useState(start === 'budget')
+  const [tab, setTab] = useState<BudgetTab>(start === 'budget' ? 'resumen' : 'gastos')
   const editingId = form && form !== 'new' ? form.id : null
 
   const profile = useProfile()
@@ -76,21 +83,62 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   const homeCurrency = currencyForCountry(profile.data?.home_country) ?? currencyForCountry(localeCountry()) ?? 'EUR'
   const currency = budget.data?.currency ?? homeCurrency
   const list = useMemo(() => expenses.data ?? [], [expenses.data])
+  const spending = useMemo(() => list.filter((e) => !isSettlement(e)), [list])
   const people = useMemo(() => tripPeople(members.data ?? [], trip.companions ?? [], user.id), [members.data, trip.companions, user.id])
   const keys = people.map((p) => p.key)
+  const meKey = `u:${user.id}`
+  const group = people.length > 1
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['expenses', trip.id] }), qc.invalidateQueries({ queryKey: ['budget', trip.id] })])
 
-  const total = list.reduce((a, e) => a + e.amount * e.rate, 0)
-  const byCat = CATEGORY_ORDER.map((c) => ({ c, v: list.filter((e) => e.category === c).reduce((a, e) => a + e.amount * e.rate, 0) })).filter((x) => x.v > 0)
+  const total = totalSpent(list)
+  const byCat = CATEGORY_ORDER.map((c) => ({ c, v: spending.filter((e) => e.category === c).reduce((a, e) => a + e.amount * e.rate, 0) })).filter((x) => x.v > 0)
   const days = trip.start_date && trip.end_date ? daysBetween(trip.start_date, trip.end_date) : null
   const limit = budget.data?.amount ?? null
   const pct = limit ? total / limit : null
   const planned = trip.status === 'planned'
 
-  // Cuentas claras: lo que pagó cada uno frente a lo que le toca según el reparto de cada gasto.
+  // Cuentas claras: lo que pagó cada uno frente a lo que le toca según el reparto de cada gasto (y los pagos para saldar).
   const { paid, owed } = balancesOf(list, keys)
   const transfers = settleBalances(paid, owed)
   const who = (k: string | null) => people.find((p) => p.key === k)
+  const balanceOf = (k: string) => {
+    const raw = (paid.get(k) ?? 0) - (owed.get(k) ?? 0)
+    return Math.abs(raw) < 0.005 ? 0 : raw
+  }
+  const myBalance = balanceOf(meKey)
+  const myShare = spending.reduce((a, e) => a + (sharesOf(e, keys).get(meKey) ?? 0), 0)
+  const hasAccounts = group && list.some((e) => payerOf(e))
+  const nameOf = (k: string | null, as: 'subject' | 'object' = 'subject') => {
+    const p = who(k)
+    return p?.me ? (as === 'subject' ? 'Tú' : 'ti') : (p?.name ?? '¿?')
+  }
+
+  const settle = useMutation({
+    mutationFn: (t: { from: string; to: string; amount: number }) =>
+      api.addExpense(trip.id, {
+        category: 'settlement',
+        amount: Math.round(t.amount * 100) / 100,
+        currency,
+        rate: 1,
+        spent_on: today(),
+        payer_key: t.from,
+        paid_by: t.from.startsWith('u:') ? t.from.slice(2) : null,
+        split_mode: 'amount',
+        split: [{ k: t.to, v: Math.round(t.amount * 100) / 100 }],
+      }),
+    onSuccess: refresh,
+  })
+  const undo = useMutation({ mutationFn: (id: string) => api.deleteExpense(id), onSuccess: refresh })
+
+  async function shareAccounts() {
+    const lines = [
+      `Cuentas de «${trip.title}» (${formatMoney(total, currency)} en total)`,
+      ...(transfers.length ? transfers.map((t) => `• ${nameOf(t.from)} → ${nameOf(t.to, 'object')}: ${formatMoney(t.amount, currency)}`) : ['Estamos en paz.']),
+    ]
+    const text = lines.join('\n')
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ text }).catch(() => {})
+    else await navigator.clipboard?.writeText(text)
+  }
 
   const groups = useMemo(() => {
     const g = new Map<string, Expense[]>()
@@ -100,6 +148,17 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
 
   if (budget.isLoading || expenses.isLoading) return <div className="card h-40 animate-pulse p-4" />
 
+  const newExpense = (
+    <button type="button" className="btn btn-accent" onClick={() => (setTab('gastos'), setForm('new'))}>
+      <Icon name="add" size={18} /> Apuntar gasto
+    </button>
+  )
+  const TABS: { id: BudgetTab; label: string; n?: number }[] = [
+    { id: 'gastos', label: 'Gastos', n: spending.length },
+    ...(group ? [{ id: 'saldos' as const, label: 'Saldos', n: transfers.length || undefined }] : []),
+    { id: 'resumen', label: group ? 'Resumen' : 'Presupuesto' },
+  ]
+
   return (
     <div className="card p-4" id="gastos">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -108,231 +167,290 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
           <Icon name="lock" size={14} /> Privado
         </span>
       </div>
-      <ErrorNote error={budget.error ?? expenses.error} />
+      <ErrorNote error={budget.error ?? expenses.error ?? settle.error ?? undo.error} />
 
-      {editBudget ? (
-        <BudgetForm trip={trip} current={budget.data ?? null} fallbackCurrency={homeCurrency} expenses={list} onDone={() => (setEditBudget(false), refresh())} onCancel={() => setEditBudget(false)} />
-      ) : !list.length && !limit ? (
+      {!list.length && !limit && !editBudget && form === null ? (
         <div className="rounded-sm bg-surface-low p-4 text-sm">
-          <p className="text-ink-soft">{planned ? 'Fija cuánto quieres gastar y apunta lo que ya hayas reservado.' : 'Apunta lo que gastasteis: transporte, alojamiento, comida…'}</p>
+          <p className="text-ink-soft">
+            {planned ? 'Fija cuánto quieres gastar y apunta lo que ya hayas reservado.' : 'Apunta lo que gastasteis: transporte, alojamiento, comida…'}
+            {group && ' Cada gasto dice quién pagó y entre quiénes se reparte, y la app calcula quién debe a quién.'}
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className="btn btn-ghost" onClick={() => setEditBudget(true)}>
+            <button type="button" className="btn btn-ghost" onClick={() => (setTab('resumen'), setEditBudget(true))}>
               <Icon name="savings" size={18} /> Fijar presupuesto
             </button>
-            <button type="button" className="btn btn-dark" onClick={() => setForm('new')}>
-              <Icon name="add" size={18} /> Apuntar gasto
-            </button>
+            {newExpense}
           </div>
         </div>
       ) : (
-        <div>
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <div className="label-stamp text-ink-soft">{planned ? 'Previsto / reservado' : 'Gastado'}</div>
-              <div className="font-display text-4xl font-bold tracking-tight">{formatMoney(total, currency)}</div>
-            </div>
-            <button type="button" className="text-right text-sm text-ink-soft hover:text-ink" onClick={() => setEditBudget(true)}>
-              {limit ? (
-                <>
-                  de <b className="text-ink">{formatMoney(limit, currency)}</b>
-                </>
-              ) : (
-                'Fijar presupuesto'
+        <>
+          {/* Tu saldo y el total, siempre a la vista. */}
+          <div className="rounded-md bg-surface-low p-4">
+            {hasAccounts ? (
+              <>
+                <div className="label-stamp text-ink-soft">Tu saldo</div>
+                <div className={`font-display text-3xl font-bold tracking-tight ${myBalance > 0 ? 'text-emerald-700' : myBalance < 0 ? 'text-red-700' : ''}`}>
+                  {myBalance > 0 ? `Te deben ${formatMoney(myBalance, currency)}` : myBalance < 0 ? `Debes ${formatMoney(-myBalance, currency)}` : 'Estás en paz'}
+                </div>
+                <div className="mt-1 text-sm text-ink-soft">
+                  {formatMoney(total, currency)} gastado entre todos · tu parte {formatMoney(myShare, currency)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="label-stamp text-ink-soft">{planned ? 'Previsto / reservado' : 'Gastado'}</div>
+                <div className="font-display text-3xl font-bold tracking-tight">{formatMoney(total, currency)}</div>
+                {limit ? <div className="mt-1 text-sm text-ink-soft">de {formatMoney(limit, currency)} de presupuesto</div> : null}
+              </>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {newExpense}
+              {hasAccounts && transfers.length > 0 && (
+                <button type="button" className="btn btn-ghost" onClick={() => setTab('saldos')}>
+                  <Icon name="handshake" size={18} /> Saldar cuentas
+                </button>
               )}
-              <Icon name="edit" size={14} className="ml-1" />
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-1 rounded-md bg-surface-low p-1" role="tablist" aria-label="Gastos">
+            {TABS.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === x.id}
+                onClick={() => setTab(x.id)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2 py-2 text-sm font-semibold transition ${tab === x.id ? 'bg-card text-ink shadow-card ring-1 ring-outline-soft' : 'text-ink-soft hover:text-ink'}`}
+              >
+                {x.label}
+                {!!x.n && <span className="rounded-full bg-surface-container px-1.5 text-[11px] text-ink-soft">{x.n}</span>}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {tab === 'gastos' && (
+        <>
+          {form === 'new' && (
+            <div className="mt-4">
+              <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} me={user.id} editing={null} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
+            </div>
+          )}
+          {groups.length > 0 ? (
+            <div className="mt-4 space-y-4">
+              {groups.map(([day, items]) => (
+                <div key={day}>
+                  <div className="label-stamp mb-1.5 flex justify-between text-ink-soft">
+                    <span>{day ? formatDay(day) : 'Sin fecha'}</span>
+                    <span>{formatMoney(totalSpent(items), currency)}</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {items.map((e) => {
+                      if (isSettlement(e)) {
+                        const to = e.split?.[0]?.k ?? null
+                        return (
+                          <li key={e.id} className="flex items-center gap-3 rounded-sm border border-dashed border-outline-soft px-3 py-2 text-sm">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-container text-emerald-700">
+                              <Icon name="handshake" size={16} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-semibold">
+                                {nameOf(payerOf(e))} {who(payerOf(e))?.me ? 'has pagado' : 'ha pagado'} a {nameOf(to, 'object')}
+                              </span>
+                              <span className="block text-xs text-ink-soft">Para saldar cuentas · no cuenta como gasto</span>
+                            </span>
+                            <span className="shrink-0 font-display font-semibold">{formatMoney(e.amount * e.rate, currency)}</span>
+                            <button type="button" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label="Deshacer el pago" title="Deshacer" disabled={undo.isPending} onClick={() => undo.mutate(e.id)}>
+                              <Icon name="undo" size={16} />
+                            </button>
+                          </li>
+                        )
+                      }
+                      const cat = EXPENSE_CATEGORIES[e.category as ExpenseCategory]
+                      const stop = trip.stops.find((s) => s.id === e.stop_id)
+                      const payer = who(payerOf(e))
+                      const mine = sharesOf(e, keys).get(meKey) ?? 0
+                      const amount = e.amount * e.rate
+                      // Lo que este gasto mueve en tu saldo, como en Tricount: + lo que te deben si pagaste tú, − tu parte si pagó otro.
+                      const delta = !group || !payer ? null : payer.me ? amount - mine : -mine
+                      const deltaLabel = delta === null ? null : Math.abs(delta) < 0.005 ? 'no te toca' : `${delta > 0 ? '+' : '−'}${formatMoney(Math.abs(delta), currency)}`
+                      if (editingId === e.id)
+                        return (
+                          <li key={e.id}>
+                            <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} me={user.id} editing={e} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
+                          </li>
+                        )
+                      return (
+                        <li key={e.id}>
+                          <button
+                            type="button"
+                            onClick={() => setForm(e)}
+                            aria-label={`Editar ${e.description || cat.label}`}
+                            className="group flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
+                          >
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: cat.color }}>
+                              <Icon name={cat.icon} size={16} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-semibold">{e.description || cat.label}</span>
+                              <span className="block truncate text-xs text-ink-soft">
+                                {[group && payer ? (payer.me ? 'pagaste tú' : `pagó ${payer.name}`) : null, stop?.name, !group ? cat.label : null].filter(Boolean).join(' · ') || cat.label}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-right">
+                              <span className="block font-display font-semibold">{formatMoney(amount, currency)}</span>
+                              {deltaLabel ? (
+                                <span
+                                  className={`block text-xs font-semibold ${delta! > 0.005 ? 'text-emerald-700' : delta! < -0.005 ? 'text-red-700' : 'font-normal text-ink-soft'}`}
+                                  title={delta! > 0.005 ? 'Lo que te deben de este gasto' : delta! < -0.005 ? 'Tu parte de este gasto' : undefined}
+                                >
+                                  {deltaLabel}
+                                </span>
+                              ) : e.currency !== currency ? (
+                                <span className="block text-xs text-ink-soft">{formatMoney(e.amount, e.currency)}</span>
+                              ) : null}
+                            </span>
+                            <Icon name="edit" size={16} className="shrink-0 text-ink-soft opacity-50 transition group-hover:opacity-100" />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            form === null && (list.length > 0 || limit) && <p className="mt-4 text-sm text-ink-soft">Aún no hay gastos apuntados.</p>
+          )}
+        </>
+      )}
+
+      {tab === 'saldos' && group && (
+        <div className="mt-4 space-y-4" id="cuentas">
+          <div>
+            <div className="label-stamp mb-2 text-ink-soft">Para quedar en paz</div>
+            {transfers.length ? (
+              <ul className="space-y-2">
+                {transfers.map((t) => (
+                  <li key={`${t.from}${t.to}`} className="flex flex-wrap items-center gap-2 rounded-sm bg-surface-low p-3 text-sm">
+                    <Avatar profile={who(t.from)!.avatar} className="h-7 w-7" />
+                    <span className="min-w-0 flex-1">
+                      <b>{nameOf(t.from)}</b> {who(t.from)?.me ? 'debes' : 'debe'} <b className="font-display">{formatMoney(t.amount, currency)}</b> a <b>{nameOf(t.to, 'object')}</b>
+                    </span>
+                    <button type="button" className="btn btn-dark px-3! py-1.5!" disabled={settle.isPending} onClick={() => settle.mutate(t)}>
+                      <Icon name="check" size={16} /> Marcar como pagado
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-sm bg-surface-low p-3 text-sm">Estáis en paz: nadie debe nada a nadie.</p>
+            )}
+            <button type="button" className="btn btn-ghost mt-2" onClick={shareAccounts}>
+              <Icon name="ios_share" size={18} /> Compartir cuentas
             </button>
           </div>
-          {pct !== null && (
+          <div>
+            <div className="label-stamp mb-2 text-ink-soft">Saldo de cada uno</div>
+            <ul className="space-y-1.5 text-sm">
+              {people.map((p) => {
+                const bal = balanceOf(p.key)
+                return (
+                  <li key={p.key} className="flex items-center gap-2">
+                    <Avatar profile={p.avatar} className="h-6 w-6" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">
+                        {p.name}
+                        {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
+                      </span>
+                      <span className="block text-xs text-ink-soft">
+                        pagó {formatMoney(paid.get(p.key) ?? 0, currency)} · le toca {formatMoney(owed.get(p.key) ?? 0, currency)}
+                      </span>
+                    </span>
+                    <span className={`font-display font-semibold ${bal > 0 ? 'text-emerald-700' : bal < 0 ? 'text-red-700' : 'text-ink-soft'}`}>
+                      {bal > 0 ? '+' : ''}
+                      {formatMoney(bal, currency)}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-2 text-xs text-ink-soft">En verde, a quién le deben; en rojo, quién debe. Cada gasto se reparte como se apuntó; los que no dicen quién pagó no cuentan aquí.</p>
+          </div>
+        </div>
+      )}
+
+      {tab === 'resumen' && (
+        <div className="mt-4">
+          {editBudget ? (
+            <BudgetForm trip={trip} current={budget.data ?? null} fallbackCurrency={homeCurrency} expenses={list} onDone={() => (setEditBudget(false), refresh())} onCancel={() => setEditBudget(false)} />
+          ) : (
             <>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-container" role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={100}>
-                <div
-                  className={`h-full rounded-full transition-all ${pct > 1 ? 'bg-red-600' : pct > 0.85 ? 'bg-accent' : 'bg-ink'}`}
-                  style={{ width: `${Math.min(100, pct * 100)}%` }}
-                />
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <div className="label-stamp text-ink-soft">{planned ? 'Previsto / reservado' : 'Gastado'}</div>
+                  <div className="font-display text-2xl font-bold tracking-tight">{formatMoney(total, currency)}</div>
+                </div>
+                <button type="button" className="text-right text-sm text-ink-soft hover:text-ink" onClick={() => setEditBudget(true)}>
+                  {limit ? (
+                    <>
+                      de <b className="text-ink">{formatMoney(limit, currency)}</b>
+                    </>
+                  ) : (
+                    'Fijar presupuesto'
+                  )}
+                  <Icon name="edit" size={14} className="ml-1" />
+                </button>
               </div>
-              <div className={`mt-1 text-sm ${pct > 1 ? 'font-semibold text-red-700' : 'text-ink-soft'}`}>
-                {pct > 1 ? `Te has pasado ${formatMoney(total - limit!, currency)}` : `Quedan ${formatMoney(limit! - total, currency)} · ${Math.round(pct * 100)}%`}
+              {pct !== null && (
+                <>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-container" role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className={`h-full rounded-full transition-all ${pct > 1 ? 'bg-red-600' : pct > 0.85 ? 'bg-accent' : 'bg-ink'}`} style={{ width: `${Math.min(100, pct * 100)}%` }} />
+                  </div>
+                  <div className={`mt-1 text-sm ${pct > 1 ? 'font-semibold text-red-700' : 'text-ink-soft'}`}>
+                    {pct > 1 ? `Te has pasado ${formatMoney(total - limit!, currency)}` : `Quedan ${formatMoney(limit! - total, currency)} · ${Math.round(pct * 100)}%`}
+                  </div>
+                </>
+              )}
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                {days && total > 0 && (
+                  <div className="rounded-sm bg-surface-low px-3 py-2">
+                    <div className="label-stamp text-ink-soft">Por día</div>
+                    <div className="font-display font-semibold">{formatMoney(total / days, currency)}</div>
+                  </div>
+                )}
+                {group && total > 0 && (
+                  <div className="rounded-sm bg-surface-low px-3 py-2">
+                    <div className="label-stamp text-ink-soft">Por persona</div>
+                    <div className="font-display font-semibold">{formatMoney(total / people.length, currency)}</div>
+                  </div>
+                )}
               </div>
+              {byCat.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex h-3 overflow-hidden rounded-full" aria-hidden>
+                    {byCat.map(({ c, v }) => (
+                      <span key={c} style={{ width: `${(v / total) * 100}%`, background: EXPENSE_CATEGORIES[c].color }} title={EXPENSE_CATEGORIES[c].label} />
+                    ))}
+                  </div>
+                  <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    {byCat
+                      .sort((a, b) => b.v - a.v)
+                      .map(({ c, v }) => (
+                        <li key={c} className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: EXPENSE_CATEGORIES[c].color }} />
+                          <span className="min-w-0 flex-1 truncate">{EXPENSE_CATEGORIES[c].label}</span>
+                          <span className="font-semibold">{formatMoney(v, currency, { compact: true })}</span>
+                          <span className="w-9 text-right text-xs text-ink-soft">{Math.round((v / total) * 100)}%</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             </>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            {days && total > 0 && (
-              <div className="rounded-sm bg-surface-low px-3 py-2">
-                <div className="label-stamp text-ink-soft">Por día</div>
-                <div className="font-display font-semibold">{formatMoney(total / days, currency)}</div>
-              </div>
-            )}
-            {people.length > 1 && total > 0 && (
-              <div className="rounded-sm bg-surface-low px-3 py-2">
-                <div className="label-stamp text-ink-soft">Por persona</div>
-                <div className="font-display font-semibold">{formatMoney(total / people.length, currency)}</div>
-              </div>
-            )}
-          </div>
-
-          {byCat.length > 0 && (
-            <div className="mt-4">
-              <div className="flex h-3 overflow-hidden rounded-full" aria-hidden>
-                {byCat.map(({ c, v }) => (
-                  <span key={c} style={{ width: `${(v / total) * 100}%`, background: EXPENSE_CATEGORIES[c].color }} title={EXPENSE_CATEGORIES[c].label} />
-                ))}
-              </div>
-              <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {byCat
-                  .sort((a, b) => b.v - a.v)
-                  .map(({ c, v }) => (
-                    <li key={c} className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: EXPENSE_CATEGORIES[c].color }} />
-                      <span className="min-w-0 flex-1 truncate">{EXPENSE_CATEGORIES[c].label}</span>
-                      <span className="font-semibold">{formatMoney(v, currency, { compact: true })}</span>
-                      <span className="w-9 text-right text-xs text-ink-soft">{Math.round((v / total) * 100)}%</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-
-          {form === null && (
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" className="btn btn-ghost" onClick={() => setEditBudget(true)}>
-                <Icon name="savings" size={18} /> {limit ? 'Editar presupuesto' : 'Fijar presupuesto'}
-              </button>
-              <button type="button" className="btn btn-dark" onClick={() => setForm('new')}>
-                <Icon name="add" size={18} /> Apuntar gasto
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {form === 'new' && (
-        <ExpenseForm
-          trip={trip}
-          currency={currency}
-          hasBudget={!!budget.data}
-          people={people}
-          me={user.id}
-          editing={null}
-          onDone={() => (setForm(null), refresh())}
-          onCancel={() => setForm(null)}
-        />
-      )}
-
-      {groups.length > 0 && (
-        <div className="mt-5 space-y-4">
-          {groups.map(([day, items]) => (
-            <div key={day}>
-              <div className="label-stamp mb-1.5 flex justify-between text-ink-soft">
-                <span>{day ? formatDay(day) : 'Sin fecha'}</span>
-                <span>{formatMoney(items.reduce((a, e) => a + e.amount * e.rate, 0), currency)}</span>
-              </div>
-              <ul className="space-y-1">
-                {items.map((e) => {
-                  const cat = EXPENSE_CATEGORIES[e.category]
-                  const stop = trip.stops.find((s) => s.id === e.stop_id)
-                  const payer = who(payerOf(e))
-                  const n = e.split?.filter((x) => x.v > 0).length
-                  const splitNote =
-                    people.length > 1 && payer
-                      ? e.split_mode && e.split_mode !== 'equal'
-                        ? `reparto por ${e.split_mode === 'percent' ? '%' : e.split_mode === 'amount' ? 'importes' : 'partes'}`
-                        : n && n < people.length
-                          ? `para ${n}`
-                          : null
-                      : null
-                  // Al editar, el formulario se abre en el sitio del gasto.
-                  if (editingId === e.id)
-                    return (
-                      <li key={e.id}>
-                        <ExpenseForm
-                          trip={trip}
-                          currency={currency}
-                          hasBudget={!!budget.data}
-                          people={people}
-                          me={user.id}
-                          editing={e}
-                          onDone={() => (setForm(null), refresh())}
-                          onCancel={() => setForm(null)}
-                        />
-                      </li>
-                    )
-                  return (
-                    <li key={e.id}>
-                      <button
-                        type="button"
-                        onClick={() => setForm(e)}
-                        aria-label={`Editar ${e.description || cat.label}`}
-                        className="group flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
-                      >
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: cat.color }}>
-                          <Icon name={cat.icon} size={16} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-semibold">{e.description || cat.label}</span>
-                          <span className="block truncate text-xs text-ink-soft">
-                            {[stop?.name, people.length > 1 && payer ? `pagó ${payer.me ? 'tú' : payer.name}` : null, splitNote].filter(Boolean).join(' · ') || cat.label}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className="block font-display font-semibold">{formatMoney(e.amount * e.rate, currency)}</span>
-                          {e.currency !== currency && <span className="block text-xs text-ink-soft">{formatMoney(e.amount, e.currency)}</span>}
-                        </span>
-                        <Icon name="edit" size={16} className="shrink-0 text-ink-soft opacity-50 transition group-hover:opacity-100" />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {people.length > 1 && list.some((e) => payerOf(e)) && (
-        <div className="mt-5 rounded-sm border border-surface-highest p-3" id="cuentas">
-          <div className="mb-2 flex items-center gap-2 font-display font-semibold">
-            <Icon name="handshake" size={18} className="text-accent" /> Cuentas claras
-          </div>
-          <ul className="space-y-1.5 text-sm">
-            {people.map((p) => {
-              const raw = (paid.get(p.key) ?? 0) - (owed.get(p.key) ?? 0)
-              const bal = Math.abs(raw) < 0.005 ? 0 : raw
-              return (
-                <li key={p.key} className="flex items-center gap-2">
-                  <Avatar profile={p.avatar} className="h-6 w-6" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">
-                      {p.name}
-                      {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
-                    </span>
-                    <span className="block text-xs text-ink-soft">
-                      pagó {formatMoney(paid.get(p.key) ?? 0, currency)} · le toca {formatMoney(owed.get(p.key) ?? 0, currency)}
-                    </span>
-                  </span>
-                  <span className={`font-display font-semibold ${bal > 0 ? 'text-emerald-700' : bal < 0 ? 'text-red-700' : 'text-ink-soft'}`}>
-                    {bal > 0 ? '+' : ''}
-                    {formatMoney(bal, currency)}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-          <div className="mt-3 space-y-1 border-t border-surface-highest pt-2 text-sm">
-            <div className="label-stamp text-ink-soft">Para quedar en paz</div>
-            {transfers.length ? (
-              transfers.map((t) => (
-                <div key={`${t.from}${t.to}`} className="flex items-center gap-1.5">
-                  <b>{who(t.from)?.name}</b>
-                  <Icon name="arrow_forward" size={14} className="text-ink-soft" />
-                  <b>{who(t.to)?.me ? 'ti' : who(t.to)?.name}</b>
-                  <span className="ml-auto font-display font-semibold text-accent-deep">{formatMoney(t.amount, currency)}</span>
-                </div>
-              ))
-            ) : (
-              <span className="text-ink-soft">Estáis en paz.</span>
-            )}
-            <p className="pt-1 text-xs text-ink-soft">Cada gasto se reparte como se apuntó. Los gastos sin «pagó» no cuentan aquí.</p>
-          </div>
         </div>
       )}
     </div>
@@ -433,7 +551,7 @@ function ExpenseForm({
   const inTrip = !trip.start_date || (today() >= trip.start_date && today() <= (trip.end_date ?? trip.start_date))
   // Parada por defecto: la del día de hoy si se está de viaje.
   const todayStop = [...trip.stops].reverse().find((s) => s.arrived_on && s.arrived_on <= today())
-  const [category, setCategory] = useState<ExpenseCategory>(editing?.category ?? 'food')
+  const [category, setCategory] = useState<ExpenseCategory>(editing && editing.category !== 'settlement' ? editing.category : 'food')
   const [amount, setAmount] = useState(editing ? String(editing.amount).replace('.', ',') : '')
   const [stopId, setStopId] = useState<string | null>(editing ? editing.stop_id : inTrip ? (todayStop?.id ?? null) : null)
   const [currency, setCurrency] = useState(editing?.currency ?? currencyForCountry(trip.stops.find((s) => s.id === stopId)?.country_code) ?? tripCurrency)

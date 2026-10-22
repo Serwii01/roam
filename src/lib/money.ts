@@ -127,6 +127,11 @@ export function sharesOf(e: Pick<Expense, 'amount' | 'rate' | 'split_mode' | 'sp
   return out
 }
 
+/** ¿Es un pago para saldar cuentas («Julia te ha pagado 45 €») y no un gasto? */
+export const isSettlement = (e: Pick<Expense, 'category'>) => e.category === 'settlement'
+/** Lo gastado de verdad (sin los pagos para saldar cuentas), en la moneda del viaje. */
+export const totalSpent = (list: Pick<Expense, 'category' | 'amount' | 'rate'>[]) => list.reduce((a, e) => (isSettlement(e) ? a : a + e.amount * e.rate), 0)
+
 /** Saldo de cada persona (pagado − lo que le toca): positivo = le deben, negativo = debe. */
 export function balancesOf(expenses: Expense[], people: string[]) {
   const paid = new Map<string, number>(people.map((p) => [p, 0]))

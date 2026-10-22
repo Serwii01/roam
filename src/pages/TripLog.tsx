@@ -22,7 +22,7 @@ import type { NewSight } from '../lib/api/types'
 import { isNote, type Sight, type Stop, type TripStyle, type TripWithStops } from '../lib/db'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
 import { isReturnHome } from '../lib/days'
-import { formatMoney } from '../lib/money'
+import { formatMoney, isSettlement, totalSpent } from '../lib/money'
 import { useAirportMap, useCountries, useInvalidateTravel, usePassports, useProfile, useTravelMutation, useTrip } from '../lib/hooks'
 import { passportWarnings } from '../lib/passportCheck'
 import { tripCardData } from '../lib/shareData'
@@ -514,7 +514,7 @@ function BudgetGlance({ trip: t, onOpen }: { trip: TripWithStops; onOpen: (start
   if (budget.isLoading || expenses.isLoading) return <div className="card h-32 animate-pulse" />
   const list = expenses.data ?? []
   const currency = budget.data?.currency ?? 'EUR'
-  const spent = list.reduce((a, e) => a + e.amount * e.rate, 0)
+  const spent = totalSpent(list)
   const limit = budget.data?.amount ?? null
   const pct = limit ? spent / limit : null
   return (
@@ -525,7 +525,7 @@ function BudgetGlance({ trip: t, onOpen }: { trip: TripWithStops; onOpen: (start
         </h2>
         {list.length > 0 && (
           <button type="button" className="label-code text-accent-deep hover:underline" onClick={() => onOpen()}>
-            {plural(list.length, 'gasto', 'gastos')} →
+            {plural(list.filter((e) => !isSettlement(e)).length, 'gasto', 'gastos')} →
           </button>
         )}
       </div>
@@ -569,7 +569,7 @@ function PrepChecklist({ trip: t, onTab }: { trip: TripWithStops; onTab: (tab: T
     { label: 'Día a día', hint: t.sights.length ? plural(t.sights.filter((x) => !isNote(x)).length, 'plan', 'planes') : 'Qué ver cada día', icon: 'event_note', done: t.sights.length > 0, go: () => onTab('dias') },
     {
       label: 'Presupuesto',
-      hint: budget.data?.amount ? 'Fijado' : expenses.data?.length ? plural(expenses.data.length, 'gasto', 'gastos') : 'Cuánto gastar',
+      hint: budget.data?.amount ? 'Fijado' : expenses.data?.length ? plural(expenses.data.filter((e) => !isSettlement(e)).length, 'gasto', 'gastos') : 'Cuánto gastar',
       icon: 'savings',
       done: !!budget.data?.amount || !!expenses.data?.length,
       go: () => onTab('gastos'),

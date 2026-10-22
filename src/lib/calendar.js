@@ -114,6 +114,7 @@ function lodgingEvents(t, lodgings, url) {
     const lastNight = to && to > from ? addDays(to, -1) : from
     const base = {
       location: l.address ?? l.name,
+      geo: l.lat != null && l.lon != null ? [l.lat, l.lon] : undefined,
       description: [
         t.title,
         l.check_in_time && `Entrada: ${hhmm(l.check_in_time)}`,

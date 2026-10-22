@@ -98,6 +98,14 @@ Variables en Vercel: `VITE_VAPID_PUBLIC_KEY` (Config), `VAPID_PRIVATE_KEY`, `SUP
 
 Cada día enseña arriba sus horarios de transporte y alojamiento (`src/lib/arrival.ts`): salidas y llegadas de los trayectos, entradas y salidas de los alojamientos y, el día que se llega, a qué hora más o menos se está en el alojamiento: la llegada del vuelo o el tren más el tiempo de salir (≈40 min en avión, 10-15 en tren o autobús) y el trayecto hasta la ciudad (con avión, la distancia del aeropuerto a ~40 km/h). Entre los sitios se pueden añadir notas («descanso + cerveza»): son filas con hora y orden que no cuentan como sitios ni van a la ruta de Google Maps (columna `kind` de `sights`, migración `20261027000000_sight_notes.sql`).
 
+### Gastos al estilo Tricount
+
+La pestaña Gastos de cada viaje enseña arriba tu saldo («Te deben 45 €», «Debes 12 €», «Estás en paz»), lo gastado entre todos y tu parte, y tres pestañas: **Gastos** (cada uno con lo que mueve en tu saldo: `+456 €` si pagaste tú, `−43 €` si te toca), **Saldos** (quién debe a quién con el mínimo de pagos, «Marcar como pagado» y «Compartir cuentas») y **Resumen** (presupuesto, por día, por persona y categorías). Saldar guarda un movimiento `settlement` (pagó quien debía, le toca a quien recibe): cuenta en los saldos pero no en el total ni en el presupuesto (migración `20261028000000_settlements_lodging_location.sql`).
+
+### Alojamiento con ubicación
+
+Al escribir el nombre del alojamiento salen sugerencias de OpenStreetMap (Photon, solo hoteles, hostales, apartamentos, campings…, primero los cercanos a la parada). Al elegir una se guardan la dirección y las coordenadas (`lat`/`lon` de `lodgings`): la tarjeta enlaza al punto exacto en Google Maps, el calendario lleva la ubicación y la hora estimada de llegada se calcula con la distancia real del aeropuerto al alojamiento.
+
 ### Modo oscuro
 
 Por defecto la app sigue el tema del dispositivo (y cambia con él); en *Perfil y ajustes → Apariencia* se puede fijar en claro u oscuro (se guarda en ese dispositivo). Los colores son variables CSS (`src/index.css`): el modo oscuro solo cambia sus valores en `:root[data-theme='dark']`, que ponen `index.html` (antes de pintar, sin destello blanco) y `src/lib/theme.ts`. Para texto sobre `bg-ink` usa `text-paper`, no `text-white`: en oscuro, `ink` es claro. Los mapas usan `MAP_COLORS` y, en oscuro, el estilo «Dark» de OpenFreeMap.

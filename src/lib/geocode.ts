@@ -161,6 +161,45 @@ export function mergePlaces(local: Place[], remote: Place[], q: string): Place[]
   return out.slice(0, 8)
 }
 
+/** Alojamiento encontrado en OpenStreetMap: nombre, dirección legible y ubicación. */
+export interface LodgingPlace {
+  name: string
+  address: string
+  lat: number
+  lon: number
+}
+
+/** Tipos de alojamiento de OpenStreetMap (etiqueta tourism=…). */
+const LODGING_TAGS = ['hotel', 'hostel', 'guest_house', 'apartment', 'motel', 'camp_site', 'chalet', 'alpine_hut', 'caravan_site'].map((t) => `tourism:${t}`)
+
+/**
+ * Busca hoteles, hostales, apartamentos o campings por nombre («Barceló Cartuja»), con preferencia por los que
+ * están cerca de la ciudad de la parada. Devuelve su dirección y sus coordenadas.
+ */
+export async function searchLodging(q: string, near?: { lat: number; lon: number }, signal?: AbortSignal): Promise<LodgingPlace[]> {
+  if (q.trim().length < 3) return []
+  const params = new URLSearchParams({ q, limit: '6', lang: 'default' })
+  for (const t of LODGING_TAGS) params.append('osm_tag', t)
+  if (near) {
+    params.set('lat', near.lat.toFixed(4))
+    params.set('lon', near.lon.toFixed(4))
+  }
+  const res = await fetch(`https://photon.komoot.io/api/?${params}`, {
+    signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(PHOTON_TIMEOUT_MS)]),
+  })
+  if (!res.ok) throw new Error(`Photon ${res.status}`)
+  const features = ((await res.json()) as { features: (PhotonFeature & { properties: { street?: string; housenumber?: string; postcode?: string } })[] }).features
+  return features
+    .filter((f) => f.properties.name)
+    .map((f) => {
+      const p = f.properties
+      const [lon, lat] = f.geometry.coordinates
+      const street = [p.street, p.housenumber].filter(Boolean).join(' ')
+      const address = [street, [p.postcode, p.city].filter(Boolean).join(' '), p.countrycode ? spanishCountryName(p.countrycode.toUpperCase()) : p.country].filter(Boolean).join(', ')
+      return { name: p.name!, address, lat, lon }
+    })
+}
+
 export interface PlaceCodes {
   countryCode?: string
   /** ISO 3166-2 de primer nivel (comunidad, estado, región…). */
