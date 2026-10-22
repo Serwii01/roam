@@ -64,7 +64,13 @@ function loadShard(name: string): Promise<ShardRow[]> {
   if (!shards.has(name)) {
     shards.set(
       name,
-      fetch(`/data/places/p_${name}.json`).then((r) => (r.ok ? (r.json() as Promise<ShardRow[]>) : [])),
+      fetch(`/data/places/p_${name}.json`)
+        .then((r) => (r.ok ? (r.json() as Promise<ShardRow[]>) : []))
+        .catch((e) => {
+          // Sin conexión y sin ese trozo guardado: se reintenta la próxima vez en vez de recordar el fallo.
+          shards.delete(name)
+          throw e
+        }),
     )
   }
   return shards.get(name)!
@@ -79,8 +85,15 @@ export async function searchKnownPlaces(q: string, limit = 5, home?: string): Pr
   if (s.length < 2) return []
   const name = await shardName(s)
   if (!name) return []
+  let rows: ShardRow[]
+  try {
+    rows = await loadShard(name)
+  } catch {
+    // Sin conexión: se busca en el catálogo corto (~7.300 ciudades con nombre en español), que la app guarda al entrar.
+    rows = (await preloadPlaces()).map((p) => [p.es, p.cc, p.region, p.lat, p.lon, p.pop, p.keys])
+  }
   const scored: { row: ShardRow; score: number }[] = []
-  for (const row of await loadShard(name)) {
+  for (const row of rows) {
     let best = Infinity
     for (const k of row[6]) {
       if (k === s) best = 0

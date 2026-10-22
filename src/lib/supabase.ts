@@ -8,10 +8,16 @@ export const supabaseConfigured = Boolean(url && key)
 
 export const supabase = createClient(url ?? 'http://localhost:54321', key ?? 'missing-key', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  // Sin los reintentos propios de PostgREST (1 + 2 + 4 s): con mala cobertura, cada lectura tardaba ~7 s en fallar y
+  // el editor se quedaba esperando. Ya reintentan React Query (lecturas) y la cola de cambios sin conexión (escrituras).
+  db: { retry: false },
 })
+
+export const OFFLINE_MESSAGE = 'Sin conexión: esto necesita internet. Vuelve a intentarlo cuando tengas cobertura.'
 
 /** Errores de la base de datos traducidos a algo que el usuario entienda. */
 const FRIENDLY: [RegExp, string][] = [
+  [/failed to fetch|load failed|networkerror|network request failed|fetch failed/i, OFFLINE_MESSAGE],
   [/"trips_check"/, 'La fecha de vuelta no puede ser anterior a la de ida.'],
   [/"trips_title_check"/, 'El título debe tener entre 1 y 120 caracteres.'],
   [/(soundtrack|song)_url_check/, 'El enlace de música tiene que ser de Spotify (open.spotify.com).'],

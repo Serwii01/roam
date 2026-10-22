@@ -1,18 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import '@fontsource-variable/space-grotesk'
 import '@fontsource-variable/plus-jakarta-sans'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './lib/auth'
 import { MISCONFIGURED } from './lib/api'
+import { persistOptions, queryClient } from './lib/queryClient'
 // Escucha `beforeinstallprompt` desde el principio: Android lo lanza antes de que la app se pinte.
 import './lib/pwa'
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
-})
 
 const root = createRoot(document.getElementById('root')!)
 
@@ -29,10 +26,10 @@ if (MISCONFIGURED) {
   )
 } else root.render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       <AuthProvider>
         <App />
       </AuthProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 )

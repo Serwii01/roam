@@ -1,5 +1,6 @@
 import { supabaseConfigured } from '../supabase'
 import { demoApi } from './demo'
+import { withOffline } from '../outbox'
 import { supabaseApi } from './supabase'
 import type { Api } from './types'
 
@@ -14,4 +15,5 @@ const DEMO_FORCED = import.meta.env.VITE_DEMO === '1'
 export const DEMO_MODE = DEMO_FORCED || (!supabaseConfigured && import.meta.env.DEV)
 /** Producción sin Supabase ni demo explícita: la app muestra un aviso de configuración. */
 export const MISCONFIGURED = !DEMO_MODE && !supabaseConfigured
-export const api: Api = DEMO_MODE ? demoApi : supabaseApi
+// En modo demo todo vive ya en el navegador; con Supabase, las escrituras de viaje funcionan también sin conexión.
+export const api: Api = DEMO_MODE ? demoApi : withOffline(supabaseApi)

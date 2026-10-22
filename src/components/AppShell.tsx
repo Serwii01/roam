@@ -7,6 +7,7 @@ import { takePendingInvite } from '../lib/invites'
 import { Avatar } from './Avatar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
+import { OfflineStatus, SyncErrors } from './OfflineStatus'
 import { InstallBanner } from './Pwa'
 import { Spinner } from './ui'
 
@@ -44,7 +45,15 @@ export function AppShell() {
   // El mapa del mundo (siluetas de países) se descarga cuando la página ya se ha pintado.
   useEffect(() => {
     const id = setTimeout(() => loadWorldShapes().catch(() => {}), 1500)
-    return () => clearTimeout(id)
+    // Lo que hace falta para añadir paradas sin conexión (buscador de ciudades y aeropuertos): el service worker
+    // lo guarda al pedirlo, así que se pide una vez con la app ya cargada.
+    const warm = setTimeout(() => {
+      if (navigator.onLine) for (const url of ['/data/places.json', '/data/places/split.json', '/data/airports.json']) fetch(url).catch(() => {})
+    }, 8000)
+    return () => {
+      clearTimeout(id)
+      clearTimeout(warm)
+    }
   }, [])
   const pct = ((stats.countries.length / UN_COUNTRY_COUNT) * 100).toFixed(0)
 
@@ -84,6 +93,7 @@ export function AppShell() {
               <Icon name="add_location_alt" size={18} />
               Registrar viaje
             </Link>
+            <OfflineStatus />
             <UserMenu />
           </div>
         </div>
@@ -99,6 +109,7 @@ export function AppShell() {
       </main>
 
       <BottomNav />
+      <SyncErrors />
       <InstallBanner />
 
       <footer className="bg-surface-low pb-20 xl:pb-0">

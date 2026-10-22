@@ -70,6 +70,14 @@ Qué incluye (`vite-plugin-pwa`, configurado en `vite.config.ts`):
 - Service worker que guarda la app para abrirla sin conexión; los datos de `/geo`, `/data`, banderas, avatares y teselas del mapa se guardan a medida que se usan. Supabase siempre va a la red.
 - Aviso «Hay una versión nueva de ROAM» con botón **Actualizar** (no recarga sola para no perder un viaje a medio editar).
 
+### Sin conexión
+
+- **Tus datos se guardan en el móvil** (`src/lib/queryClient.ts`): la caché de React Query se copia en IndexedDB, así que viajes, pasaporte, países y deseos salen al instante al abrir la app, también en modo avión. Se borra al cerrar sesión o al entrar con otra cuenta.
+- **Los cambios hechos sin red se guardan en cola** (`src/lib/outbox.ts`): paradas, sitios, viajes nuevos, gastos, presupuesto, equipaje, alojamientos, trayectos, fotos, países marcados y deseos. Se ven al momento y se envían en orden al volver la conexión; la cabecera enseña «Sin conexión» o los cambios pendientes. Si el servidor rechaza alguno al enviarlo, la app lo avisa.
+- Los registros nuevos llevan su id desde el navegador: editar una parada recién creada sin red funciona, y reenviar una alta que ya había llegado no la duplica.
+- Siguen necesitando internet: invitaciones, enlaces públicos, perfil, pasaportes, documentos, amigos y borrar la cuenta.
+- Sin red, el buscador de ciudades usa el catálogo corto (~7.300 ciudades) que la app guarda al entrar, y las fotos ya vistas salen de la caché del service worker.
+
 Para probarla en local: `npm run build && npm run preview` (el service worker no se activa con `npm run dev`). Necesita HTTPS en producción, que Vercel ya da.
 
 ## Antes de publicar (legal y privacidad)

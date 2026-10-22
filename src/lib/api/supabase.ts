@@ -10,7 +10,27 @@ const DOCS = 'trip-docs'
 
 // ── Enlaces firmados de fotos (bucket privado) ──
 const SIGNED_TTL = 6 * 3600 // segundos
-const signed = new Map<string, { url: string; expires: number }>()
+// Se guardan en el móvil: sin conexión, el service worker sirve la foto por su ruta aunque el enlace haya caducado.
+const SIGNED_KEY = 'roam.signed'
+const signed = new Map<string, { url: string; expires: number }>(readSigned())
+function readSigned(): [string, { url: string; expires: number }][] {
+  try {
+    return JSON.parse(localStorage.getItem(SIGNED_KEY) ?? '[]')
+  } catch {
+    return []
+  }
+}
+let saveSignedTimer: ReturnType<typeof setTimeout> | undefined
+function saveSigned() {
+  clearTimeout(saveSignedTimer)
+  saveSignedTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(SIGNED_KEY, JSON.stringify([...signed].filter(([, v]) => v.url)))
+    } catch {
+      /* sin espacio o almacenamiento bloqueado: solo se pierde ver las fotos sin conexión */
+    }
+  }, 1000)
+}
 
 /** Miniatura de cada foto (640 px), guardada junto a ella al subirla. Las fotos antiguas no la tienen. */
 const thumbOf = (path: string) => path.replace(/\.jpg$/, '.t.jpg')
@@ -25,6 +45,7 @@ async function signPhotos(paths: string[]) {
   if (error) throw new Error(error.message)
   // Sin enlace (p. ej. una foto antigua sin miniatura) se apunta vacío para no volver a pedirlo en un rato.
   for (const d of data ?? []) if (d.path) signed.set(d.path, { url: d.signedUrl ?? '', expires: now + SIGNED_TTL * 1000 })
+  saveSigned()
   setTimeout(() => void backfillThumbs(paths), 4000)
 }
 

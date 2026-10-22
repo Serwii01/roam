@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Provider } from '@supabase/supabase-js'
 import { DEMO_MODE } from './api'
 import { DEMO_USER_ID } from './api/demo-data'
+import { isNetworkError, setOutboxUser } from './outbox'
+import { clearLocalData } from './queryClient'
 import { supabase } from './supabase'
 
 export interface AuthUser {
@@ -32,6 +34,24 @@ export const OAUTH_PROVIDERS: { id: Provider; label: string }[] = ((import.meta.
 const DEMO_KEY = 'rumbo-demo-session'
 const redirectTo = () => `${location.origin}/app`
 
+/**
+ * Sin conexión y con el token caducado (dura una hora), Supabase no puede renovarlo y no da sesión, aunque siga
+ * guardada en el móvil. Para no mandar a «Entrar» a quien abre la app en modo avión, se usa la guardada;
+ * al volver la red, Supabase la renueva sola.
+ */
+function storedUser(): AuthUser | null {
+  try {
+    const key = (supabase.auth as unknown as { storageKey: string }).storageKey
+    const s = JSON.parse(localStorage.getItem(key) ?? 'null') as { user?: { id: string; email?: string } } | null
+    return s?.user ? { id: s.user.id, email: s.user.email ?? null } : null
+  } catch {
+    return null
+  }
+}
+
+/** Dueño de los datos guardados en el móvil: si entra otra cuenta, se borran antes de enseñar nada. */
+const OWNER_KEY = 'roam.owner'
+
 function readDemoSession(): AuthUser | null {
   try {
     return localStorage.getItem(DEMO_KEY) ? { id: DEMO_USER_ID, email: localStorage.getItem(DEMO_KEY) } : null
@@ -46,13 +66,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (DEMO_MODE) return
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session ? { id: data.session.user.id, email: data.session.user.email ?? null } : null)
+    // Sin red, renovar un token caducado se reintenta hasta 30 s: mientras, se entra con la sesión guardada.
+    let settled = false
+    const fallback = setTimeout(
+      () => {
+        const stored = settled ? null : storedUser()
+        if (!stored) return
+        setUser(stored)
+        setLoading(false)
+      },
+      navigator.onLine ? 4000 : 300,
+    )
+    supabase.auth.getSession().then(({ data, error }) => {
+      settled = true
+      clearTimeout(fallback)
+      if (data.session) setUser({ id: data.session.user.id, email: data.session.user.email ?? null })
+      else setUser((prev) => (error && isNetworkError(error) ? (prev ?? storedUser()) : null))
       setLoading(false)
     })
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setUser(s ? { id: s.user.id, email: s.user.email ?? null } : null))
-    return () => data.subscription.unsubscribe()
+    // Sin sesión solo al cerrarla de verdad: el aviso inicial sin red llega vacío aunque la sesión siga guardada.
+    const { data } = supabase.auth.onAuthStateChange((e, s) => {
+      if (s) setUser({ id: s.user.id, email: s.user.email ?? null })
+      else if (e === 'SIGNED_OUT') setUser(null)
+    })
+    return () => {
+      clearTimeout(fallback)
+      data.subscription.unsubscribe()
+    }
   }, [])
+
+  // Datos del móvil de una sola cuenta: al cerrar sesión o entrar con otra, se borran.
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (loading) return
+    setOutboxUser(userId)
+    let owner: string | null = null
+    try {
+      owner = localStorage.getItem(OWNER_KEY)
+      if (userId) localStorage.setItem(OWNER_KEY, userId)
+      else localStorage.removeItem(OWNER_KEY)
+    } catch {
+      /* sin almacenamiento: tampoco hay nada guardado */
+    }
+    if (owner && owner !== userId) void clearLocalData()
+  }, [userId, loading])
 
   const demoSignIn = (email: string) => {
     try {

@@ -64,6 +64,18 @@ export default defineConfig({
             options: { cacheName: 'roam-images', expiration: { maxEntries: 600, maxAgeSeconds: 60 * DAY } },
           },
           {
+            // Fotos de los viajes (enlaces firmados de Supabase Storage). El enlace cambia en cada firma, así que se
+            // guardan por su ruta, sin el token: sin conexión se ven aunque el enlace guardado haya caducado.
+            urlPattern: ({ url }) => url.pathname.startsWith('/storage/v1/object/sign/trip-photos/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'roam-photos',
+              expiration: { maxEntries: 600, maxAgeSeconds: 90 * DAY, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+              plugins: [{ cacheKeyWillBeUsed: async ({ request }) => request.url.split('?')[0] }],
+            },
+          },
+          {
             // Teselas del mapa (OpenFreeMap): llevan la versión en la ruta, no cambian.
             urlPattern: ({ url }) => url.hostname === 'tiles.openfreemap.org' && /\.(pbf|png|webp)$/.test(url.pathname),
             handler: 'CacheFirst',
