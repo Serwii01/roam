@@ -34,7 +34,24 @@ npx supabase link --project-ref TU_REF
 npx supabase db push --include-seed
 ```
 
-Para activar OAuth: habilita el proveedor en Supabase → Authentication → Providers y añádelo a `VITE_OAUTH_PROVIDERS` (por ejemplo, `google,github`).
+Para activar OAuth: habilita el proveedor en Supabase → Authentication → Providers y añádelo a `VITE_OAUTH_PROVIDERS` (por ejemplo, `google,apple`). La pantalla de entrar enseña un botón «Continuar con…» por cada uno.
+
+### Entrar con Google
+
+1. [Google Cloud Console](https://console.cloud.google.com) → crea un proyecto → **APIs y servicios → Pantalla de consentimiento de OAuth**: tipo *Externo*, nombre «ROAM», tu email, el dominio de la web y los enlaces a `/privacidad` y `/terminos`. Publica la app (si se queda en *Prueba*, solo entran los usuarios de prueba).
+2. **Credenciales → Crear credenciales → ID de cliente de OAuth** → *Aplicación web*. En *URI de redirección autorizados* pon `https://TU_REF.supabase.co/auth/v1/callback`.
+3. Copia el *ID de cliente* y el *Secreto* en Supabase → Authentication → Providers → **Google** y actívalo.
+
+### Entrar con Apple
+
+Hace falta una cuenta del [Apple Developer Program](https://developer.apple.com/programs/) (de pago, 99 $/año).
+
+1. **Certificates, Identifiers & Profiles → Identifiers → App IDs**: crea uno (p. ej. `app.roam`) con *Sign in with Apple* marcado.
+2. **Identifiers → Services IDs**: crea uno (p. ej. `app.roam.web`, será el *Client ID*), activa *Sign in with Apple* → *Configure*: App ID del paso 1, dominio `TU_REF.supabase.co` y *Return URL* `https://TU_REF.supabase.co/auth/v1/callback`.
+3. **Keys**: crea una clave con *Sign in with Apple* (asociada al App ID), descarga el `.p8` y apunta el *Key ID* y tu *Team ID*.
+4. Supabase → Authentication → Providers → **Apple**: pon el Services ID en *Client IDs* y genera el *Secret Key* con el `.p8`, el Key ID y el Team ID (el panel de Supabase enlaza su generador). **Ese secreto caduca a los 6 meses**: apúntate renovarlo.
+
+Después, en Vercel pon `VITE_OAUTH_PROVIDERS=google,apple` (Production y Preview) y vuelve a desplegar. En Supabase → Authentication → URL Configuration, la *Site URL* y `https://tu-dominio/**` en *Redirect URLs* (ya estaban para el email). Si alguien ya tenía cuenta con el mismo email, Supabase une las dos formas de entrar en la misma cuenta.
 
 ## Publicar en Vercel
 

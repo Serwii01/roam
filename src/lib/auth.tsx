@@ -24,12 +24,14 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+const PROVIDER_NAMES: Record<string, string> = { google: 'Google', apple: 'Apple', github: 'GitHub', azure: 'Microsoft' }
+
 /** Proveedores OAuth activos (VITE_OAUTH_PROVIDERS), una vez habilitados en Supabase → Authentication → Providers. */
 export const OAUTH_PROVIDERS: { id: Provider; label: string }[] = ((import.meta.env.VITE_OAUTH_PROVIDERS as string | undefined) ?? '')
   .split(',')
   .map((p) => p.trim())
   .filter(Boolean)
-  .map((id) => ({ id: id as Provider, label: id[0].toUpperCase() + id.slice(1) }))
+  .map((id) => ({ id: id as Provider, label: PROVIDER_NAMES[id] ?? id[0].toUpperCase() + id.slice(1) }))
 
 const DEMO_KEY = 'rumbo-demo-session'
 const redirectTo = () => `${location.origin}/app`

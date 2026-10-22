@@ -67,7 +67,9 @@ export function PrivacyPage() {
       <h2>2. Qué datos tratamos</h2>
       <ul>
         <li>
-          <b>Cuenta:</b> email y contraseña (la contraseña se guarda cifrada por el proveedor de autenticación; nadie puede leerla).
+          <b>Cuenta:</b> email y contraseña (la contraseña se guarda cifrada por el proveedor de autenticación; nadie puede leerla). Si entras
+          con Google o Apple, no hay contraseña: recibimos de ellos tu email (con Apple puede ser una dirección anónima que reenvía al tuyo),
+          tu identificador en ese servicio y, si lo comparten, tu nombre y tu foto de perfil.
         </li>
         <li>
           <b>Perfil:</b> nombre visible, nombre de usuario, foto o monigote, bio, país y ciudad de origen.
@@ -101,6 +103,11 @@ export function PrivacyPage() {
           y sin que salga en buscadores. Puedes quitarlo cuando quieras y deja de funcionar al momento.
         </li>
         <li>
+          Suscripción al calendario, solo si la activas: un enlace secreto con tus viajes del último año y los próximos (fechas, trayectos con
+          sus horarios y reservas, alojamientos y plan de cada día) para que tu app de calendario los muestre. Lo consulta tu calendario (Apple,
+          Google, Microsoft…), que los trata según su propia política. Puedes cambiar el enlace o desactivarlo cuando quieras.
+        </li>
+        <li>
           Seguir a otros viajeros: solo a perfiles públicos. Cada uno ve a quién sigue y el número de seguidores, no quiénes son.
         </li>
         <li>
@@ -125,6 +132,10 @@ export function PrivacyPage() {
         <li>
           <b>Supabase</b> (base de datos, autenticación y almacenamiento de fotos), como encargado del tratamiento, con los datos alojados en la
           Unión Europea.
+        </li>
+        <li>
+          <b>Google</b> o <b>Apple</b>, solo si eliges entrar con su cuenta: comprueban quién eres y nos dicen el resultado. Cada uno trata
+          ese inicio de sesión según su propia política de privacidad; no les enviamos nada de tus viajes.
         </li>
         <li>
           <b>Proveedor de alojamiento web</b> de la aplicación (sirve los archivos de la web; puede registrar la IP en sus registros técnicos).

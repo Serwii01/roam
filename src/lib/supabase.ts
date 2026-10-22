@@ -6,6 +6,19 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 /** false si falta configurar `.env.local` (ver `.env.example`). */
 export const supabaseConfigured = Boolean(url && key)
 
+/**
+ * Error con el que vuelve Google o Apple (has cancelado, la cuenta no se pudo enlazar…). Llega en la dirección
+ * (/app?error=…#error=…) y se lee antes de crear el cliente, que la limpia; la pantalla de entrar lo enseña.
+ */
+export const oauthError: string | null = (() => {
+  if (typeof location === 'undefined') return null
+  const params = new URLSearchParams(location.hash.slice(1) || location.search)
+  const code = params.get('error')
+  if (!code) return null
+  if (code === 'access_denied') return 'Has cancelado el inicio de sesión.'
+  return `No se pudo entrar: ${params.get('error_description')?.replace(/\+/g, ' ') ?? code}`
+})()
+
 export const supabase = createClient(url ?? 'http://localhost:54321', key ?? 'missing-key', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   // Sin los reintentos propios de PostgREST (1 + 2 + 4 s): con mala cobertura, cada lectura tardaba ~7 s en fallar y
