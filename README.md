@@ -56,6 +56,22 @@ Para activar OAuth: habilita el proveedor en Supabase → Authentication → Pro
 
 > El plan gratuito *Hobby* de Vercel es para uso no comercial: perfecto para la beta. Si algún día cobras, pasa a *Pro* o muévelo a Cloudflare Pages (el proyecto ya incluye `public/_headers` y `_redirects`).
 
+## App para Android e iOS (PWA)
+
+ROAM se instala como app desde el navegador, sin tiendas:
+
+- **Android (Chrome, Edge, Samsung Internet):** aparece el aviso «Instala ROAM en tu móvil» con el botón **Instalar app** (también en *Perfil y ajustes*), o menú ⋮ → *Instalar aplicación*.
+- **iPhone / iPad (Safari):** Compartir → *Añadir a pantalla de inicio*. La app explica los pasos.
+
+Qué incluye (`vite-plugin-pwa`, configurado en `vite.config.ts`):
+
+- Manifiesto con nombre, colores, accesos directos (nuevo viaje, bitácora, pasaporte) e iconos normales y *maskable*.
+- Iconos, `apple-touch-icon` y pantallas de arranque de iOS generados en cada build a partir de `public/favicon.svg` (`pwa-assets.config.ts`).
+- Service worker que guarda la app para abrirla sin conexión; los datos de `/geo`, `/data`, banderas, avatares y teselas del mapa se guardan a medida que se usan. Supabase siempre va a la red.
+- Aviso «Hay una versión nueva de ROAM» con botón **Actualizar** (no recarga sola para no perder un viaje a medio editar).
+
+Para probarla en local: `npm run build && npm run preview` (el service worker no se activa con `npm run dev`). Necesita HTTPS en producción, que Vercel ya da.
+
 ## Antes de publicar (legal y privacidad)
 
 - **Supabase en la UE:** al crear el proyecto, elige la región *Frankfurt (eu-central-1)*. La política de privacidad lo da por hecho.

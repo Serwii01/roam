@@ -7,6 +7,8 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './lib/auth'
 import { MISCONFIGURED } from './lib/api'
+// Escucha `beforeinstallprompt` desde el principio: Android lo lanza antes de que la app se pinte.
+import './lib/pwa'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },

@@ -41,6 +41,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/topojson-client": "^3.1.5",
+    "@vite-pwa/assets-generator": "^2.0.0",
     "@vitejs/plugin-react": "^6.1.1",
     "mapshaper": "^0.7.86",
     "oxlint": "^1.81.0",
@@ -48,6 +49,8 @@
     "topojson-client": "^3.1.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-window": "^7.4.1",
     "world-atlas": "^2.0.2"
   },
   "engines": {

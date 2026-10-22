@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
+import { InstallCard } from '../components/Pwa'
 import { ErrorNote, Eyebrow, Spinner } from '../components/ui'
 import { api } from '../lib/api'
 import { resetDemo } from '../lib/api/demo'
@@ -131,6 +132,8 @@ export function SettingsPage() {
           <Icon name="logout" size={18} /> Cerrar sesión
         </button>
       </div>
+
+      <InstallCard />
 
       <MyData userId={user.id} username={profile.data?.username ?? ''} onDeleted={async () => {
         await signOut()

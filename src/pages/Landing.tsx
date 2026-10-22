@@ -7,6 +7,7 @@ import { demoState } from '../lib/api/demo-data'
 import type { TripWithStops } from '../lib/db'
 import { useAuth } from '../lib/auth'
 import { useAirportMap } from '../lib/hooks'
+import { promptInstall, useInstall } from '../lib/pwa'
 
 const FEATURES = [
   { icon: 'public', title: 'Mapa del mundo interactivo', text: 'Vista plana o globo 3D. Los países que has pisado se colorean solos y los pines se agrupan al alejar.' },
@@ -58,6 +59,7 @@ export function LandingPage() {
     return { trips, countries: [...new Set([...trips.flatMap((t) => t.stops.map((x) => x.country_code)), ...s.userCountries])] }
   }, [])
   const airports = useAirportMap(demo.trips.flatMap((t) => t.stops.flatMap((s) => [s.from_airport, s.to_airport])))
+  const install = useInstall()
   const cta = user ? { to: '/app', label: 'Ir a mi mapa' } : { to: '/registro', label: 'Empieza gratis' }
 
   return (
@@ -207,6 +209,12 @@ export function LandingPage() {
                 </ol>
               </div>
             ))}
+            {/* Android y Chrome dejan instalar desde aquí mismo; en iPhone basta con los pasos. */}
+            {install.canPrompt && !install.standalone && (
+              <button className="btn btn-accent sm:col-span-2 lg:col-span-1 xl:col-span-2" onClick={() => promptInstall()}>
+                <Icon name="install_mobile" size={18} /> Instalar ROAM ahora
+              </button>
+            )}
             <p className="text-xs text-ink-soft sm:col-span-2 lg:col-span-1 xl:col-span-2">
               Funciona con tu misma cuenta en el móvil, la tableta y el ordenador: lo que apuntas en uno aparece en los demás.
             </p>
