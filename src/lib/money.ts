@@ -6,7 +6,8 @@ import type { Expense, ExpenseCategory } from './db'
 export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string; icon: string; color: string }> = {
   flights: { label: 'Vuelos', icon: 'flight', color: '#b33200' },
   transport: { label: 'Transporte', icon: 'commute', color: '#e2581e' },
-  lodging: { label: 'Alojamiento', icon: 'hotel', color: '#1a1c1d' },
+  // Gris pizarra en vez de casi negro: se ve sobre fondo claro y oscuro, y con el icono blanco encima.
+  lodging: { label: 'Alojamiento', icon: 'hotel', color: '#56606b' },
   food: { label: 'Comida', icon: 'restaurant', color: '#e8933a' },
   drinks: { label: 'Bebidas y ocio', icon: 'local_bar', color: '#a8458f' },
   activities: { label: 'Entradas', icon: 'local_activity', color: '#5b6cff' },

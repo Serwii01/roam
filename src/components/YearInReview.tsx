@@ -36,7 +36,7 @@ export function YearInReview({
 
   if (!r) {
     return (
-      <section className="rounded-md bg-ink p-8 text-paper">
+      <section className="rounded-md bg-night p-8 text-white">
         <div className="label-stamp text-accent">Resumen del año</div>
         <h2 className="headline-lg mt-2">Tu año viajero aparecerá aquí</h2>
         <p className="mt-2 text-white/70">Completa tu primer viaje para ver tus kilómetros, países nuevos y momentos del año.</p>
@@ -47,7 +47,7 @@ export function YearInReview({
   const laps = r.km / 40075
 
   return (
-    <section className="relative overflow-hidden rounded-md bg-ink p-6 text-paper md:p-10" aria-labelledby="year-title">
+    <section className="relative overflow-hidden rounded-md bg-night p-6 text-white md:p-10" aria-labelledby="year-title">
       <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-accent/25 blur-3xl" />
       <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div>
