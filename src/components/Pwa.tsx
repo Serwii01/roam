@@ -32,7 +32,7 @@ export function UpdatePrompt() {
       <div role="status" className={`${floating} flex items-center gap-3 rounded-md bg-ink p-3 pl-4 text-white shadow-2xl`}>
         <Icon name="refresh" size={20} className="text-accent-soft" />
         <span className="mr-auto text-sm">Hay una versión nueva de ROAM.</span>
-        <button className="btn btn-ghost px-3! py-1.5! text-white!" onClick={() => setNeedRefresh(false)}>
+        <button className="btn border border-white/30 px-3! py-1.5! text-white hover:bg-white/10" onClick={() => setNeedRefresh(false)}>
           Luego
         </button>
         <button className="btn btn-accent px-3! py-1.5!" onClick={() => updateServiceWorker(true)}>
