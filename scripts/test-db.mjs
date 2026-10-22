@@ -369,6 +369,33 @@ await db.exec('set role anon')
 assert.equal(await count('select count(*) n from lodgings'), 0)
 await db.exec('reset role')
 
+// Suscripción al calendario: el enlace secreto da los viajes (y su alojamiento) solo a quien lo tiene.
+const oldTrip = await as(A, async () => {
+  // El viaje de prueba pasa a ser de este mes; uno de 2019 se queda fuera (más de un año).
+  await db.query(`update trips set start_date = current_date, end_date = current_date + 6 where id = $1`, [tripId])
+  return (await one(`insert into trips (title, start_date, end_date) values ('Lisboa 2019', '2019-05-01', '2019-05-04') returning id`)).id
+})
+const feedToken = await as(A, async () => (await one('insert into calendar_feeds (user_id) values ($1) returning token', [A])).token)
+await as(B, async () => {
+  assert.equal(await count('select count(*) n from calendar_feeds'), 0, 'el token de otro no se ve')
+  await assert.rejects(db.query('insert into calendar_feeds (user_id) values ($1)', [A]), /row-level security|duplicate key/, 'ni se crea por otro')
+})
+await db.exec('set role anon')
+assert.equal(await count('select count(*) n from calendar_feeds'), 0, 'sin sesión no se ven los tokens')
+const feed = (await one('select public.calendar_feed($1) f', [feedToken])).f
+assert.ok(feed.trips.some((t) => t.id === tripId), 'el viaje compartido está en el calendario')
+const fed = feed.trips.find((t) => t.id === tripId)
+assert.ok(fed.lodgings.length > 0 && Array.isArray(fed.legs) && Array.isArray(fed.stops), 'con alojamientos, tramos y paradas')
+assert.ok(!('share_token' in fed), 'sin el token del enlace público')
+assert.ok(!feed.trips.some((t) => t.id === oldTrip), 'sin los viajes de hace más de un año')
+assert.equal((await one('select public.calendar_feed($1) f', ['00000000-0000-4000-8000-000000000000'])).f, null, 'token inventado: nada')
+await db.exec('reset role')
+await as(C, async () => {
+  const t = (await one('insert into calendar_feeds (user_id) values ($1) returning token', [C])).token
+  await db.exec('set role anon')
+  assert.ok((await one('select public.calendar_feed($1) f', [t])).f.trips.some((x) => x.id === tripId), 'también para los compañeros del viaje')
+})
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)

@@ -130,6 +130,13 @@ export interface Api {
   listWishlist(): Promise<Wish[]>
   setWish(code: string, wished: boolean, note?: string): Promise<void>
 
+  // Suscripción al calendario (/cal/<token>.ics)
+  /** Token del calendario de tus viajes, o null si no está activado. */
+  getCalendarFeed(): Promise<string | null>
+  /** Activa la suscripción o cambia el enlace (el anterior deja de funcionar). Devuelve el token nuevo. */
+  renewCalendarFeed(): Promise<string>
+  disableCalendarFeed(): Promise<void>
+
   // Derechos RGPD
   /** Todos los datos del usuario en un objeto serializable (derecho de acceso y portabilidad). */
   exportMyData(userId: string): Promise<Record<string, unknown>>

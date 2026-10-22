@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Icon } from './Icon'
 import { api } from '../lib/api'
 import { openCalendarFile, tripCalendar } from '../lib/calendar'
@@ -35,6 +36,9 @@ export function TripCalendar({ trip: t }: { trip: TripWithStops }) {
               : 'Se descarga un archivo .ics: ábrelo con tu app de calendario. En Google Calendar, impórtalo desde calendar.google.com → Configuración → Importar.'}{' '}
             Si después cambias el viaje, vuelve a añadirlo (según el calendario, quizá tengas que borrar antes los eventos anteriores).
           </p>
+          <Link to="/app/ajustes#calendario" className="label-code mt-3 flex items-center gap-1 text-accent-deep hover:underline">
+            <Icon name="autorenew" size={14} /> O suscríbete: todos tus viajes, siempre al día →
+          </Link>
         </>
       )}
     </div>

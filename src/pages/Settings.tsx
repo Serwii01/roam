@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
+import { CalendarSubscription } from '../components/CalendarSubscription'
 import { InstallCard } from '../components/Pwa'
 import { ErrorNote, Eyebrow, Spinner } from '../components/ui'
 import { api } from '../lib/api'
@@ -134,6 +135,8 @@ export function SettingsPage() {
       </div>
 
       <InstallCard />
+
+      <CalendarSubscription />
 
       <MyData userId={user.id} username={profile.data?.username ?? ''} onDeleted={async () => {
         await signOut()

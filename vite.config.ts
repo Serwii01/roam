@@ -44,8 +44,8 @@ export default defineConfig({
         globIgnores: ['geo/**', 'data/**', 'flags/**', 'avatars/**', 'apple-splash-*.png', 'assets/heic-to-*.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
-        // Las funciones de Vercel (vista previa, imagen OG) siempre van a la red.
-        navigateFallbackDenylist: [/^\/api\//],
+        // Las funciones de Vercel (vista previa, imagen OG, calendario) siempre van a la red.
+        navigateFallbackDenylist: [/^\/api\//, /^\/cal\//],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {

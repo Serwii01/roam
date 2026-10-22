@@ -521,6 +521,14 @@ export const demoApi: Api = {
   async listWishlist() {
     return delay(state.wishlist)
   },
+  // El calendario se sirve desde el servidor: en el modo demo (todo en el navegador) no hay de dónde leerlo.
+  async getCalendarFeed() {
+    return null
+  },
+  async renewCalendarFeed(): Promise<string> {
+    throw new Error('La suscripción al calendario necesita una cuenta: en el modo demo los viajes solo están en este navegador.')
+  },
+  async disableCalendarFeed() {},
   async exportMyData() {
     return structuredClone(state) as unknown as Record<string, unknown>
   },

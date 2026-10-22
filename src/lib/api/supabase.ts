@@ -426,6 +426,20 @@ export const supabaseApi: Api = {
   async listWishlist() {
     return must(await supabase.from('wishlist').select('*').order('created_at'))
   },
+  async getCalendarFeed() {
+    const row = must(await supabase.from('calendar_feeds').select('token').maybeSingle()) as { token: string } | null
+    return row?.token ?? null
+  },
+  async renewCalendarFeed() {
+    const uid = (await supabase.auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Sin sesión')
+    const row = must(await supabase.from('calendar_feeds').upsert({ user_id: uid, token: crypto.randomUUID() }).select('token').single()) as { token: string }
+    return row.token
+  },
+  async disableCalendarFeed() {
+    const uid = (await supabase.auth.getSession()).data.session?.user.id
+    must(await supabase.from('calendar_feeds').delete().eq('user_id', uid ?? ''))
+  },
   async exportMyData(userId) {
     const [profile, passports, trips, countries, subdivisions, wishlist] = await Promise.all([
       supabaseApi.getProfile(userId),

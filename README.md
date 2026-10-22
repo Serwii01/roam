@@ -72,7 +72,9 @@ Qué incluye (`vite-plugin-pwa`, configurado en `vite.config.ts`):
 
 ### Calendario
 
-En la página de cada viaje, la tarjeta **Calendario** genera un archivo `.ics` (`src/lib/calendar.ts`) con las fechas del viaje, los trayectos (con hora y aviso antes de salir si la tienen), los alojamientos (estancia, entrada y salida) y el plan de cada día. En iPhone se abre Calendario; en Android y ordenador se descarga el archivo. Las horas no llevan zona horaria: salen tal cual (la hora local del billete).
+En la página de cada viaje, la tarjeta **Calendario** genera un archivo `.ics` (`src/lib/calendar.js`) con las fechas del viaje, los trayectos (con hora y aviso antes de salir si la tienen), los alojamientos (estancia, entrada y salida) y el plan de cada día. En iPhone se abre Calendario; en Android y ordenador se descarga el archivo. Las horas no llevan zona horaria: salen tal cual (la hora local del billete).
+
+**Suscripción** (Perfil y ajustes → *Calendario de tus viajes*): un enlace secreto `/cal/<token>.ics` que Calendario de iPhone, Google Calendar u Outlook consultan solos cada pocas horas, con los viajes del último año y los próximos. Lo sirve la función de Vercel `api/calendar.js`, que lee los datos con la clave pública a través de `calendar_feed()` (migración `20261025000000_calendar_feed.sql`): sin un token válido no devuelve nada, y «Cambiar enlace» invalida el anterior. El calendario se arma con el mismo `src/lib/calendar.js` que el botón del viaje (en JavaScript para que Vercel no tenga que compilarlo).
 
 ### Sin conexión
 

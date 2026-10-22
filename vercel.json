@@ -18,7 +18,11 @@
       "destination": "/api/share?k=v&id=:token"
     },
     {
-      "source": "/((?!assets/|geo/|data/|flags/|avatars/|api/).*)",
+      "source": "/cal/:file",
+      "destination": "/api/calendar?token=:file"
+    },
+    {
+      "source": "/((?!assets/|geo/|data/|flags/|avatars/|api/|cal/).*)",
       "destination": "/index.html"
     }
   ],
