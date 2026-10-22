@@ -68,8 +68,7 @@ export function PrivacyPage() {
       <ul>
         <li>
           <b>Cuenta:</b> email y contraseña (la contraseña se guarda cifrada por el proveedor de autenticación; nadie puede leerla). Si entras
-          con Google o Apple, no hay contraseña: recibimos de ellos tu email (con Apple puede ser una dirección anónima que reenvía al tuyo),
-          tu identificador en ese servicio y, si lo comparten, tu nombre y tu foto de perfil.
+          con Google, no hay contraseña: recibimos de Google tu email, tu identificador en su servicio, tu nombre y tu foto de perfil.
         </li>
         <li>
           <b>Perfil:</b> nombre visible, nombre de usuario, foto o monigote, bio, país y ciudad de origen.
@@ -134,8 +133,8 @@ export function PrivacyPage() {
           Unión Europea.
         </li>
         <li>
-          <b>Google</b> o <b>Apple</b>, solo si eliges entrar con su cuenta: comprueban quién eres y nos dicen el resultado. Cada uno trata
-          ese inicio de sesión según su propia política de privacidad; no les enviamos nada de tus viajes.
+          <b>Google</b>, solo si eliges entrar con tu cuenta de Google: comprueba quién eres y nos dice el resultado. Trata ese inicio de
+          sesión según su propia política de privacidad; no le enviamos nada de tus viajes.
         </li>
         <li>
           <b>Proveedor de alojamiento web</b> de la aplicación (sirve los archivos de la web; puede registrar la IP en sus registros técnicos).

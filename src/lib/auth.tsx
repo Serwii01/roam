@@ -24,7 +24,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
-const PROVIDER_NAMES: Record<string, string> = { google: 'Google', apple: 'Apple', github: 'GitHub', azure: 'Microsoft' }
+const PROVIDER_NAMES: Record<string, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 
 /** Proveedores OAuth activos (VITE_OAUTH_PROVIDERS), una vez habilitados en Supabase → Authentication → Providers. */
 export const OAUTH_PROVIDERS: { id: Provider; label: string }[] = ((import.meta.env.VITE_OAUTH_PROVIDERS as string | undefined) ?? '')
