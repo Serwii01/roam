@@ -60,7 +60,7 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col">
       {demo && (
-        <div className="label-stamp bg-ink px-4 py-1.5 text-center text-white/80">
+        <div className="label-stamp bg-night px-4 py-1.5 text-center text-white/80">
           Modo demo · los datos se guardan en este navegador · configura Supabase en <code>.env.local</code> para usar cuentas reales
         </div>
       )}

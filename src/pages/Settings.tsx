@@ -6,6 +6,7 @@ import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { CalendarSubscription } from '../components/CalendarSubscription'
 import { InstallCard } from '../components/Pwa'
+import { ThemePicker } from '../components/ThemePicker'
 import { ErrorNote, Eyebrow, Spinner } from '../components/ui'
 import { api } from '../lib/api'
 import { resetDemo } from '../lib/api/demo'
@@ -134,6 +135,8 @@ export function SettingsPage() {
         </button>
       </div>
 
+      <ThemePicker />
+
       <InstallCard />
 
       <CalendarSubscription />
@@ -211,10 +214,10 @@ function MyData({ userId, username, onDeleted }: { userId: string; username: str
           </p>
           <label className="mt-3 block">
             Escribe tu nombre de usuario (<b>{username}</b>) para confirmar:
-            <input className="field mt-2 bg-white!" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+            <input className="field mt-2 bg-card!" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
           </label>
           <div className="mt-3 flex gap-2">
-            <button className="btn bg-red-700 text-white hover:bg-red-800" disabled={typed !== username || !!busy} onClick={remove}>
+            <button className="btn btn-danger" disabled={typed !== username || !!busy} onClick={remove}>
               {busy === 'Borrando' ? 'Borrando…' : 'Borrar definitivamente'}
             </button>
             <button className="btn btn-ghost" onClick={() => (setConfirming(false), setTyped(''))} disabled={!!busy}>

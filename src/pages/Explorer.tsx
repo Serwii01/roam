@@ -176,10 +176,10 @@ export function ExplorerPage() {
 
 function HeadTile({ icon, label, value, dark, className = '' }: { icon: string; label: string; value: string; dark?: boolean; className?: string }) {
   return (
-    <div className={`${className} flex items-center gap-3 rounded-sm px-4 py-3 ${dark ? 'bg-ink text-white' : 'bg-card shadow-[var(--shadow-card)]'}`}>
-      <Icon name={icon} size={20} className={dark ? 'text-white' : 'text-accent'} />
+    <div className={`${className} flex items-center gap-3 rounded-sm px-4 py-3 ${dark ? 'bg-ink text-paper' : 'bg-card shadow-[var(--shadow-card)]'}`}>
+      <Icon name={icon} size={20} className={dark ? 'text-paper' : 'text-accent'} />
       <div className="min-w-0">
-        <div className={`label-stamp ${dark ? 'text-white/70' : 'text-ink-soft'}`}>{label}</div>
+        <div className={`label-stamp ${dark ? 'text-paper/70' : 'text-ink-soft'}`}>{label}</div>
         <div className="truncate font-display text-lg font-semibold leading-tight">{value}</div>
       </div>
     </div>

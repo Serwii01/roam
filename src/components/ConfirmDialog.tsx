@@ -83,7 +83,7 @@ export function ConfirmHost() {
           <button ref={cancelRef} type="button" className="btn btn-ghost" onClick={() => answer(false)}>
             {req.cancel ?? 'Cancelar'}
           </button>
-          <button ref={okRef} type="button" className={`btn ${req.danger ? 'bg-red-700 text-white hover:bg-red-800' : 'btn-dark'}`} onClick={() => answer(true)}>
+          <button ref={okRef} type="button" className={`btn ${req.danger ? 'btn-danger' : 'btn-dark'}`} onClick={() => answer(true)}>
             {req.confirm ?? 'Aceptar'}
           </button>
         </div>

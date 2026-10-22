@@ -10,6 +10,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ROAM" />
     <title>ROAM · Kinetic Travel Tracker</title>
+    <script>
+      // Tema antes de pintar nada (lo mismo que src/lib/theme.ts): sin destello blanco al abrir en modo oscuro.
+      try {
+        var t = localStorage.getItem('roam.theme')
+        var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = d ? 'dark' : 'light'
+        document.documentElement.style.colorScheme = d ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
     <!-- Todas las fuentes se sirven desde la propia app: los visitantes no contactan con Google (RGPD). -->
     <link rel="preload" href="/src/assets/fonts/material-symbols.woff2" as="font" type="font/woff2" crossorigin />
   </head>

@@ -59,16 +59,16 @@ export function StatTile({
   className?: string
 }) {
   return (
-    <div className={`rounded-sm p-4 ${dark ? 'bg-ink text-white' : 'bg-surface-low'} ${className}`}>
-      <div className={`label-stamp flex items-center justify-between gap-2 ${dark ? 'text-white/70' : 'text-ink-soft'}`}>
+    <div className={`rounded-sm p-4 ${dark ? 'bg-ink text-paper' : 'bg-surface-low'} ${className}`}>
+      <div className={`label-stamp flex items-center justify-between gap-2 ${dark ? 'text-paper/70' : 'text-ink-soft'}`}>
         {label}
-        {icon && <Icon name={icon} size={18} className={dark ? 'text-white/80' : 'text-accent'} />}
+        {icon && <Icon name={icon} size={18} className={dark ? 'text-paper/80' : 'text-accent'} />}
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
         <span className="font-display text-[32px] font-semibold leading-none tracking-tight">{value}</span>
-        {unit && <span className={`text-sm ${dark ? 'text-white/70' : 'text-ink-soft'}`}>{unit}</span>}
+        {unit && <span className={`text-sm ${dark ? 'text-paper/70' : 'text-ink-soft'}`}>{unit}</span>}
       </div>
-      {hint && <div className={`label-stamp mt-2 ${dark ? 'text-white/60' : 'text-ink-soft'}`}>{hint}</div>}
+      {hint && <div className={`label-stamp mt-2 ${dark ? 'text-paper/60' : 'text-ink-soft'}`}>{hint}</div>}
     </div>
   )
 }

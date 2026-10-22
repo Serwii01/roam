@@ -81,7 +81,7 @@ export function TripLogistics({ trip: t }: { trip: TripWithStops }) {
               role="radio"
               aria-checked={current === m}
               onClick={() => setMode(m)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${current === m ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'}`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${current === m ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}
             >
               {label}
             </button>
@@ -161,7 +161,7 @@ function LodgingCard({ lodging: l, onEdit }: { lodging: Lodging; onEdit: () => v
   const nights = l.check_in && l.check_out ? daysBetween(l.check_in, l.check_out) - 1 : null
   return (
     <div className="flex items-start gap-3 rounded-sm bg-surface-low px-3 py-2.5 text-sm">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-paper">
         <Icon name="hotel" size={18} />
       </span>
       <div className="min-w-0 flex-1">

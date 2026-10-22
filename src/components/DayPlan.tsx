@@ -92,7 +92,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
                   setActive(d)
                   refs.current.get(d)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition ${d === current ? 'bg-ink text-white' : 'bg-surface-low text-ink-soft hover:text-ink'}`}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition ${d === current ? 'bg-ink text-paper' : 'bg-surface-low text-ink-soft hover:text-ink'}`}
               >
                 Día {i + 1}
                 {n > 0 && <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${d === current ? 'bg-accent text-white' : 'bg-surface-container'}`}>{n}</span>}
@@ -188,7 +188,7 @@ function DayCard({
     <section className={`rounded-md border bg-card p-4 transition md:p-5 ${active ? 'border-ink/30 shadow-[var(--shadow-card)]' : 'border-surface-highest'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full font-display font-bold text-white ${travel ? 'bg-outline' : 'bg-ink'}`}>{n}</span>
+          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full font-display font-bold text-paper ${travel ? 'bg-outline' : 'bg-ink'}`}>{n}</span>
           <div className="min-w-0">
             <div className="font-display text-lg font-semibold capitalize">
               {weekday(day)} <span className="font-normal normal-case text-ink-soft">· {formatDay(day)}</span>

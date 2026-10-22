@@ -42,7 +42,7 @@ export function TripCard({ trip, airports, to }: { trip: TripWithStops; airports
             <Icon name="landscape" size={40} className="text-outline-soft" />
           </div>
         )}
-        {label && <span className="label-code absolute left-3 top-3 bg-ink px-2 py-1 text-white">{label}</span>}
+        {label && <span className="label-code absolute left-3 top-3 bg-ink px-2 py-1 text-paper">{label}</span>}
         {trip.status === 'planned' && <span className="label-code absolute right-3 top-3 bg-accent px-2 py-1 text-white">Planificado</span>}
         <span className="absolute bottom-3 right-3">
           <Stars value={rating} />

@@ -111,7 +111,7 @@ export function CountriesPage() {
                         <Flag code={c!.code} />
                         <span className="flex-1">{c!.name}</span>
                         {subsByCountry.get(c!.code) ? <span className="label-stamp text-ink-soft">{plural(subsByCountry.get(c!.code)!, 'región', 'regiones')}</span> : null}
-                        <span className={`label-stamp px-1.5 py-0.5 ${source.get(c!.code) === 'trip' ? 'bg-ink text-white' : 'bg-surface-container'}`}>
+                        <span className={`label-stamp px-1.5 py-0.5 ${source.get(c!.code) === 'trip' ? 'bg-ink text-paper' : 'bg-surface-container'}`}>
                           {source.get(c!.code) === 'trip' ? 'Viaje' : 'Manual'}
                         </span>
                       </Link>

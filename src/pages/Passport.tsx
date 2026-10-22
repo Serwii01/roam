@@ -98,7 +98,7 @@ export function PassportPage() {
             <div className="flex min-w-0 gap-5">
               <div className="relative grid h-28 w-24 shrink-0 place-items-center overflow-hidden rounded-sm bg-surface-low">
                 <Avatar profile={p} className="h-20 w-20" />
-                <span className="label-stamp absolute bottom-1 right-1 bg-white px-1 text-[8px] text-ink">Valid</span>
+                <span className="label-stamp absolute bottom-1 right-1 bg-card px-1 text-[8px] text-ink">Valid</span>
               </div>
               <div className="min-w-0">
                 <div className="label-stamp text-accent-deep">Specimen ID-{p.id.replace(/-/g, '').slice(0, 5).toUpperCase()} · Chip biométrico 64-bit</div>
@@ -356,7 +356,7 @@ export function PassportPage() {
                     <span className="flex items-center gap-2">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ background: DONUT[i % DONUT.length] }} />
                       <Icon name={TRANSPORT[t.mode].icon} size={16} /> {TRANSPORT[t.mode].label}
-                      {i === 0 && <span className="label-stamp bg-ink px-1.5 py-0.5 text-white">Favorito</span>}
+                      {i === 0 && <span className="label-stamp bg-ink px-1.5 py-0.5 text-paper">Favorito</span>}
                     </span>
                     <span className="label-code text-ink-soft">
                       {Math.round((t.km / totalTransportKm) * 100)}% ({formatKm(t.km, true)} km)
@@ -418,7 +418,8 @@ function Big({ label, value, suffix, hint, accentHint }: { label: string; value:
   )
 }
 
-const DONUT = ['#d53e00', '#1a1c1d', '#77777b', '#ffb59f', '#c7c6cb', '#852400', '#46464b']
+// Colores del tema (variables CSS): el anillo se ve igual de bien en claro y en oscuro.
+const DONUT = ['var(--color-accent)', 'var(--color-ink)', 'var(--color-outline)', '#ffb59f', 'var(--color-outline-soft)', '#852400', 'var(--color-ink-soft)']
 
 function Donut({ parts, label }: { parts: number[]; label: string }) {
   const total = parts.reduce((a, b) => a + b, 0) || 1
@@ -428,10 +429,10 @@ function Donut({ parts, label }: { parts: number[]; label: string }) {
   const starts = parts.reduce<number[]>((acc, p, i) => [...acc, acc[i] + (p / total) * c], [0])
   return (
     <svg viewBox="0 0 140 140" className="h-36 w-36 shrink-0 -rotate-90">
-      <circle cx="70" cy="70" r={r} fill="none" stroke="#eeeeef" strokeWidth="14" />
+      <circle cx="70" cy="70" r={r} fill="none" style={{ stroke: 'var(--color-surface-container)' }} strokeWidth="14" />
       {parts.map((p, i) => {
         const len = (p / total) * c
-        return <circle key={i} cx="70" cy="70" r={r} fill="none" stroke={DONUT[i % DONUT.length]} strokeWidth="14" strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-starts[i]} />
+        return <circle key={i} cx="70" cy="70" r={r} fill="none" style={{ stroke: DONUT[i % DONUT.length] }} strokeWidth="14" strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-starts[i]} />
       })}
       <g className="rotate-90" style={{ transformOrigin: '70px 70px' }}>
         <text x="70" y="70" textAnchor="middle" className="fill-ink font-display text-[20px] font-bold">

@@ -296,9 +296,9 @@ export function TripEditorPage() {
                 type="button"
                 onClick={() => goStep(s.id)}
                 aria-current={active ? 'step' : undefined}
-                className={`flex shrink-0 items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-sm font-semibold transition ${active ? 'bg-ink text-white' : 'bg-surface-low text-ink-soft hover:text-ink'}`}
+                className={`flex shrink-0 items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-sm font-semibold transition ${active ? 'bg-ink text-paper' : 'bg-surface-low text-ink-soft hover:text-ink'}`}
               >
-                <span className={`grid h-7 w-7 place-items-center rounded-full text-xs ${active ? 'bg-accent text-white' : passed ? 'bg-ink text-white' : 'bg-card'}`}>
+                <span className={`grid h-7 w-7 place-items-center rounded-full text-xs ${active ? 'bg-accent text-white' : passed ? 'bg-ink text-paper' : 'bg-card'}`}>
                   {passed ? <Icon name="check" size={16} /> : i + 1}
                 </span>
                 {s.label}
@@ -567,7 +567,7 @@ function DestinoStep({ draft, update }: { draft: Draft; update: (p: Partial<Draf
           </button>
           {draft.companions?.map((c) => (
             <span key={c} className="flex items-center gap-2 rounded-full bg-surface-low py-1 pl-1 pr-2 text-sm">
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[10px] font-bold text-white">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[10px] font-bold text-paper">
                 {c
                   .split(' ')
                   .map((w) => w[0])
@@ -807,7 +807,7 @@ function Leg({ stop, km, airports, onChange }: { stop: Stop; km: number; airport
                 onChange({ transport_in: m })
                 setOpen(false)
               }}
-              className={`flex flex-col items-center gap-1 rounded-sm px-1 py-2 text-xs transition ${mode === m ? 'bg-ink text-white' : 'bg-surface-low hover:bg-surface-container'}`}
+              className={`flex flex-col items-center gap-1 rounded-sm px-1 py-2 text-xs transition ${mode === m ? 'bg-ink text-paper' : 'bg-surface-low hover:bg-surface-container'}`}
             >
               <Icon name={TRANSPORT[m].icon} size={20} />
               {TRANSPORT[m].label}
@@ -862,7 +862,7 @@ function StopCard({
   return (
     <div data-stop-card className={`flex items-start gap-2 rounded-md bg-surface-low p-3 transition-shadow sm:items-center sm:gap-3 ${dragging ? 'shadow-[0_12px_32px_rgba(0,0,0,0.22)] ring-2 ring-accent' : ''}`}>
       {handle}
-      <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full font-display font-bold text-white sm:mt-0 ${i === 0 || homeReturn ? 'bg-accent' : 'bg-ink'}`}>
+      <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full font-display font-bold text-paper sm:mt-0 ${i === 0 || homeReturn ? 'bg-accent' : 'bg-ink'}`}>
         {homeReturn ? <Icon name="home" size={20} /> : i + 1}
       </span>
       <div className="min-w-0 flex-1">
@@ -939,7 +939,7 @@ function RouteMap({ trip, airports, compact }: { trip: TripWithStops | undefined
           routeLink={false}
         />
         {stops.length > 0 && (
-          <span className="label-code pointer-events-none absolute right-3 top-3 bg-ink px-2 py-1 text-white">
+          <span className="label-code pointer-events-none absolute right-3 top-3 bg-ink px-2 py-1 text-paper">
             {plural(stops.length, 'parada', 'paradas')} · {trip ? formatKm(tripKm(trip, airports)) : 0} km
           </span>
         )}
@@ -1014,7 +1014,7 @@ function RecuerdosStep({
         <div key={s.id} className="rounded-md bg-surface-low p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="headline-sm flex items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs text-white">{i + 1}</span> {s.name}
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs text-paper">{i + 1}</span> {s.name}
             </span>
             {!planned && (
               <span className="flex items-center" role="group" aria-label="Valoración">
@@ -1062,7 +1062,7 @@ function RecuerdosStep({
                 .map((p) => (
                   <div key={p.id} className="relative h-20 w-28 overflow-hidden rounded-sm">
                     <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
-                    <button type="button" onClick={() => onDeletePhoto(p)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-ink/80 text-white" aria-label="Eliminar foto">
+                    <button type="button" onClick={() => onDeletePhoto(p)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white" aria-label="Eliminar foto">
                       <Icon name="close" size={16} />
                     </button>
                   </div>

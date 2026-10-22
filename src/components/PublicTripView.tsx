@@ -59,10 +59,10 @@ export function JoinCta() {
   const { user } = useAuth()
   if (user) return null
   return (
-    <div className="mt-12 flex flex-wrap items-center justify-between gap-4 rounded-md bg-ink p-6 text-white md:p-8">
+    <div className="mt-12 flex flex-wrap items-center justify-between gap-4 rounded-md bg-ink p-6 text-paper md:p-8">
       <div>
         <div className="font-display text-2xl font-bold">Crea tu propio mapa de viajes</div>
-        <p className="mt-1 text-white/70">Países, rutas, sellos y fotos de cada viaje. Gratis.</p>
+        <p className="mt-1 text-paper/70">Países, rutas, sellos y fotos de cada viaje. Gratis.</p>
       </div>
       <Link to="/registro" className="btn btn-accent">
         Empezar gratis
@@ -131,7 +131,7 @@ export function PublicTripView({ trip: t, owner }: { trip: TripWithStops; owner:
               <li key={s.id} className="card p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="headline-sm flex items-center gap-2">
-                    <span className={`grid h-8 w-8 place-items-center rounded-full text-xs text-white ${i === 0 ? 'bg-accent' : 'bg-ink'}`}>{i + 1}</span>
+                    <span className={`grid h-8 w-8 place-items-center rounded-full text-xs text-paper ${i === 0 ? 'bg-accent' : 'bg-ink'}`}>{i + 1}</span>
                     {s.name} <Flag code={s.country_code} />
                   </h2>
                   {s.arrived_on && <span className="label-code text-ink-soft">{formatDate(s.arrived_on).toUpperCase()}</span>}

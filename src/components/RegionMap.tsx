@@ -4,6 +4,8 @@ import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { loadRegionShapes, type Shapes } from '../lib/countries'
 import { bounds, type LngLat } from '../lib/geo'
+import { MAP_COLORS } from '../lib/mapStyle'
+import { useTheme } from '../lib/theme'
 import { IS_TOUCH, MAP_LOCALE } from './WorldMap' // además registra el worker de MapLibre
 
 const STYLE: StyleSpecification = {
@@ -24,6 +26,7 @@ export function RegionMap({
   onToggle?: (code: string, name: string) => void
   className?: string
 }) {
+  const { theme } = useTheme()
   const mapRef = useRef<MapRef>(null)
   const [shapes, setShapes] = useState<Shapes | null | undefined>(undefined)
   const [hover, setHover] = useState<string | null>(null)
@@ -62,6 +65,7 @@ export function RegionMap({
     return <div className={`card dot-grid grid place-items-center text-ink-soft ${className}`}>Sin mapa de regiones para este país</div>
   }
 
+  const c = MAP_COLORS[theme]
   return (
     <div className={`card dot-grid relative overflow-hidden ${className}`}>
       <Map
@@ -82,9 +86,9 @@ export function RegionMap({
       >
         {shapes && (
           <Source id="regions" type="geojson" data={shapes}>
-            <Layer id="regions" type="fill" paint={{ 'fill-color': '#e6e5e1' }} />
-            <Layer id="regions-visited" type="fill" filter={filter} paint={{ 'fill-color': '#d53e00', 'fill-opacity': 0.85 }} />
-            <Layer id="regions-line" type="line" paint={{ 'line-color': '#fff', 'line-width': 1 }} />
+            <Layer id="regions" type="fill" paint={{ 'fill-color': c.land }} />
+            <Layer id="regions-visited" type="fill" filter={filter} paint={{ 'fill-color': c.accent, 'fill-opacity': 0.85 }} />
+            <Layer id="regions-line" type="line" paint={{ 'line-color': c.border, 'line-width': 1 }} />
           </Source>
         )}
       </Map>

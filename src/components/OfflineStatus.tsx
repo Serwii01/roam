@@ -17,7 +17,7 @@ export function OfflineStatus() {
       >
         <Icon name={syncing ? 'sync' : online ? 'cloud_upload' : 'cloud_off'} size={16} className={syncing ? 'animate-spin' : ''} />
         <span className="hidden sm:inline">{text}</span>
-        {pending > 0 && <span className="rounded-full bg-ink px-1.5 text-[10px] text-white sm:hidden">{pending}</span>}
+        {pending > 0 && <span className="rounded-full bg-ink px-1.5 text-[10px] text-paper sm:hidden">{pending}</span>}
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-md bg-card p-4 text-sm shadow-2xl ring-1 ring-surface-highest">

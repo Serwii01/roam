@@ -9,7 +9,8 @@ import { loadWorldShapes, type Shapes } from '../lib/countries'
 import type { Stop, TransportMode, TripWithStops } from '../lib/db'
 import { bendLine, bounds, greatCircle, offsetLine, type LngLat } from '../lib/geo'
 import { useCountries } from '../lib/hooks'
-import { loadModernStyle } from '../lib/mapStyle'
+import { loadModernStyle, MAP_COLORS } from '../lib/mapStyle'
+import { useTheme } from '../lib/theme'
 import { formatKm, legLine, tripCountries, tripDays, tripKm, tripModes, type AirportMap } from '../lib/stats'
 import { TRANSPORT } from '../lib/transport'
 import { Icon } from './Icon'
@@ -18,8 +19,6 @@ import { Flag, coords, formatRange } from './ui'
 // Vite no resuelve el worker de MapLibre por sí solo: se sirve como asset.
 setWorkerUrl(workerUrl)
 
-const ACCENT = '#d53e00'
-const INK = '#1a1c1d'
 /** Mapa base minimalista del diseño: solo países sobre fondo punteado. */
 const MINIMAL_STYLE: StyleSpecification = {
   version: 8,
@@ -102,10 +101,13 @@ export function WorldMap({
     loadWorldShapes().then(setWorld)
   }, [])
 
-  const [modernStyle, setModernStyle] = useState<StyleSpecification | null>(null)
+  const { theme } = useTheme()
+  const { accent: ACCENT, ink: INK, ocean, land, border, point } = MAP_COLORS[theme]
+  const [modern, setModern] = useState<{ theme: string; style: StyleSpecification } | null>(null)
+  const modernStyle = modern?.theme === theme ? modern.style : null
   useEffect(() => {
-    if (detail && !modernStyle) loadModernStyle().then(setModernStyle, () => setDetail(false))
-  }, [detail, modernStyle])
+    if (detail && !modernStyle) loadModernStyle(theme).then((style) => setModern({ theme, style }), () => setDetail(false))
+  }, [detail, modernStyle, theme])
 
   // MapLibre solo escucha la ventana; esto lo ajusta también cuando cambia el contenedor.
   useEffect(() => {
@@ -257,12 +259,12 @@ export function WorldMap({
           todo: el océano del globo tapaba países y rutas (el "mapa gris").
         */}
         <Source id="ocean" type="geojson" data={OCEAN}>
-          <Layer id="ocean" type="fill" layout={{ visibility: vis(mode === '3d' && !detail) }} paint={{ 'fill-color': '#eef0f2' }} />
+          <Layer id="ocean" type="fill" layout={{ visibility: vis(mode === '3d' && !detail) }} paint={{ 'fill-color': ocean }} />
         </Source>
 
         <Source id="world" type="geojson" data={world ?? EMPTY} tolerance={0}>
-          <Layer id="land" type="fill" paint={{ 'fill-color': detail ? 'rgba(0,0,0,0)' : '#e6e5e1' }} />
-          <Layer id="land-line" type="line" paint={{ 'line-color': '#ffffff', 'line-width': 0.6, 'line-opacity': detail ? 0 : 1 }} />
+          <Layer id="land" type="fill" paint={{ 'fill-color': detail ? 'rgba(0,0,0,0)' : land }} />
+          <Layer id="land-line" type="line" paint={{ 'line-color': border, 'line-width': 0.6, 'line-opacity': detail ? 0 : 1 }} />
           <Layer
             id="visited"
             type="fill"
@@ -270,7 +272,7 @@ export function WorldMap({
             layout={{ visibility: vis(!!countries) }}
             paint={{ 'fill-color': ACCENT, 'fill-opacity': detail ? 0.3 : 0.82 }}
           />
-          <Layer id="visited-line" type="line" filter={visitedFilter} layout={{ visibility: vis(!!countries) }} paint={{ 'line-color': detail ? ACCENT : '#fff', 'line-width': detail ? 1.2 : 0.8 }} />
+          <Layer id="visited-line" type="line" filter={visitedFilter} layout={{ visibility: vis(!!countries) }} paint={{ 'line-color': detail ? ACCENT : border, 'line-width': detail ? 1.2 : 0.8 }} />
         </Source>
 
         <Source id="heat" type="geojson" data={heat}>
@@ -329,7 +331,7 @@ export function WorldMap({
             layout={{ visibility: vis(mode !== 'heat') }}
             paint={{
               'circle-radius': ['case', ['get', 'active'], 5, 4] as never,
-              'circle-color': '#ffffff',
+              'circle-color': point,
               'circle-stroke-width': 3,
               'circle-stroke-color': ['case', ['get', 'active'], ACCENT, INK] as never,
               'circle-pitch-alignment': 'map',
@@ -343,7 +345,7 @@ export function WorldMap({
             <Marker key={`${stop.id}-${n}`} longitude={stop.lon} latitude={stop.lat} anchor="center">
               <div
                 title={stop.name}
-                className="grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-ink font-display text-[11px] font-bold text-white shadow"
+                className="grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-ink font-display text-[11px] font-bold text-paper shadow"
               >
                 {n}
               </div>
@@ -405,7 +407,7 @@ export function WorldMap({
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`label-code rounded-xs px-2.5 py-1.5 ${mode === m ? 'bg-ink text-white' : m === 'heat' ? 'text-accent-deep' : 'text-ink'}`}
+                className={`label-code rounded-xs px-2.5 py-1.5 ${mode === m ? 'bg-ink text-paper' : m === 'heat' ? 'text-accent-deep' : 'text-ink'}`}
               >
                 {label}
               </button>
@@ -414,7 +416,7 @@ export function WorldMap({
           <button
             onClick={() => setDetail(!detail)}
             title={detail ? 'Mapa minimalista' : 'Mapa moderno (agua, calles y nombres)'}
-            className={`card grid w-10 place-items-center ${detail ? 'bg-ink! text-white' : ''}`}
+            className={`card grid w-10 place-items-center ${detail ? 'bg-ink! text-paper' : ''}`}
           >
             <Icon name="layers" size={20} />
           </button>

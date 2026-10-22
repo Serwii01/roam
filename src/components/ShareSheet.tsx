@@ -124,7 +124,7 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
               style={{ aspectRatio: `${FORMATS[format].w} / ${FORMATS[format].h}` }}
             />
             {busy && (
-              <span className="label-code absolute right-6 top-6 rounded-sm bg-ink/80 px-2 py-1 text-white">Dibujando…</span>
+              <span className="label-code absolute right-6 top-6 rounded-sm bg-black/70 px-2 py-1 text-white">Dibujando…</span>
             )}
           </div>
 
@@ -137,7 +137,7 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
                     key={f}
                     aria-pressed={format === f}
                     onClick={() => setFormat(f)}
-                    className={`rounded-sm border px-2 py-2.5 text-center transition ${format === f ? 'border-ink bg-ink text-white' : 'border-surface-highest hover:border-ink'}`}
+                    className={`rounded-sm border px-2 py-2.5 text-center transition ${format === f ? 'border-ink bg-ink text-paper' : 'border-surface-highest hover:border-ink'}`}
                   >
                     <span className="block font-display font-semibold">{FORMATS[f].label}</span>
                     <span className="label-code opacity-70">{FORMATS[f].hint}</span>
@@ -158,7 +158,7 @@ export function ShareSheet({ data, photos = [], onClose }: { data: Omit<CardData
                       key={l.id}
                       aria-pressed={layout === l.id}
                       onClick={() => setLayout(l.id)}
-                      className={`flex items-center gap-2 rounded-sm border px-3 py-2.5 transition ${layout === l.id ? 'border-ink bg-ink text-white' : 'border-surface-highest hover:border-ink'}`}
+                      className={`flex items-center gap-2 rounded-sm border px-3 py-2.5 transition ${layout === l.id ? 'border-ink bg-ink text-paper' : 'border-surface-highest hover:border-ink'}`}
                     >
                       <Icon name={l.icon} size={18} /> <span className="font-display font-semibold">{l.label}</span>
                     </button>

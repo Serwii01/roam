@@ -10,6 +10,8 @@ import { MISCONFIGURED } from './lib/api'
 import { persistOptions, queryClient } from './lib/queryClient'
 // Escucha `beforeinstallprompt` desde el principio: Android lo lanza antes de que la app se pinte.
 import './lib/pwa'
+// Tema (claro, oscuro o el del dispositivo) y sus cambios mientras la app está abierta.
+import './lib/theme'
 
 const root = createRoot(document.getElementById('root')!)
 

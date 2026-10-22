@@ -87,7 +87,7 @@ function Calendar({ view, onView, months, start, end, highlight, hover, onHover,
                 onView({ y, m: view.m })
                 setYears(false)
               }}
-              className={`rounded-sm py-3 font-display font-semibold transition ${y === view.y ? 'bg-ink text-white' : 'hover:bg-surface-container'} ${y === Number(today.slice(0, 4)) && y !== view.y ? 'text-accent-deep' : ''}`}
+              className={`rounded-sm py-3 font-display font-semibold transition ${y === view.y ? 'bg-ink text-paper' : 'hover:bg-surface-container'} ${y === Number(today.slice(0, 4)) && y !== view.y ? 'text-accent-deep' : ''}`}
             >
               {y}
             </button>

@@ -49,7 +49,7 @@ function WeatherCard({ stop, date, n }: { stop: Stop; date: string | null; n: nu
   return (
     <div className="card p-4">
       <div className="flex items-center gap-2">
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs text-white">{n}</span>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs text-paper">{n}</span>
         <span className="min-w-0 flex-1 truncate font-display font-semibold">{stop.name}</span>
         <Flag code={stop.country_code} />
       </div>

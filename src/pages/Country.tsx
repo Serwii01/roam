@@ -163,7 +163,7 @@ function SubRow({ sub, source, onToggle, small }: { sub: Subdivision; source?: '
       </span>
       <span className={`flex-1 ${small ? '' : 'font-medium'}`}>{sub.name}</span>
       <span className="label-stamp text-outline">{TYPE_ES[sub.type] ?? sub.type}</span>
-      {source === 'trip' && <span className="label-stamp bg-ink px-1.5 py-0.5 text-white">Viaje</span>}
+      {source === 'trip' && <span className="label-stamp bg-ink px-1.5 py-0.5 text-paper">Viaje</span>}
     </button>
   )
 }

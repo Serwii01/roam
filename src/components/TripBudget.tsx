@@ -691,7 +691,7 @@ function ExpenseForm({
                   aria-checked={mode === m.id}
                   title={m.hint}
                   onClick={() => switchMode(m.id)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === m.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === m.id ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}
                 >
                   {m.label}
                 </button>

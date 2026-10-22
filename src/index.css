@@ -29,6 +29,10 @@
   --color-accent-soft: #ffdbd0;
   --color-accent-ink: #852400;
   --color-night: #111214;
+  /* Texto sobre --color-ink (botones oscuros, pastillas…): blanco en claro y casi negro en oscuro. */
+  --color-paper: #ffffff;
+  --color-ink-hover: #000000;
+  --color-dot: #fbfaf8;
 
   --radius-xs: 2px;
   --radius-sm: 4px;
@@ -41,6 +45,42 @@
 
 :root {
   color-scheme: light;
+}
+
+/*
+ * Modo oscuro: los mismos tokens con otros valores. data-theme lo ponen index.html (antes de pintar) y
+ * src/lib/theme.ts, según el tema del dispositivo o el elegido en Ajustes. Lo «oscuro» (botones, pastillas)
+ * pasa a ser claro con texto oscuro, y el naranja sube un poco de luz para leerse sobre negro.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-surface: #111214;
+  --color-surface-low: #18191b;
+  --color-surface-container: #1f2023;
+  --color-surface-high: #27282c;
+  --color-surface-highest: #303136;
+  --color-card: #1a1b1e;
+  --color-ink: #ececee;
+  --color-ink-soft: #a6a6ad;
+  --color-outline: #8b8b92;
+  --color-outline-soft: #3c3d42;
+  --color-accent: #f0571d;
+  --color-accent-deep: #ff8a5c;
+  --color-accent-soft: #4a1f0e;
+  --color-accent-ink: #ffb59a;
+  --color-night: #0b0b0c;
+  --color-paper: #111214;
+  --color-ink-hover: #ffffff;
+  --color-dot: #141517;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06), 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-accent: 0 2px 12px rgb(240 87 29 / 0.35);
+  /* Avisos de error y éxito: fondos oscuros con texto claro, en vez de rosa y verde pálidos. */
+  --color-red-50: #2c1414;
+  --color-red-200: #5c2424;
+  --color-red-700: #ff8f86;
+  --color-red-800: #ffb3ab;
+  --color-red-900: #ffd5d0;
+  --color-emerald-700: #6ee7b7;
 }
 
 html,
@@ -67,7 +107,7 @@ body {
 
 ::selection {
   background: var(--color-accent-soft);
-  color: #3a0a00;
+  color: var(--color-accent-ink);
 }
 
 @layer components {
@@ -175,10 +215,10 @@ body {
   }
   .btn-dark {
     background: var(--color-ink);
-    color: #fff;
+    color: var(--color-paper);
   }
   .btn-dark:hover:not(:disabled) {
-    background: #000;
+    background: var(--color-ink-hover);
   }
   .btn-accent {
     background: var(--color-accent);
@@ -187,6 +227,14 @@ body {
   }
   .btn-accent:hover:not(:disabled) {
     background: var(--color-accent-deep);
+  }
+  /* Acciones destructivas (borrar cuenta, eliminar): rojo fijo en los dos temas. */
+  .btn-danger {
+    background: #b91c1c;
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #991b1b;
   }
   .btn-ghost {
     background: var(--color-card);
@@ -214,7 +262,7 @@ body {
   }
   .chip[aria-pressed='true'] {
     background: var(--color-ink);
-    color: #fff;
+    color: var(--color-paper);
   }
 
   .tag {
@@ -232,8 +280,8 @@ body {
 
   /* Fondo punteado de los mapas del diseño. */
   .dot-grid {
-    background-color: #fbfaf8;
-    background-image: radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1px);
+    background-color: var(--color-dot);
+    background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 9%, transparent) 1px, transparent 1px);
     background-size: 22px 22px;
   }
 
@@ -262,5 +310,9 @@ body {
 
 .maplibregl-ctrl-attrib {
   font-size: 10px;
-  background: rgb(255 255 255 / 0.7) !important;
+  background: color-mix(in srgb, var(--color-card) 70%, transparent) !important;
+  color: var(--color-ink-soft);
+}
+.maplibregl-ctrl-attrib a {
+  color: inherit;
 }

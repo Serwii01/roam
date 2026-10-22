@@ -158,7 +158,7 @@ export function TripLogPage() {
                 aria-checked={t.status === s}
                 disabled={save.isPending}
                 onClick={() => setStatus(s)}
-                className={`label-code rounded-full px-2.5 py-1 transition ${t.status === s ? (s === 'done' ? 'bg-ink text-white' : 'bg-accent-soft text-accent-ink') : 'text-ink-soft hover:text-ink'}`}
+                className={`label-code rounded-full px-2.5 py-1 transition ${t.status === s ? (s === 'done' ? 'bg-ink text-paper' : 'bg-accent-soft text-accent-ink') : 'text-ink-soft hover:text-ink'}`}
               >
                 {s === 'done' ? 'Realizado' : 'Planificado'}
               </button>
@@ -483,7 +483,7 @@ function Destinations({ trip: t, onOpen }: { trip: TripWithStops; onOpen: () => 
             return (
               <li key={s.id}>
                 <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2.5 text-left transition hover:bg-surface-container">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink font-display text-sm font-bold text-white">{n + 1}</span>
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink font-display text-sm font-bold text-paper">{n + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 font-display font-semibold">
                       <span className="truncate">{s.name}</span> <Flag code={s.country_code} />
@@ -643,7 +643,7 @@ function TripDetails({ trip: t, saving, onSave }: { trip: TripWithStops; saving:
               type="button"
               aria-pressed={t.style === s}
               onClick={() => onSave({ style: t.style === s ? null : s })}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${t.style === s ? 'bg-ink text-white' : 'bg-surface-low hover:bg-surface-container'}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${t.style === s ? 'bg-ink text-paper' : 'bg-surface-low hover:bg-surface-container'}`}
             >
               <Icon name={TRIP_STYLES[s].icon} size={16} /> {TRIP_STYLES[s].label}
             </button>
@@ -663,7 +663,7 @@ function TripDetails({ trip: t, saving, onSave }: { trip: TripWithStops; saving:
               type="button"
               aria-pressed={t.solo}
               onClick={() => onSave({ solo: !t.solo, companions: t.solo ? t.companions : [] })}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${t.solo ? 'bg-ink text-white' : 'bg-surface-low hover:bg-surface-container'}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${t.solo ? 'bg-ink text-paper' : 'bg-surface-low hover:bg-surface-container'}`}
             >
               <Icon name="person" size={16} /> En solitario
             </button>
@@ -835,7 +835,7 @@ function RouteTab({
             <li key={s.id} className="card p-5 sm:p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="headline-sm flex flex-wrap items-center gap-2">
-                  <span className={`label-code px-1.5 py-0.5 text-white ${i % 2 ? 'bg-accent' : 'bg-ink'}`}>{d ? `Día ${String(d).padStart(2, '0')}` : `Parada ${i + 1}`}</span>
+                  <span className={`label-code px-1.5 py-0.5 text-paper ${i % 2 ? 'bg-accent' : 'bg-ink'}`}>{d ? `Día ${String(d).padStart(2, '0')}` : `Parada ${i + 1}`}</span>
                   {s.name}
                   <Flag code={s.country_code} />
                 </h3>

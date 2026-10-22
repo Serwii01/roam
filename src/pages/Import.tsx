@@ -235,7 +235,7 @@ function PhotoImport() {
           <ol className="mt-4 space-y-2">
             {stops.map((s, i) => (
               <li key={i} className="flex items-start gap-3 rounded-md bg-surface-low p-3">
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full font-display font-bold text-white ${i === 0 ? 'bg-accent' : 'bg-ink'}`}>{i + 1}</span>
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full font-display font-bold text-paper ${i === 0 ? 'bg-accent' : 'bg-ink'}`}>{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <input
                     aria-label={`Nombre de la parada ${i + 1}`}
