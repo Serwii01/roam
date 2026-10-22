@@ -33,11 +33,22 @@ async function decode(file: File): Promise<ImageBitmap> {
   return createImageBitmap(file)
 }
 
+/** Lado mayor de las fotos subidas: de sobra para verlas a pantalla completa en un móvil o un portátil. */
+export const PHOTO_MAX = 1600
+/** Miniaturas de las cuadrículas y portadas de tarjeta. */
+export const THUMB_MAX = 640
+
+/** Calidades JPEG que se prueban, de mejor a peor, hasta que la foto cabe en su presupuesto de tamaño. */
+const QUALITIES = [0.8, 0.72, 0.64, 0.56]
+/** Tamaño objetivo: ~350 KB una foto y ~60 KB una miniatura (una foto de móvil sin tocar pesa 3-10 MB). */
+const budgetFor = (max: number) => (max > THUMB_MAX ? 350_000 : 60_000)
+
 /**
- * Devuelve la foto lista para subir: JPEG de como mucho `max` px de lado y sin metadatos.
+ * Devuelve la foto lista para subir: JPEG de como mucho `max` px de lado, sin metadatos y, si se pasa del
+ * presupuesto de tamaño, con algo menos de calidad (casi nunca hace falta bajar de 0,72).
  * Lanza un error con el nombre del archivo si no se puede leer.
  */
-export async function prepareImage(file: File, max = 2000): Promise<File> {
+export async function prepareImage(file: File, max = PHOTO_MAX): Promise<File> {
   let bitmap: ImageBitmap
   try {
     bitmap = await decode(file)
@@ -48,9 +59,19 @@ export async function prepareImage(file: File, max = 2000): Promise<File> {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(bitmap.width * scale)
   canvas.height = Math.round(bitmap.height * scale)
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const ctx = canvas.getContext('2d')!
+  // JPEG no tiene transparencia: un PNG con fondo transparente saldría negro.
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.82))
+  const budget = budgetFor(max)
+  let blob: Blob | null = null
+  for (const q of QUALITIES) {
+    blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', q))
+    if (!blob || blob.size <= budget) break
+  }
   if (!blob) throw new Error(`No se ha podido procesar «${file.name}».`)
   return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
 }

@@ -1,7 +1,7 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
 import type { Airport, Expense, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
-import { prepareImage } from '../images'
+import { prepareImage, THUMB_MAX } from '../images'
 import { must, supabase } from '../supabase'
 import type { Api } from './types'
 
@@ -61,7 +61,7 @@ async function backfillThumbs(paths: string[]) {
     backfilled.add(p)
     try {
       const blob = await (await fetch(signed.get(p)!.url)).blob()
-      const thumb = await prepareImage(new File([blob], 'foto.jpg', { type: 'image/jpeg' }), 640)
+      const thumb = await prepareImage(new File([blob], 'foto.jpg', { type: 'image/jpeg' }), THUMB_MAX)
       const up = await supabase.storage.from(BUCKET).upload(thumbOf(p), thumb, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
       if (up.error) continue
       const { data } = await supabase.storage.from(BUCKET).createSignedUrl(thumbOf(p), SIGNED_TTL)
@@ -368,14 +368,14 @@ export const supabaseApi: Api = {
   async uploadPhoto(tripId, file, stopId) {
     const { data: auth } = await supabase.auth.getUser()
     if (!auth.user) throw new Error('Sin sesión')
-    // HEIC → JPEG, máx. 2000 px y sin EXIF/GPS: una foto de móvil de 5-10 MB queda en unos cientos de KB.
+    // HEIC → JPEG, máx. 1600 px y sin EXIF/GPS: una foto de móvil de 3-10 MB queda en unos 200-350 KB.
     const small = await prepareImage(file)
     const path = `${auth.user.id}/${tripId}/${crypto.randomUUID()}.jpg`
     const up = await supabase.storage.from(BUCKET).upload(path, small, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
     if (up.error) throw new Error(up.error.message)
     // Miniatura para las cuadrículas: si falla, se usa la foto entera.
     try {
-      const thumb = await prepareImage(small, 640)
+      const thumb = await prepareImage(small, THUMB_MAX)
       await supabase.storage.from(BUCKET).upload(thumbOf(path), thumb, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
     } catch {
       /* sin miniatura */
