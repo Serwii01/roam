@@ -10,7 +10,7 @@ import { Flag, StatTile, formatDate, formatRange, plural } from './ui'
 import { WorldMap } from './LazyWorldMap'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import type { TripWithStops } from '../lib/db'
+import { isNote, type TripWithStops } from '../lib/db'
 import { useAirportMap, useCountries } from '../lib/hooks'
 import { formatKm, legKm, tripCountries, tripDays, tripKm } from '../lib/stats'
 import { TRANSPORT } from '../lib/transport'
@@ -126,7 +126,7 @@ export function PublicTripView({ trip: t, owner }: { trip: TripWithStops; owner:
         <ol className="order-2 space-y-4 lg:order-1">
           {t.stops.map((s, i) => {
             const photos = t.photos.filter((p) => p.stop_id === s.id)
-            const sights = t.sights.filter((x) => x.stop_id === s.id)
+            const sights = t.sights.filter((x) => x.stop_id === s.id && !isNote(x))
             return (
               <li key={s.id} className="card p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -157,17 +157,19 @@ function planEvents(t, url) {
         description: [t.title, s.notes, s.wiki_url],
         url,
       })
-    } else untimed.set(day, [...(untimed.get(day) ?? []), s.name])
+    } else untimed.set(day, [...(untimed.get(day) ?? []), s])
   }
-  for (const [day, names] of untimed) {
+  for (const [day, items] of untimed) {
     const n = days.indexOf(day) + 1
     const stop = stopOn(t.stops, day)
+    // Las notas («descanso + cerveza») van en la descripción, no en el título del día.
+    const places = items.filter((x) => x.kind !== 'note').map((x) => x.name)
     out.push({
       uid: `day-${t.id}-${day}`,
-      summary: `${n > 0 ? `Día ${n}` : 'Plan'}${stop ? ` · ${stop.name}` : ''}: ${names.join(', ')}`,
+      summary: `${n > 0 ? `Día ${n}` : 'Plan'}${stop ? ` · ${stop.name}` : ''}${places.length ? `: ${places.join(', ')}` : ''}`,
       allDay: [day, day],
       location: stop?.name,
-      description: [t.title, ...names.map((x) => `• ${x}`)],
+      description: [t.title, ...items.map((x) => (x.kind === 'note' ? `✎ ${x.name}` : `• ${x.name}`))],
       url,
     })
   }

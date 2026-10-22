@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { DateRangeField, TimeField, formatDay } from './DatePicker'
 import { Icon } from './Icon'
 import { WeatherChip } from './Weather'
 import { Flag, plural } from './ui'
 import { WorldMap } from './LazyWorldMap'
 import type { NewSight } from '../lib/api/types'
-import type { Sight, Stop, TripWithStops } from '../lib/db'
+import { api } from '../lib/api'
+import { dayLogistics, type DayLogistic } from '../lib/arrival'
+import { isNote, type Sight, type Stop, type TripWithStops } from '../lib/db'
+import { useAirportMap } from '../lib/hooks'
 import { dayInfo, sightDay, tripDays, weekday, type DayInfo } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
@@ -61,6 +65,12 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
     for (const list of m.values()) list.sort((a, b) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99') || a.position - b.position)
     return m
   }, [trip.sights, trip.stops, days])
+  // Vuelos, trenes y alojamientos (los mismos datos que «Alojamiento y transporte»): horarios de cada día y a qué
+  // hora más o menos se llega al alojamiento. Sin acceso (no participante), las listas llegan vacías.
+  const lodgings = useQuery({ queryKey: ['lodgings', trip.id], queryFn: () => api.listLodgings(trip.id) })
+  const legs = useQuery({ queryKey: ['legs', trip.id], queryFn: () => api.listLegDetails(trip.id) })
+  const airports = useAirportMap(trip.stops.map((s) => s.to_airport))
+  const logistics = useMemo(() => dayLogistics(trip, lodgings.data ?? [], legs.data ?? [], airports), [trip, lodgings.data, legs.data, airports])
   const [active, setActive] = useState<string | null>(null)
   const current = active && days.includes(active) ? active : (days.find((_, i) => !infos[i].travel) ?? days[0])
   const refs = useRef(new Map<string, HTMLElement>())
@@ -117,6 +127,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
                 n={i + 1}
                 info={infos[i]}
                 sights={byDay.get(d) ?? []}
+                logistics={logistics.get(d) ?? []}
                 allNames={new Set(trip.sights.map((s) => s.name.toLowerCase()))}
                 days={days}
                 infos={infos}
@@ -177,6 +188,7 @@ function DayCard({
   n,
   info,
   sights,
+  logistics,
   allNames,
   days,
   infos,
@@ -188,6 +200,7 @@ function DayCard({
   n: number
   info: DayInfo
   sights: Sight[]
+  logistics: DayLogistic[]
   allNames: Set<string>
   days: string[]
   infos: DayInfo[]
@@ -199,7 +212,10 @@ function DayCard({
   const { day, stop, travel, next } = info
   const [openTravel, setOpenTravel] = useState(false)
   const showAdd = editable && stop && (!travel || openTravel || sights.length > 0)
-  const done = sights.filter((s) => s.done).length
+  const places = sights.filter((s) => !isNote(s))
+  const done = places.filter((s) => s.done).length
+  // Número de cada sitio sin contar las notas.
+  const numberOf = new Map(places.map((s, i) => [s.id, i + 1]))
   const move = (s: Sight, dir: -1 | 1) => {
     const i = sights.indexOf(s)
     const other = sights[i + dir]
@@ -245,14 +261,31 @@ function DayCard({
           </div>
         </div>
         <span className="flex items-center gap-2">
-          {planned && sights.length > 0 && (
+          {planned && places.length > 0 && (
             <span className="label-stamp text-ink-soft">
-              {done}/{sights.length} vistos
+              {done}/{places.length} vistos
             </span>
           )}
           {stop && !travel && <WeatherChip lat={stop.lat} lon={stop.lon} date={day} />}
         </span>
       </div>
+
+      {logistics.length > 0 && (
+        <ul className="mt-3 space-y-1 border-l-2 border-accent/40 pl-3" aria-label="Transporte y alojamiento">
+          {logistics.map((x, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm">
+              <span className={`w-12 shrink-0 pt-0.5 text-xs tabular-nums ${x.estimated ? 'text-accent-deep' : 'text-ink-soft'}`}>
+                {x.time ? `${x.estimated ? '≈' : ''}${x.time}` : '—'}
+              </span>
+              <Icon name={x.icon} size={16} className="mt-0.5 shrink-0 text-accent" />
+              <span className="min-w-0">
+                <span className="font-semibold">{x.title}</span>
+                {x.detail && <span className="block text-xs text-ink-soft">{x.detail}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {sights.length > 0 && (
         <ol className="mt-3 space-y-1.5">
@@ -261,6 +294,7 @@ function DayCard({
               key={s.id}
               sight={s}
               index={i}
+              number={numberOf.get(s.id) ?? 0}
               total={sights.length}
               planned={planned}
               editable={editable}
@@ -275,7 +309,7 @@ function DayCard({
           ))}
         </ol>
       )}
-      {stop && <GoogleMapsDay sights={sights} stop={stop} />}
+      {stop && <GoogleMapsDay sights={places} stop={stop} />}
 
       {showAdd && stop ? (
         <div className="mt-3">
@@ -287,6 +321,7 @@ function DayCard({
             placeholder={planned ? `¿Qué vas a ver en ${stop.name}?` : `¿Qué visitaste en ${stop.name}?`}
             onAdd={(x) => ops.add(stop.id, { ...x, day, done: !planned, position: sights.length })}
           />
+          <NoteAdder onAdd={(name) => ops.add(stop.id, { name, kind: 'note', day, done: false, position: sights.length })} />
         </div>
       ) : editable && travel && stop ? (
         <button type="button" className="mt-3 inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink" onClick={() => setOpenTravel(true)}>
@@ -300,6 +335,7 @@ function DayCard({
 function SightRow({
   sight: s,
   index,
+  number,
   total,
   planned,
   editable,
@@ -313,6 +349,8 @@ function SightRow({
 }: {
   sight: Sight
   index: number
+  /** Número del sitio en el día (las notas no cuentan). */
+  number: number
   total: number
   planned: boolean
   editable: boolean
@@ -327,10 +365,15 @@ function SightRow({
   const [name, setName] = useState(s.name)
   const [menu, setMenu] = useState(false)
   useEffect(() => setName(s.name), [s.name])
+  const note = isNote(s)
   return (
-    <li className="rounded-sm bg-surface-low px-2 py-1.5">
+    <li className={`rounded-sm px-2 py-1.5 ${note ? 'border border-dashed border-outline-soft' : 'bg-surface-low'}`}>
       <div className="flex items-center gap-2">
-        {planned ? (
+        {note ? (
+          <span className="grid h-7 w-7 shrink-0 place-items-center text-ink-soft" aria-label="Nota">
+            <Icon name="sticky_note_2" size={18} />
+          </span>
+        ) : planned ? (
           <button
             type="button"
             role="checkbox"
@@ -340,10 +383,10 @@ function SightRow({
             aria-label={s.done ? `Desmarcar ${s.name}` : `Marcar ${s.name} como visto`}
             className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition ${s.done ? 'border-accent bg-accent text-white' : 'border-ink text-ink hover:bg-surface-container'}`}
           >
-            {s.done ? <Icon name="check" size={16} /> : index + 1}
+            {s.done ? <Icon name="check" size={16} /> : number}
           </button>
         ) : (
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-white">{index + 1}</span>
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-white">{number}</span>
         )}
         {editable ? (
           <TimeField value={s.time ?? null} label={`Hora de ${s.name}`} onChange={(t) => t !== (s.time?.slice(0, 5) ?? null) && onTime(t)} />
@@ -352,15 +395,15 @@ function SightRow({
         )}
         {editable ? (
           <input
-            aria-label="Sitio"
-            className={`min-w-0 flex-1 rounded-xs bg-transparent px-1 py-1 outline-none focus:bg-card ${planned && s.done ? 'text-ink-soft line-through' : ''}`}
+            aria-label={note ? 'Nota' : 'Sitio'}
+            className={`min-w-0 flex-1 rounded-xs bg-transparent px-1 py-1 outline-none focus:bg-card ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name !== s.name && onRename(name.trim().slice(0, 160))}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
         ) : (
-          <span className={`min-w-0 flex-1 truncate ${planned && s.done ? 'text-ink-soft line-through' : ''}`}>{s.name}</span>
+          <span className={`min-w-0 flex-1 truncate ${note ? 'italic text-ink-soft' : planned && s.done ? 'text-ink-soft line-through' : ''}`}>{s.name}</span>
         )}
         {s.wiki_url && (
           <a href={s.wiki_url} target="_blank" rel="noreferrer" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label={`${s.name} en Wikipedia`}>
@@ -406,6 +449,47 @@ function SightRow({
         </div>
       )}
     </li>
+  )
+}
+
+/** «+ Nota»: un apunte entre sitios (descanso, comida, «cerveza en la terraza»…), con su hora y su orden. */
+function NoteAdder({ onAdd }: { onAdd: (text: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const save = () => {
+    const t = text.trim().slice(0, 160)
+    if (t) onAdd(t)
+    setText('')
+    setOpen(false)
+  }
+  if (!open)
+    return (
+      <button type="button" className="mt-2 inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink" onClick={() => setOpen(true)}>
+        <Icon name="sticky_note_2" size={16} /> Añadir una nota (descanso, comida…)
+      </button>
+    )
+  return (
+    <form
+      className="mt-2 flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save()
+      }}
+    >
+      <input
+        autoFocus
+        aria-label="Nota"
+        className="field min-w-0 flex-1 py-2!"
+        placeholder="Descanso + cerveza en la terraza"
+        maxLength={160}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+      />
+      <button className="btn btn-dark shrink-0" disabled={!text.trim()}>
+        Añadir
+      </button>
+    </form>
   )
 }
 

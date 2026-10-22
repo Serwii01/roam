@@ -19,7 +19,7 @@ import { WorldMap } from '../components/LazyWorldMap'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { NewSight } from '../lib/api/types'
-import type { Sight, Stop, TripStyle, TripWithStops } from '../lib/db'
+import { isNote, type Sight, type Stop, type TripStyle, type TripWithStops } from '../lib/db'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
 import { isReturnHome } from '../lib/days'
 import { formatMoney } from '../lib/money'
@@ -135,7 +135,7 @@ export function TripLogPage() {
       return
     save.mutate({ status })
   }
-  const counts: Partial<Record<TripTab, number>> = { fotos: t.photos.length, ruta: t.stops.length, dias: t.sights.length }
+  const counts: Partial<Record<TripTab, number>> = { fotos: t.photos.length, ruta: t.stops.length, dias: t.sights.filter((x) => !isNote(x)).length }
 
   const map = (
     <WorldMap className="h-80 shadow-none!" trips={[t]} airports={airports} countries={countries} numbered base="modern" telemetry={false} legend={false} routeLink={false} />
@@ -489,7 +489,7 @@ function Destinations({ trip: t, onOpen }: { trip: TripWithStops; onOpen: () => 
                       <span className="truncate">{s.name}</span> <Flag code={s.country_code} />
                     </span>
                     <span className="block truncate text-xs text-ink-soft">
-                      {[s.arrived_on && formatDay(s.arrived_on, false), nn !== null && (nn === 0 ? 'de paso' : plural(nn, 'noche', 'noches')), t.sights.filter((x) => x.stop_id === s.id).length > 0 && plural(t.sights.filter((x) => x.stop_id === s.id).length, 'sitio', 'sitios')]
+                      {[s.arrived_on && formatDay(s.arrived_on, false), nn !== null && (nn === 0 ? 'de paso' : plural(nn, 'noche', 'noches')), t.sights.filter((x) => x.stop_id === s.id && !isNote(x)).length > 0 && plural(t.sights.filter((x) => x.stop_id === s.id && !isNote(x)).length, 'sitio', 'sitios')]
                         .filter(Boolean)
                         .join(' · ') || 'Sin fecha'}
                     </span>
@@ -566,7 +566,7 @@ function PrepChecklist({ trip: t, onTab }: { trip: TripWithStops; onTab: (tab: T
   const items: { label: string; hint: string; icon: string; done: boolean; go: () => void }[] = [
     { label: 'Fechas', hint: t.start_date ? 'Hechas' : 'Ida y vuelta', icon: 'calendar_month', done: !!t.start_date, go: () => document.getElementById('detalles')?.scrollIntoView({ behavior: 'smooth' }) },
     { label: 'Ruta', hint: t.stops.length ? plural(t.stops.length, 'parada', 'paradas') : 'Por dónde vas', icon: 'route', done: t.stops.length >= 2, go: () => onTab('ruta') },
-    { label: 'Día a día', hint: t.sights.length ? plural(t.sights.length, 'plan', 'planes') : 'Qué ver cada día', icon: 'event_note', done: t.sights.length > 0, go: () => onTab('dias') },
+    { label: 'Día a día', hint: t.sights.length ? plural(t.sights.filter((x) => !isNote(x)).length, 'plan', 'planes') : 'Qué ver cada día', icon: 'event_note', done: t.sights.length > 0, go: () => onTab('dias') },
     {
       label: 'Presupuesto',
       hint: budget.data?.amount ? 'Fijado' : expenses.data?.length ? plural(expenses.data.length, 'gasto', 'gastos') : 'Cuánto gastar',

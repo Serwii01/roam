@@ -94,6 +94,10 @@ En *Perfil y ajustes → Avisos en el móvil* cada móvil o navegador los activa
 
 Variables en Vercel: `VITE_VAPID_PUBLIC_KEY` (Config), `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` y `CRON_SECRET` (Secret). Las claves VAPID se generan con `npx web-push generate-vapid-keys`.
 
+### Día a día: horarios y notas
+
+Cada día enseña arriba sus horarios de transporte y alojamiento (`src/lib/arrival.ts`): salidas y llegadas de los trayectos, entradas y salidas de los alojamientos y, el día que se llega, a qué hora más o menos se está en el alojamiento: la llegada del vuelo o el tren más el tiempo de salir (≈40 min en avión, 10-15 en tren o autobús) y el trayecto hasta la ciudad (con avión, la distancia del aeropuerto a ~40 km/h). Entre los sitios se pueden añadir notas («descanso + cerveza»): son filas con hora y orden que no cuentan como sitios ni van a la ruta de Google Maps (columna `kind` de `sights`, migración `20261027000000_sight_notes.sql`).
+
 ### Modo oscuro
 
 Por defecto la app sigue el tema del dispositivo (y cambia con él); en *Perfil y ajustes → Apariencia* se puede fijar en claro u oscuro (se guarda en ese dispositivo). Los colores son variables CSS (`src/index.css`): el modo oscuro solo cambia sus valores en `:root[data-theme='dark']`, que ponen `index.html` (antes de pintar, sin destello blanco) y `src/lib/theme.ts`. Para texto sobre `bg-ink` usa `text-paper`, no `text-white`: en oscuro, `ink` es claro. Los mapas usan `MAP_COLORS` y, en oscuro, el estilo «Dark» de OpenFreeMap.

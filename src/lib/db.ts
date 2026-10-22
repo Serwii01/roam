@@ -239,6 +239,9 @@ export interface TripDocument {
 }
 
 /** Sitio de una parada: visitado o, en un plan, por ver. */
+/** ¿Es una nota del día a día y no un sitio? */
+export const isNote = (s: Pick<Sight, 'kind'>) => s.kind === 'note'
+
 export interface Sight {
   id: string
   trip_id: string
@@ -255,6 +258,8 @@ export interface Sight {
   /** Hora opcional, 'HH:MM'. */
   time?: string | null
   notes?: string | null
+  /** 'note': nota del día a día (descanso, comida…), no un lugar. Sin valor en datos antiguos: 'place'. */
+  kind?: 'place' | 'note'
   created_at: string
 }
 

@@ -241,7 +241,7 @@ export function withOffline(api: Api): Api {
       const s = { ...sight, id: (sight as { id?: string }).id ?? uid() }
       return write('addSight', [stopId, s], `Añadir ${sight.name}`, () => {
         const trip = tripOfStop(stopId)
-        const full: Sight = { trip_id: trip?.id ?? '', stop_id: stopId, user_id: userId, lat: null, lon: null, wiki_url: null, done: false, position: 0, day: null, time: null, notes: null, created_at: now(), ...s }
+        const full: Sight = { kind: 'place', trip_id: trip?.id ?? '', stop_id: stopId, user_id: userId, lat: null, lon: null, wiki_url: null, done: false, position: 0, day: null, time: null, notes: null, created_at: now(), ...s }
         mapTrips((t) => (t.id === full.trip_id ? { ...t, sights: [...t.sights, full] } : t))
         return full
       })

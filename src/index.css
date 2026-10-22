@@ -89,6 +89,19 @@ body,
   min-height: 100%;
 }
 
+/*
+ * En el iPhone, al tocar un campo con letra de menos de 16 px, Safari amplía la página y luego hay que
+ * reducirla a mano. En pantallas táctiles los campos van a 16 px (la página no se amplía y se puede seguir
+ * ampliando con los dedos, a diferencia de bloquear el zoom en el viewport).
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Las anclas y los campos enfocados no quedan tapados por la cabecera y las pestañas fijas. */
 html {
   scroll-padding-top: 8rem;

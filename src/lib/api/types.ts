@@ -4,7 +4,7 @@ import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
 
-export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position' | 'day' | 'time' | 'notes'>>
+export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'kind'>>
 
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> &
   Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split'>>

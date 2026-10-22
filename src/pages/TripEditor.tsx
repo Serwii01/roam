@@ -17,7 +17,7 @@ import { api, type TripFields } from '../lib/api'
 import type { NewSight } from '../lib/api/types'
 import { useAuth } from '../lib/auth'
 import { computeStamps } from '../lib/badges'
-import type { Sight, Stop, TransportMode, TripStyle, TripWithStops } from '../lib/db'
+import { isNote, type Sight, type Stop, type TransportMode, type TripStyle, type TripWithStops } from '../lib/db'
 import { haversine } from '../lib/geo'
 import type { FlightAirport, FlightRoute } from '../lib/flights'
 import { lookupPlaceCodes, type Place } from '../lib/geocode'
@@ -737,7 +737,7 @@ function RutaStep({
                   homeReturn={isReturnHome(stops, i)}
                   range={range}
                   planned={planned}
-                  sights={trip?.sights.filter((x) => x.stop_id === s.id) ?? []}
+                  sights={trip?.sights.filter((x) => x.stop_id === s.id && !isNote(x)) ?? []}
                   photos={trip?.photos.filter((p) => p.stop_id === s.id).length ?? 0}
                   onChange={(patch) => onChange(s.id, patch)}
                   onRemove={() => onRemove(s.id)}
