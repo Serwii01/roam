@@ -1,6 +1,7 @@
 // Sitios para ver o visitados (monumentos, museos, plazas…) a partir de Wikipedia en español.
 // API pública y gratuita, sin clave: https://www.mediawiki.org/wiki/API:Main_page
 // Se identifica la app con Api-User-Agent, como pide su política: https://meta.wikimedia.org/wiki/User-Agent_policy
+import { fold } from './exonyms'
 import { haversine } from './geo'
 
 export interface SightSuggestion {
@@ -8,7 +9,8 @@ export interface SightSuggestion {
   description?: string
   lat: number
   lon: number
-  url: string
+  /** Artículo de Wikipedia; sin él, el sitio viene de OpenStreetMap. */
+  url?: string
   /** Distancia a la parada. */
   km: number
 }
@@ -86,22 +88,72 @@ export function suggestSights(lat: number, lon: number, stopName: string): Promi
   return suggestions.get(key)!
 }
 
-/** Busca un sitio por nombre: primero cerca de la parada, después en toda Wikipedia (solo los que tienen coordenadas). */
+// Barrios, distritos y pueblos: fuera de las ideas automáticas, pero si se buscan por su nombre («Beşiktaş»,
+// «Trastevere») sí son un sitio que visitar.
+const AREA = /\b(ciudad|municipio|comuna|barrio|rione|distrito|localidad|asentamiento)\b/gi
+const searchBlocked = (pg: Page) => NOT_TITLE.test(pg.title.replace(/^(Barrio|Distrito)\b/i, '')) || NOT_DESC.test((pg.description ?? '').replace(AREA, ' '))
+
+/** Tipos de lugar de OpenStreetMap, en español, para la línea de debajo del nombre. */
+const OSM_KIND: Record<string, string> = {
+  suburb: 'Barrio', neighbourhood: 'Barrio', quarter: 'Barrio', city_block: 'Barrio', district: 'Distrito', borough: 'Distrito', village: 'Pueblo', town: 'Pueblo', island: 'Isla',
+  square: 'Plaza', park: 'Parque', garden: 'Jardín', beach: 'Playa', viewpoint: 'Mirador', attraction: 'Atracción', museum: 'Museo', gallery: 'Galería', artwork: 'Obra de arte',
+  zoo: 'Zoo', aquarium: 'Acuario', theme_park: 'Parque temático', castle: 'Castillo', monument: 'Monumento', memorial: 'Memorial', ruins: 'Ruinas', tower: 'Torre', palace: 'Palacio',
+  place_of_worship: 'Templo', marketplace: 'Mercado', bar: 'Bar', pub: 'Pub', biergarten: 'Cervecería', restaurant: 'Restaurante', cafe: 'Cafetería', fast_food: 'Comida rápida',
+  ice_cream: 'Heladería', nightclub: 'Discoteca', theatre: 'Teatro', cinema: 'Cine', stadium: 'Estadio', pier: 'Muelle', bridge: 'Puente', peak: 'Cima', waterfall: 'Cascada',
+  mall: 'Centro comercial', street: 'Calle', pedestrian: 'Calle peatonal',
+}
+const OSM_SKIP = new Set(['country', 'state', 'region', 'province', 'county', 'continent', 'house', 'postcode'])
+
+/**
+ * Lugares de OpenStreetMap cerca de la parada (Photon): no distingue tildes ni letras como ş o ı (Besiktas →
+ * Beşiktaş, Kadikoy → Kadıköy) y conoce barrios, bares, restaurantes, miradores… que no tienen artículo.
+ */
+async function searchOsm(q: string, lat: number, lon: number, signal?: AbortSignal): Promise<SightSuggestion[]> {
+  const params = new URLSearchParams({ q, limit: '10', lang: 'default', lat: lat.toFixed(4), lon: lon.toFixed(4), location_bias_scale: '0.5' })
+  const res = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(10_000)]) })
+  if (!res.ok) throw new Error(`Photon ${res.status}`)
+  const json = (await res.json()) as {
+    features: { geometry: { coordinates: [number, number] }; properties: { name?: string; osm_key?: string; osm_value?: string; type?: string; city?: string; district?: string } }[]
+  }
+  return json.features.flatMap((f) => {
+    const p = f.properties
+    const [plon, plat] = f.geometry.coordinates
+    if (!p.name || OSM_SKIP.has(p.osm_value ?? '') || OSM_SKIP.has(p.type ?? '')) return []
+    const km = haversine([lon, lat], [plon, plat])
+    if (km > 60) return []
+    const kind = OSM_KIND[p.osm_value ?? ''] ?? OSM_KIND[p.type ?? ''] ?? 'Lugar'
+    const where = [p.district && p.district !== p.name ? p.district : null, p.city && p.city !== p.name ? p.city : null].filter(Boolean).join(', ')
+    return [{ title: p.name, description: [kind, where].filter(Boolean).join(' · '), lat: plat, lon: plon, km }]
+  })
+}
+
+/**
+ * Busca un sitio por nombre: en Wikipedia (primero cerca de la parada, después en toda) y en OpenStreetMap cerca
+ * de la parada, que entiende el nombre escrito sin tildes ni letras especiales. Primero lo de la ciudad.
+ */
 export async function searchSights(q: string, lat: number, lon: number, signal?: AbortSignal): Promise<SightSuggestion[]> {
   const s = q.trim()
   if (s.length < 2) return []
-  const [near, byName] = await Promise.all([
+  const [near, byName, osm] = await Promise.all([
     query({ generator: 'search', gsrsearch: `${s} nearcoord:30km,${lat},${lon}`, gsrlimit: '8', prop: 'coordinates|description', colimit: 'max' }, signal).catch(() => []),
     query({ generator: 'prefixsearch', gpssearch: s, gpslimit: '8', prop: 'coordinates|description', colimit: 'max' }, signal).catch(() => []),
+    searchOsm(s, lat, lon, signal).catch(() => []),
   ])
   const seen = new Set<string>()
-  const out: SightSuggestion[] = []
+  const wiki: SightSuggestion[] = []
   for (const pg of [...near.sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), ...byName.sort((a, b) => (a.index ?? 0) - (b.index ?? 0))]) {
-    if (seen.has(pg.title) || NOT_TITLE.test(pg.title) || NOT_DESC.test(pg.description ?? '')) continue
+    if (seen.has(pg.title) || searchBlocked(pg)) continue
     seen.add(pg.title)
     const sug = toSuggestion(pg, lat, lon)
-    if (sug) out.push(sug)
+    if (sug) wiki.push(sug)
   }
-  // Lo que está en la ciudad de la parada va primero.
-  return out.sort((a, b) => Number(a.km > 50) - Number(b.km > 50)).slice(0, 8)
+  // De OpenStreetMap, lo que no esté ya (mismo nombre o a menos de 300 m de un resultado de Wikipedia).
+  const extra = osm.filter((o) => !wiki.some((w) => fold(w.title) === fold(o.title) || haversine([w.lon, w.lat], [o.lon, o.lat]) < 0.3))
+  const folded = fold(s)
+  // Lo que está en la ciudad de la parada va primero; dentro, lo que empieza por lo escrito.
+  return [...wiki, ...extra]
+    .map((x, i) => ({ x, i, local: x.km <= 50, starts: fold(x.title).startsWith(folded) }))
+    .sort((a, b) => Number(b.local) - Number(a.local) || Number(b.starts) - Number(a.starts) || a.i - b.i)
+    .map(({ x }) => x)
+    .slice(0, 8)
 }

@@ -4,7 +4,7 @@ import type { NewSight } from '../lib/api/types'
 import type { Sight, Stop } from '../lib/db'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
-const fromSuggestion = (s: SightSuggestion, done: boolean): NewSight => ({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url, done })
+const fromSuggestion = (s: SightSuggestion, done: boolean): NewSight => ({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url ?? null, done })
 
 /**
  * Sitios de una parada. En un viaje hecho: «Sitios que visitaste». En un plan: «¿Qué vamos a ver?», con

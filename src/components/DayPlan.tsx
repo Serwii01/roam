@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DateRangeField, TimeField, formatDay } from './DatePicker'
 import { Icon } from './Icon'
+import { useDragOrder } from './useDragOrder'
 import { WeatherChip } from './Weather'
 import { Flag, plural } from './ui'
 import { WorldMap } from './LazyWorldMap'
@@ -10,7 +11,7 @@ import { api } from '../lib/api'
 import { dayLogistics, type DayLogistic } from '../lib/arrival'
 import { isNote, type Sight, type Stop, type TripWithStops } from '../lib/db'
 import { useAirportMap } from '../lib/hooks'
-import { dayInfo, sightDay, tripDays, weekday, type DayInfo } from '../lib/days'
+import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
@@ -62,7 +63,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
       const d = sightDay(s, trip.stops, days)
       if (d) m.set(d, [...(m.get(d) ?? []), s])
     }
-    for (const list of m.values()) list.sort((a, b) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99') || a.position - b.position)
+    for (const [d, list] of m) m.set(d, orderDay(list))
     return m
   }, [trip.sights, trip.stops, days])
   // Vuelos, trenes y alojamientos (los mismos datos que «Alojamiento y transporte»): horarios de cada día y a qué
@@ -216,14 +217,10 @@ function DayCard({
   const done = places.filter((s) => s.done).length
   // Número de cada sitio sin contar las notas.
   const numberOf = new Map(places.map((s, i) => [s.id, i + 1]))
-  const move = (s: Sight, dir: -1 | 1) => {
-    const i = sights.indexOf(s)
-    const other = sights[i + dir]
-    if (!other) return
-    // Intercambia posición (y hora, si las dos la tienen, para que el orden se mantenga).
-    ops.update(s.id, { position: other.position, ...(s.time && other.time ? { time: other.time } : {}) })
-    ops.update(other.id, { position: s.position, ...(s.time && other.time ? { time: s.time } : {}) })
-  }
+  const apply = (patches: DayPatch[]) => patches.forEach(({ id, ...patch }) => ops.update(id, patch))
+  // Arrastrar (o Subir/Bajar): el orden lo decides tú y las horas se quedan en su sitio (src/lib/days.ts).
+  const reorder = (from: number, to: number) => to >= 0 && to < sights.length && apply(reorderDay(sights, from, to))
+  const drag = useDragOrder(editable ? sights.length : 0, reorder)
   const toDay = (s: Sight, d: string) => {
     const target = infos.find((x) => x.day === d)?.stop
     ops.update(s.id, { day: d, ...(target && target.id !== s.stop_id ? { stop_id: target.id } : {}) })
@@ -288,10 +285,14 @@ function DayCard({
       )}
 
       {sights.length > 0 && (
-        <ol className="mt-3 space-y-1.5">
+        <ol className="mt-3 space-y-1.5" ref={drag.list}>
           {sights.map((s, i) => (
             <SightRow
               key={s.id}
+              handle={editable ? drag.handle(i) : null}
+              dragStyle={drag.style(i)}
+              dragging={drag.state?.from === i}
+              settling={!!drag.state && drag.state.from !== i}
               sight={s}
               index={i}
               number={numberOf.get(s.id) ?? 0}
@@ -300,9 +301,9 @@ function DayCard({
               editable={editable}
               days={days}
               onToggle={() => ops.update(s.id, { done: !s.done })}
-              onTime={(time) => ops.update(s.id, { time })}
+              onTime={(time) => apply(setDayTime(sights, s.id, time))}
               onRename={(name) => ops.update(s.id, { name })}
-              onMove={(dir) => move(s, dir)}
+              onMove={(dir) => reorder(i, i + dir)}
               onDay={(d) => toDay(s, d)}
               onRemove={() => ops.remove(s.id)}
             />
@@ -333,6 +334,10 @@ function DayCard({
 }
 
 function SightRow({
+  handle,
+  dragStyle,
+  dragging,
+  settling,
   sight: s,
   index,
   number,
@@ -347,6 +352,11 @@ function SightRow({
   onDay,
   onRemove,
 }: {
+  /** Asa para arrastrar (useDragOrder) y cómo se mueve la fila mientras tanto. */
+  handle: React.ReactNode
+  dragStyle?: React.CSSProperties
+  dragging: boolean
+  settling: boolean
   sight: Sight
   index: number
   /** Número del sitio en el día (las notas no cuentan). */
@@ -367,8 +377,12 @@ function SightRow({
   useEffect(() => setName(s.name), [s.name])
   const note = isNote(s)
   return (
-    <li className={`rounded-sm px-2 py-1.5 ${note ? 'border border-dashed border-outline-soft' : 'bg-surface-low'}`}>
-      <div className="flex items-center gap-2">
+    <li
+      style={dragStyle}
+      className={`rounded-sm px-2 py-1.5 ${note ? 'border border-dashed border-outline-soft bg-card' : 'bg-surface-low'} ${dragging ? 'relative z-20 shadow-2xl ring-2 ring-accent' : settling ? 'transition-transform duration-150' : ''}`}
+    >
+      <div className="flex items-center gap-1.5">
+        {handle}
         {note ? (
           <span className="grid h-7 w-7 shrink-0 place-items-center text-ink-soft" aria-label="Nota">
             <Icon name="sticky_note_2" size={18} />
@@ -530,7 +544,7 @@ export function SightPicker({ lat, lon, city, taken, placeholder, onAdd }: { lat
   }, [ideasOpen, ideas, lat, lon, city])
 
   const pick = (s: SightSuggestion) => {
-    onAdd({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url })
+    onAdd({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url ?? null })
     setQ('')
     setResults([])
   }

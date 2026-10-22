@@ -6,6 +6,7 @@ import { AirportInput } from '../components/AirportInput'
 import { DateField, DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
 import { AddFlight, FlightField } from '../components/FlightLookup'
 import { Icon } from '../components/Icon'
+import { useDragOrder } from '../components/useDragOrder'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { SpotifyField } from '../components/Spotify'
 import { Stamp } from '../components/Stamp'
@@ -654,7 +655,7 @@ function RutaStep({
   home?: string
 }) {
   const stops = trip?.stops ?? []
-  const drag = useStopDrag(stops.length, onMove)
+  const drag = useDragOrder(stops.length, onMove, { item: ':scope > li[data-stop-index]', card: '[data-stop-card]' })
   const [start, end] = range
   const undated = stops.filter((s) => !s.arrived_on).length
   // Las paradas nuevas heredan el día de la anterior: si todas comparten fecha en un viaje de varios días, conviene repartir.
@@ -1220,82 +1221,4 @@ function tripFields<T extends { title: string; start_date?: string | null; end_d
   return { ...d, title: d.title.trim().slice(0, 120) || 'Nueva expedición', end_date: end }
 }
 
-/**
- * Arrastrar paradas para reordenar, con ratón o con el dedo (pointer events), desde un asa. La parada
- * sigue al puntero y las demás se apartan para dejarle hueco; al soltar se guarda el nuevo orden.
- */
-function useStopDrag(count: number, onMove: (from: number, to: number) => void) {
-  const list = useRef<HTMLOListElement>(null)
-  const [state, setState] = useState<{ from: number; to: number; dy: number; h: number } | null>(null)
-  const info = useRef<{ startY: number; scroll0: number; mids: number[] } | null>(null)
-
-  const handle = (i: number) =>
-    count > 1 ? (
-      <button
-        type="button"
-        aria-label="Arrastrar para cambiar el orden"
-        title="Arrastra para cambiar el orden"
-        className="-ml-1 grid h-10 w-7 shrink-0 cursor-grab touch-none place-items-center self-center rounded-xs text-ink-soft hover:bg-surface-container hover:text-ink active:cursor-grabbing"
-        onPointerDown={(e) => {
-          if (e.button !== 0) return
-          e.preventDefault()
-          e.currentTarget.setPointerCapture(e.pointerId)
-          const items = [...(list.current?.querySelectorAll<HTMLElement>(':scope > li[data-stop-index]') ?? [])]
-          // El centro de cada tarjeta (sin el tramo de transporte de encima) decide dónde cae.
-          const cards = items.map((el) => el.querySelector<HTMLElement>('[data-stop-card]') ?? el)
-          info.current = {
-            startY: e.clientY,
-            scroll0: scrollY,
-            mids: cards.map((el) => {
-              const r = el.getBoundingClientRect()
-              return r.top + scrollY + r.height / 2
-            }),
-          }
-          setState({ from: i, to: i, dy: 0, h: items[i]?.getBoundingClientRect().height ?? 0 })
-        }}
-        onPointerMove={(e) => {
-          const d = info.current
-          if (!d || !state) return
-          // Desplaza la página si se arrastra cerca del borde (útil en el móvil).
-          if (e.clientY < 90) scrollBy(0, -12)
-          else if (e.clientY > innerHeight - 90) scrollBy(0, 12)
-          const dy = e.clientY - d.startY + (scrollY - d.scroll0)
-          const y = d.mids[state.from] + dy
-          let to = 0
-          d.mids.forEach((m, j) => j !== state.from && m < y && to++)
-          setState({ ...state, to, dy })
-        }}
-        onPointerUp={() => {
-          if (state && state.to !== state.from) onMove(state.from, state.to)
-          info.current = null
-          setState(null)
-        }}
-        onPointerCancel={() => {
-          info.current = null
-          setState(null)
-        }}
-        onKeyDown={(e) => {
-          // Con teclado: flechas arriba y abajo.
-          const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1
-          if (to >= 0 && to < count) {
-            e.preventDefault()
-            onMove(i, to)
-          }
-        }}
-      >
-        <Icon name="drag_indicator" size={20} />
-      </button>
-    ) : null
-
-  const style = (i: number): React.CSSProperties | undefined => {
-    if (!state) return undefined
-    const { from, to, dy, h } = state
-    if (i === from) return { transform: `translateY(${dy}px)` }
-    if (from < to && i > from && i <= to) return { transform: `translateY(${-h}px)` }
-    if (from > to && i < from && i >= to) return { transform: `translateY(${h}px)` }
-    return undefined
-  }
-
-  return { list, state, handle, style }
-}
 
