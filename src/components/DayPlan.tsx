@@ -80,7 +80,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="min-w-0">
         {/* Saltar a un día */}
-        <nav aria-label="Días" className="sticky top-16 z-20 -mx-1 mb-4 flex gap-1 overflow-x-auto bg-card/95 px-1 py-2 backdrop-blur [scrollbar-width:none]">
+        <nav aria-label="Días" className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 -mx-1 mb-4 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-card/95 px-1 py-2 backdrop-blur [scrollbar-width:none]">
           {days.map((d, i) => {
             const n = byDay.get(d)?.length ?? 0
             return (

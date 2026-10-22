@@ -215,7 +215,7 @@ export function TripLogPage() {
         ref={tabsRef}
         role="tablist"
         aria-label="Secciones del viaje"
-        className="sticky top-16 z-30 -mx-4 mt-6 flex gap-1 overflow-x-auto border-b border-surface-highest bg-surface/95 px-4 backdrop-blur [scrollbar-width:none] md:-mx-12 md:px-12 print:hidden"
+        className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-4 mt-6 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-surface-highest bg-surface/95 px-4 backdrop-blur [scrollbar-width:none] md:-mx-12 md:px-12 print:hidden"
       >
         {tabs.map((x) => (
           <button
@@ -400,8 +400,13 @@ function MoreMenu({ tripId, owner, deleting, onDelete }: { tripId: string; owner
       <button type="button" className="btn btn-ghost" aria-expanded={open} aria-label="Más opciones" onClick={() => setOpen(!open)}>
         <Icon name="more_horiz" size={18} /> <span className="hidden sm:inline">Más</span>
       </button>
+      {/* En el móvil el botón puede quedar a la izquierda y un desplegable se saldría de la pantalla: va como hoja desde abajo. */}
+      {open && <div className="fixed inset-0 z-40 bg-black/30 sm:hidden" onClick={() => setOpen(false)} />}
       {open && (
-        <div className="card absolute right-0 z-40 mt-2 w-64 p-1 shadow-[0_12px_40px_rgba(0,0,0,0.18)]" role="menu">
+        <div
+          className="card fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 p-1 shadow-[0_12px_40px_rgba(0,0,0,0.18)] sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-64"
+          role="menu"
+        >
           <Link to={`/app/viajes/${tripId}/editar?paso=ruta`} className={item} role="menuitem">
             <Icon name="add_location_alt" size={18} /> Añadir o mover paradas
           </Link>
