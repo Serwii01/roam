@@ -7,6 +7,7 @@ import { WorldMap } from './LazyWorldMap'
 import type { NewSight } from '../lib/api/types'
 import type { Sight, Stop, TripWithStops } from '../lib/db'
 import { dayInfo, sightDay, tripDays, weekday, type DayInfo } from '../lib/days'
+import { googleMapsDayLinks } from '../lib/googleMaps'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
 export interface DayPlanOps {
@@ -137,9 +138,37 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
             </span>
             <span className="label-code text-ink-soft">{plural(currentSights.length, 'sitio', 'sitios')}</span>
           </div>
+          {infos[ci]?.stop && <GoogleMapsDay sights={currentSights} stop={infos[ci].stop} compact />}
           <WorldMap className="h-[460px] shadow-none!" trips={[dayMapTrip(trip, infos[ci], currentSights)]} airports={new Map()} numbered base="modern" maxZoom={15} controls={false} telemetry={false} legend={false} routeLink={false} />
         </div>
       </aside>
+    </div>
+  )
+}
+
+/**
+ * Abre en Google Maps los sitios del día en el orden del plan: uno, como búsqueda; varios, como ruta a pie
+ * (en Google Maps se puede cambiar a transporte público o coche). Con más de 11 sitios, en varias partes.
+ */
+function GoogleMapsDay({ sights, stop, compact = false }: { sights: Sight[]; stop: Stop; compact?: boolean }) {
+  const links = googleMapsDayLinks(sights, stop)
+  if (!links.length) return null
+  const label = sights.length === 1 ? 'Ver en Google Maps' : 'Ruta del día en Google Maps'
+  return (
+    <div className={`flex flex-wrap items-center gap-2 ${compact ? 'mb-2 px-1' : 'mt-3'}`}>
+      {links.map((href, i) => (
+        <a
+          key={href}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className={compact ? 'label-code flex items-center gap-1 text-accent-deep hover:underline' : 'btn btn-ghost px-3! py-1.5! text-sm'}
+        >
+          <Icon name="directions_walk" size={compact ? 14 : 18} className="text-accent" />
+          {links.length > 1 ? `${label} · parte ${i + 1}` : label}
+          <Icon name="open_in_new" size={compact ? 12 : 14} className="text-ink-soft" />
+        </a>
+      ))}
     </div>
   )
 }
@@ -246,6 +275,7 @@ function DayCard({
           ))}
         </ol>
       )}
+      {stop && <GoogleMapsDay sights={sights} stop={stop} />}
 
       {showAdd && stop ? (
         <div className="mt-3">

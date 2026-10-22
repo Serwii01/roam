@@ -84,6 +84,10 @@ En la página de cada viaje, la tarjeta **Calendario** genera un archivo `.ics` 
 
 **Suscripción** (Perfil y ajustes → *Calendario de tus viajes*): un enlace secreto `/cal/<token>.ics` que Calendario de iPhone, Google Calendar u Outlook consultan solos cada pocas horas, con los viajes del último año y los próximos. Lo sirve la función de Vercel `api/calendar.js`, que lee los datos con la clave pública a través de `calendar_feed()` (migración `20261025000000_calendar_feed.sql`): sin un token válido no devuelve nada, y «Cambiar enlace» invalida el anterior. El calendario se arma con el mismo `src/lib/calendar.js` que el botón del viaje (en JavaScript para que Vercel no tenga que compilarlo).
 
+### Día a día en Google Maps
+
+Cada día del plan con sitios tiene el botón «Ruta del día en Google Maps» (`src/lib/googleMaps.ts`): abre Google Maps (la app en el móvil) con los sitios en el orden del plan como ruta a pie; con un solo sitio, su ficha. Los sitios se buscan por nombre, ciudad y país para que Google los reconozca; con más de 11 (el límite de Google) la ruta se parte en varias.
+
 ### Modo oscuro
 
 Por defecto la app sigue el tema del dispositivo (y cambia con él); en *Perfil y ajustes → Apariencia* se puede fijar en claro u oscuro (se guarda en ese dispositivo). Los colores son variables CSS (`src/index.css`): el modo oscuro solo cambia sus valores en `:root[data-theme='dark']`, que ponen `index.html` (antes de pintar, sin destello blanco) y `src/lib/theme.ts`. Para texto sobre `bg-ink` usa `text-paper`, no `text-white`: en oscuro, `ink` es claro. Los mapas usan `MAP_COLORS` y, en oscuro, el estilo «Dark» de OpenFreeMap.
