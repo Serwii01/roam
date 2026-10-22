@@ -33,7 +33,7 @@ export function BitacoraPage() {
             <span className="text-accent">{formatKm(stats.totalKm)} km</span>
           </p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <button className="chip" aria-pressed={view === 'done'} onClick={() => setView('done')}>
             Completadas
           </button>
