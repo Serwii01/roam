@@ -7,6 +7,7 @@ import { takePendingInvite } from '../lib/invites'
 import { Avatar } from './Avatar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
+import { InstallBanner } from './Pwa'
 import { Spinner } from './ui'
 
 const NAV = [
@@ -54,7 +55,7 @@ export function AppShell() {
           Modo demo · los datos se guardan en este navegador · configura Supabase en <code>.env.local</code> para usar cuentas reales
         </div>
       )}
-      <header className="sticky top-0 z-40 bg-surface/85 shadow-[0_1px_8px_rgba(0,0,0,0.04)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 bg-surface/85 pt-[env(safe-area-inset-top)] shadow-[0_1px_8px_rgba(0,0,0,0.04)] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-4 md:px-12">
           <div className="flex items-center gap-6">
             <Logo to="/app" />
@@ -98,6 +99,7 @@ export function AppShell() {
       </main>
 
       <BottomNav />
+      <InstallBanner />
 
       <footer className="bg-surface-low pb-20 xl:pb-0">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 md:px-12">
