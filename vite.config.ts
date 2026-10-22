@@ -31,6 +31,7 @@ export default defineConfig({
         theme_color: '#f9f9fa',
         categories: ['travel', 'lifestyle', 'navigation'],
         shortcuts: [
+          { name: 'Hoy en tu viaje', short_name: 'Hoy', url: '/app/hoy' },
           { name: 'Registrar viaje', short_name: 'Nuevo viaje', url: '/app/viajes/nuevo' },
           { name: 'Bitácora', short_name: 'Viajes', url: '/app/bitacora' },
           { name: 'Pasaporte', url: '/app/pasaporte' },

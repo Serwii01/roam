@@ -29,6 +29,7 @@ const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
 const ImportPage = page(() => import('./pages/Import'), 'ImportPage')
 const FriendsPage = page(() => import('./pages/Friends'), 'FriendsPage')
 const PlannerPage = page(() => import('./pages/Planner'), 'PlannerPage')
+const TodayPage = page(() => import('./pages/Today'), 'TodayPage')
 const SharedTripPage = page(() => import('./pages/Public'), 'SharedTripPage')
 const PublicProfilePage = page(() => import('./pages/Public'), 'PublicProfilePage')
 const PublicTripPage = page(() => import('./pages/Public'), 'PublicTripPage')
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route index element={<ExplorerPage />} />
           <Route path="bitacora" element={<BitacoraPage />} />
+          <Route path="hoy" element={<TodayPage />} />
           <Route path="viajes/nuevo" element={<TripEditorPage />} />
           <Route path="importar" element={<ImportPage />} />
           <Route path="amigos" element={<FriendsPage />} />

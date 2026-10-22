@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import { useUser } from './auth'
-import type { Country, TripWithStops } from './db'
+import type { Country, Sight, TripWithStops } from './db'
+import { dayHops, dayPoints, routeLegs } from './hops'
 import { computeStats, type AirportMap } from './stats'
 
 const REF = { staleTime: Infinity, gcTime: Infinity }
@@ -104,4 +105,22 @@ export function useInvalidateTravel() {
 export function useTravelMutation<A, R>(fn: (args: A) => Promise<R>) {
   const invalidate = useInvalidateTravel()
   return useMutation({ mutationFn: fn, onSuccess: () => invalidate() })
+}
+
+/**
+ * Trayectos entre los sitios de un día (src/lib/hops.ts): la estimación al momento y, con red, la ruta a pie real,
+ * que se guarda (la misma para el día a día y para «Hoy»).
+ */
+export function useDayHops<T extends Sight>(sights: T[]) {
+  const pairs = dayPoints(sights)
+  const key = pairs.map(([a, b]) => `${a.lat.toFixed(5)},${a.lon.toFixed(5)}>${b.lat.toFixed(5)},${b.lon.toFixed(5)}`).join('|')
+  const route = useQuery({
+    queryKey: ['walk-route', key],
+    queryFn: ({ signal }) => routeLegs(pairs, signal),
+    enabled: pairs.length > 0,
+    staleTime: Infinity,
+    gcTime: 30 * 86_400_000,
+    retry: false,
+  })
+  return dayHops(sights, route.data)
 }

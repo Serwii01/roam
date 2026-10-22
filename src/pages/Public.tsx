@@ -50,11 +50,14 @@ export function PublicTripPage() {
   const profile = useQuery({ queryKey: ['public-profile', username], queryFn: () => api.getProfileByUsername(username) })
   const trip = useQuery({ queryKey: ['public-trip', tripId], queryFn: () => api.getTrip(tripId), enabled: !!profile.data })
   const p = profile.data
+  // Un viaje compartido realizado sale también en el perfil de cada compañero.
+  const crew = useQuery({ queryKey: ['members', tripId], queryFn: () => api.listTripMembers(tripId), enabled: !!p && !!trip.data && trip.data.user_id !== p.id })
+  const theirs = !!p && !!trip.data && (trip.data.user_id === p.id || (trip.data.status === 'done' && !!crew.data?.some((m) => m.user_id === p.id)))
   return (
     <PublicLayout>
-      {profile.isLoading || trip.isLoading ? (
+      {profile.isLoading || trip.isLoading || crew.isLoading ? (
         <Spinner label="Abriendo el viaje" />
-      ) : p && trip.data && trip.data.user_id === p.id ? (
+      ) : p && trip.data && theirs ? (
         <PublicTripView trip={trip.data} owner={{ id: p.id, display_name: p.display_name || p.username, avatar_url: p.avatar_url, username: p.is_public ? p.username : null }} />
       ) : (
         <Missing title="No podemos enseñar este viaje" text="El perfil es privado o el viaje ya no existe." />

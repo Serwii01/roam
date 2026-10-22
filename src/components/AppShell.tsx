@@ -4,12 +4,26 @@ import { useAuth } from '../lib/auth'
 import { UN_COUNTRY_COUNT, loadWorldShapes } from '../lib/countries'
 import { useProfile, useTravelData } from '../lib/hooks'
 import { takePendingInvite } from '../lib/invites'
+import { activeTrip, localDate } from '../lib/today'
 import { Avatar } from './Avatar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
 import { OfflineStatus, SyncErrors } from './OfflineStatus'
 import { InstallBanner } from './Pwa'
 import { Spinner } from './ui'
+
+const TODAY = { to: '/app/hoy', label: 'Hoy', short: 'Hoy', icon: 'today', end: false }
+
+/**
+ * Navegación: durante un viaje, «Hoy» va la primera (en el móvil, en la barra de abajo en lugar de Pasaporte);
+ * el resto del tiempo está en «Más».
+ */
+function useNav() {
+  const { trips } = useTravelData()
+  const day = localDate()
+  const onTrip = !!activeTrip(trips, day)
+  return { onTrip, nav: onTrip ? [TODAY, ...NAV] : NAV, mobile: onTrip ? [NAV[0], NAV[1], TODAY] : NAV.slice(0, 3), more: onTrip ? NAV.slice(2) : [...NAV.slice(3), TODAY] }
+}
 
 const NAV = [
   { to: '/app', label: 'Explorador & Mapa', short: 'Mapa', icon: 'public', end: true },
@@ -34,6 +48,7 @@ export function Logo({ to = '/' }: { to?: string }) {
 
 export function AppShell() {
   const { stats } = useTravelData()
+  const { nav } = useNav()
   const { demo } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -70,7 +85,7 @@ export function AppShell() {
             <Logo to="/app" />
             <div className="hidden h-6 w-px bg-surface-highest lg:block" />
             <nav className="hidden items-center gap-0.5 xl:flex">
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
@@ -221,8 +236,7 @@ function BottomNav() {
   const [more, setMore] = useState(false)
   const { pathname } = useLocation()
   useEffect(() => setMore(false), [pathname])
-  const main = NAV.slice(0, 3)
-  const rest = NAV.slice(3)
+  const { mobile: main, more: rest } = useNav()
   const inRest = rest.some((n) => pathname.startsWith(n.to))
   // En el editor y el importador manda su propia barra de acciones de abajo.
   if (/\/(viajes\/nuevo|editar|importar)$/.test(pathname)) return null

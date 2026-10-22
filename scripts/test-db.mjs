@@ -306,6 +306,32 @@ assert.equal((await one('select public.get_shared_trip($1) j', [shareToken])).j,
 assert.equal(await count(`select count(*) n from storage.objects where name like $1`, [`%/${tripId}/%`]), 0)
 await db.exec('reset role')
 
+// ── Estado de un viaje compartido: solo lo cambia el creador; realizado, sale en el perfil de los compañeros ──
+await as(C, async () => {
+  await assert.rejects(db.query(`update trips set status = 'planned' where id = $1`, [tripId]), /Solo quien creó el viaje/, 'Carla no cambia el estado')
+  await db.query(`update trips set description = 'Editado por Carla' where id = $1`, [tripId])
+  assert.equal((await one('select description from trips where id = $1', [tripId])).description, 'Editado por Carla', 'pero sí edita el viaje')
+})
+await as(A, () => db.query(`update trips set status = 'done' where id = $1`, [tripId]))
+// Ana es privada y Carla pública: el viaje realizado sale en el perfil de Carla (con sus países), sin el dinero.
+await as(C, () => db.query('update profiles set is_public = true where id = $1', [C]))
+await as(B, async () => {
+  assert.equal(await count('select count(*) n from trips where id = $1', [tripId]), 1, 'Berto ve el viaje desde el perfil de Carla')
+  assert.equal(await count('select count(*) n from trip_members where user_id = $1', [C]), 1)
+  assert.ok((await count(`select count(*) n from visited_countries where user_id = $1 and country_code = 'JP'`, [C])) === 1, 'Japón cuenta en el mapa de Carla')
+  assert.ok((await count('select count(*) n from stops where trip_id = $1', [tripId])) >= 2, 'con su ruta')
+  assert.equal(await count('select count(*) n from expenses'), 0, 'gastos privados')
+})
+// Planificado (o Carla privada), no sale.
+await as(A, () => db.query(`update trips set status = 'planned' where id = $1`, [tripId]))
+await as(B, async () => {
+  assert.equal(await count('select count(*) n from trips where id = $1', [tripId]), 0, 'un plan no sale en el perfil')
+  assert.equal(await count('select count(*) n from trip_members where user_id = $1', [C]), 0)
+})
+await as(A, () => db.query(`update trips set status = 'done' where id = $1`, [tripId]))
+await as(C, () => db.query('update profiles set is_public = false where id = $1', [C]))
+await as(B, async () => assert.equal(await count('select count(*) n from trips where id = $1', [tripId]), 0, 'perfil privado de Carla'))
+
 // Seguir: solo perfiles públicos; cada uno ve sus seguimientos.
 await as(B, async () => {
   await assert.rejects(db.query('insert into follows (followee) values ($1)', [A]), /row-level security/, 'Ana es privada')

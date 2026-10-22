@@ -102,6 +102,14 @@ Cada día enseña arriba sus horarios de transporte y alojamiento (`src/lib/arri
 
 Entre cada sitio del día y el siguiente se ve cuánto se tarda andando y la distancia («12 min andando · 950 m», que abre ese tramo en Google Maps); si son más de 30 min, también una estimación en metro, bus o taxi. Debajo, el total del día, y un aviso si las horas apuntadas no dan para el trayecto (`src/lib/hops.ts`). Al momento, y sin conexión, se estima con la distancia en línea recta × 1,3 a 4,5 km/h (con «≈»); con red se cambia por la ruta a pie real de OpenStreetMap (`routing.openstreetmap.de`, de FOSSGIS: gratis y sin clave; una petición por día, que se guarda). Las notas no cuentan, y un sitio escrito a mano (sin ubicación) no tiene tramo.
 
+### Hoy
+
+Durante un viaje (hoy entre la ida y la vuelta), «Hoy» (`/app/hoy`, `src/pages/Today.tsx`) sustituye a Pasaporte en la barra de abajo del móvil, va la primera en el menú del ordenador y el inicio enseña un aviso para abrirla. Enseña lo siguiente que toca (el primer sitio sin ver, o un vuelo o una entrada que aún no ha pasado) con «Cómo llegar» (Google Maps desde donde estás) y «Ya lo he visto»; el plan del día con los horarios de transporte y alojamiento metidos por hora y los trayectos entre sitios; dónde se duerme esa noche; lo de mañana, y atajos a gastos, fotos, día a día y documentos. Sin viaje en marcha, cuánto falta para el siguiente. Usa la fecha y la hora del móvil (`src/lib/today.ts`); para ver otro día, `?fecha=AAAA-MM-DD&hora=HH:MM`.
+
+### Viajes compartidos: realizado
+
+Solo quien crea el viaje lo marca como realizado o planificado (lo impide un disparador en la base de datos; los compañeros siguen editando todo lo demás). Al marcarlo como realizado, los compañeros con cuenta reciben un aviso y el viaje sale en su perfil: su bitácora, su pasaporte, su mapa y, si su perfil es público, en su página pública (con la ruta, los sitios y las fotos; nunca los gastos). Cada compañero puede quitarlo de su cuenta («Más → Quitar de mi cuenta», que es salir del viaje). Migración `20261029000000_shared_trip_status.sql`.
+
 ### Gastos al estilo Tricount
 
 La pestaña Gastos de cada viaje enseña arriba tu saldo («Te deben 45 €», «Debes 12 €», «Estás en paz»), lo gastado entre todos y tu parte, y tres pestañas: **Gastos** (cada uno con lo que mueve en tu saldo: `+456 €` si pagaste tú, `−43 €` si te toca), **Saldos** (quién debe a quién con el mínimo de pagos, «Marcar como pagado» y «Compartir cuentas») y **Resumen** (presupuesto, por día, por persona y categorías). Saldar guarda un movimiento `settlement` (pagó quien debía, le toca a quien recibe): cuenta en los saldos pero no en el total ni en el presupuesto (migración `20261028000000_settlements_lodging_location.sql`).

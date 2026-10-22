@@ -18,6 +18,7 @@ import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, p
 import { WorldMap } from '../components/LazyWorldMap'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { notifyDone } from '../lib/push'
 import type { NewSight } from '../lib/api/types'
 import { isNote, type Sight, type Stop, type TripStyle, type TripWithStops } from '../lib/db'
 import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
@@ -65,6 +66,14 @@ export function TripLogPage() {
   const invalidate = useInvalidateTravel()
   const remove = useMutation({
     mutationFn: () => api.deleteTrip(id!),
+    onSuccess: async () => {
+      await invalidate()
+      navigate('/app/bitacora', { replace: true })
+    },
+  })
+  // Un compañero quita el viaje de su cuenta: sale del viaje (deja de contar en su pasaporte y su perfil).
+  const leave = useMutation({
+    mutationFn: () => api.removeTripMember(id!, me!),
     onSuccess: async () => {
       await invalidate()
       navigate('/app/bitacora', { replace: true })
@@ -133,7 +142,11 @@ export function TripLogPage() {
       !(await ask({ title: '¿Marcarlo como realizado?', body: 'Las fechas de este viaje aún no han llegado.', confirm: 'Sí, ya lo hice', icon: 'task_alt' }))
     )
       return
-    save.mutate({ status })
+    save.mutate(
+      { status },
+      // Un viaje compartido realizado sale en el perfil de los compañeros: se les avisa.
+      { onSuccess: () => status === 'done' && (t.member_count ?? 0) > 0 && void notifyDone(t.id) },
+    )
   }
   const counts: Partial<Record<TripTab, number>> = { fotos: t.photos.length, ruta: t.stops.length, dias: t.sights.filter((x) => !isNote(x)).length }
 
@@ -148,7 +161,8 @@ export function TripLogPage() {
           <Icon name="arrow_back" size={14} /> Bitácora
         </Link>
         <span className="label-code bg-accent px-2 py-1 text-white">EXP · {t.start_date?.slice(0, 4) ?? 'S/F'}</span>
-        {participant ? (
+        {/* El estado lo decide solo quien creó el viaje: al marcarlo como realizado sale en el perfil de los compañeros. */}
+        {owner ? (
           <div className="flex rounded-full bg-surface-low p-0.5" role="radiogroup" aria-label="Estado del viaje">
             {(['planned', 'done'] as const).map((s) => (
               <button
@@ -165,7 +179,12 @@ export function TripLogPage() {
             ))}
           </div>
         ) : (
-          <span className={`label-code px-2 py-1 ${t.status === 'done' ? 'bg-surface-container' : 'bg-accent-soft text-accent-ink'}`}>{t.status === 'done' ? 'Realizado' : 'Planificado'}</span>
+          <span
+            className={`label-code px-2 py-1 ${t.status === 'done' ? 'bg-surface-container' : 'bg-accent-soft text-accent-ink'}`}
+            title={participant ? 'Solo quien creó el viaje puede marcarlo como realizado' : undefined}
+          >
+            {t.status === 'done' ? 'Realizado' : 'Planificado'}
+          </span>
         )}
         {first && (
           <span className="label-code hidden items-center gap-1.5 text-ink-soft sm:flex">
@@ -189,27 +208,39 @@ export function TripLogPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {participant && planned && (
+          {owner && planned && (
             <button className="btn btn-accent" disabled={save.isPending} onClick={() => setStatus('done')}>
               <Icon name="task_alt" size={18} /> Ya lo hice
             </button>
           )}
-          <button className={`btn ${planned && participant ? 'btn-ghost' : 'btn-accent'}`} onClick={() => setSharing(true)}>
+          <button className={`btn ${planned && owner ? 'btn-ghost' : 'btn-accent'}`} onClick={() => setSharing(true)}>
             <Icon name="ios_share" size={18} /> Compartir imagen
           </button>
           {participant && (
             <MoreMenu
               tripId={t.id}
               owner={owner}
-              deleting={remove.isPending}
+              deleting={remove.isPending || leave.isPending}
               onDelete={async () => {
                 if (await ask(deleteTripQuestion(t.title))) remove.mutate()
+              }}
+              onLeave={async () => {
+                if (
+                  await ask({
+                    title: `¿Quitar «${t.title}» de tu cuenta?`,
+                    body: 'Saldrás del viaje: dejará de salir en tu bitácora, tu pasaporte y tu perfil. El viaje sigue para los demás, con tus paradas y fotos. Para volver, pide otra invitación.',
+                    confirm: 'Quitar de mi cuenta',
+                    danger: true,
+                    icon: 'logout',
+                  })
+                )
+                  leave.mutate()
               }}
             />
           )}
         </div>
       </div>
-      <ErrorNote error={save.error ?? remove.error} />
+      <ErrorNote error={save.error ?? remove.error ?? leave.error} />
 
       <nav
         ref={tabsRef}
@@ -380,7 +411,7 @@ function TitleEdit({ title, onSave }: { title: string; onSave: (t: string) => vo
   )
 }
 
-function MoreMenu({ tripId, owner, deleting, onDelete }: { tripId: string; owner: boolean; deleting: boolean; onDelete: () => void }) {
+function MoreMenu({ tripId, owner, deleting, onDelete, onLeave }: { tripId: string; owner: boolean; deleting: boolean; onDelete: () => void; onLeave: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -441,6 +472,23 @@ function MoreMenu({ tripId, owner, deleting, onDelete }: { tripId: string; owner
                 }}
               >
                 <Icon name="delete" size={18} /> {deleting ? 'Eliminando…' : 'Eliminar viaje'}
+              </button>
+            </>
+          )}
+          {!owner && (
+            <>
+              <div className="my-1 h-px bg-surface-highest" />
+              <button
+                type="button"
+                role="menuitem"
+                disabled={deleting}
+                className={`${item} text-red-700 hover:bg-red-50`}
+                onClick={() => {
+                  setOpen(false)
+                  onLeave()
+                }}
+              >
+                <Icon name="logout" size={18} /> {deleting ? 'Quitando…' : 'Quitar de mi cuenta'}
               </button>
             </>
           )}

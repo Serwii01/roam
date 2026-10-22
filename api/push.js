@@ -3,6 +3,7 @@
 //    día que calcula due_notifications() en Supabase (vuelos de mañana, entradas al alojamiento, pasaporte).
 //  · ?action=test  — «Enviar un aviso de prueba» desde Ajustes, con la sesión del usuario.
 //  · ?action=join  — al aceptar una invitación: avisa al resto del viaje de que alguien se ha unido.
+//  · ?action=done  — el creador marca un viaje compartido como realizado: avisa a los compañeros.
 // Lee y escribe en Supabase con la clave de servicio (SUPABASE_SERVICE_ROLE_KEY), que solo vive en Vercel.
 // En JavaScript y en Node (no Edge): web-push usa el cifrado de Node.
 import webpush from 'web-push'
@@ -101,6 +102,27 @@ async function join(req, res) {
   return res.status(200).json({ sent })
 }
 
+async function done(req, res) {
+  const user = await sessionUser(req)
+  const tripId = req.body?.tripId
+  if (!user) return res.status(401).json({ error: 'Sin sesión' })
+  if (!UUID.test(tripId ?? '')) return res.status(400).json({ error: 'Viaje no válido' })
+  // Solo quien creó el viaje, y solo si de verdad está realizado.
+  const [trip] = await admin(`trips?select=id,title,user_id,status&id=eq.${tripId}`)
+  if (!trip || trip.user_id !== user.id) return res.status(403).json({ error: 'No es tu viaje' })
+  if (trip.status !== 'done') return res.status(200).json({ sent: 0 })
+  const people = (await admin(`trip_members?select=user_id&trip_id=eq.${tripId}`)).map((m) => m.user_id)
+  if (!people.length) return res.status(200).json({ sent: 0 })
+  const off = new Set((await admin(`notification_prefs?select=user_id&social=eq.false&user_id=${inList(people)}`)).map((p) => p.user_id))
+  const [profile] = await admin(`profiles?select=display_name,username&id=eq.${user.id}`)
+  const who = profile?.display_name || profile?.username || 'Quien lo creó'
+  const sent = await sendTo(
+    people.filter((id) => !off.has(id)),
+    { title: `«${trip.title}» ya es un viaje realizado`, body: `${who} lo ha marcado como hecho: ya cuenta en tu mapa, tu pasaporte y tu perfil.`, url: `/app/viajes/${tripId}`, tag: `done-${tripId}` },
+  )
+  return res.status(200).json({ sent })
+}
+
 export default async function handler(req, res) {
   if (!SB || !SERVICE || !VAPID_PUBLIC || !VAPID_PRIVATE) return res.status(503).json({ error: 'Avisos sin configurar (faltan variables en Vercel)' })
   webpush.setVapidDetails(CONTACT, VAPID_PUBLIC, VAPID_PRIVATE)
@@ -110,6 +132,7 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Usa POST' })
     if (action === 'test') return await test(req, res)
     if (action === 'join') return await join(req, res)
+    if (action === 'done') return await done(req, res)
     return res.status(404).json({ error: 'Acción desconocida' })
   } catch (e) {
     console.error(e)

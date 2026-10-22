@@ -71,7 +71,7 @@ export async function unsubscribePush(): Promise<string | null> {
   return sub.endpoint
 }
 
-async function callPush(action: 'test' | 'join', body?: unknown) {
+async function callPush(action: 'test' | 'join' | 'done', body?: unknown) {
   const token = (await supabase.auth.getSession()).data.session?.access_token
   if (!token) throw new Error('Sin sesión')
   const res = await fetch(`/api/push?action=${action}`, {
@@ -92,4 +92,9 @@ export async function sendTestPush(): Promise<number> {
 /** Al unirse a un viaje: avisa al resto. Si falla (sin red, sin configurar), no pasa nada. */
 export async function notifyJoin(tripId: string) {
   await callPush('join', { tripId }).catch(() => {})
+}
+
+/** El creador marca un viaje compartido como realizado: avisa a los compañeros. Si falla, no pasa nada. */
+export async function notifyDone(tripId: string) {
+  await callPush('done', { tripId }).catch(() => {})
 }

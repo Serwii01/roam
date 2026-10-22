@@ -10,10 +10,10 @@ import type { NewSight } from '../lib/api/types'
 import { api } from '../lib/api'
 import { dayLogistics, type DayLogistic } from '../lib/arrival'
 import { isNote, type Sight, type Stop, type TripWithStops } from '../lib/db'
-import { useAirportMap } from '../lib/hooks'
+import { useAirportMap, useDayHops } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
-import { dayHops, dayPoints, dayTotals, distance, minutes, routeLegs, type Hop } from '../lib/hops'
+import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
 export interface DayPlanOps {
@@ -223,17 +223,7 @@ function DayCard({
   const reorder = (from: number, to: number) => to >= 0 && to < sights.length && apply(reorderDay(sights, from, to))
   const drag = useDragOrder(editable ? sights.length : 0, reorder, { card: '[data-sight-card]' })
   // Trayectos entre sitios: estimación al momento y, con red, la ruta a pie real (src/lib/hops.ts).
-  const pairs = dayPoints(sights)
-  const pairsKey = pairs.map(([a, b]) => `${a.lat.toFixed(5)},${a.lon.toFixed(5)}>${b.lat.toFixed(5)},${b.lon.toFixed(5)}`).join('|')
-  const route = useQuery({
-    queryKey: ['walk-route', pairsKey],
-    queryFn: ({ signal }) => routeLegs(pairs, signal),
-    enabled: pairs.length > 0,
-    staleTime: Infinity,
-    gcTime: 30 * 86_400_000,
-    retry: false,
-  })
-  const hops = dayHops(sights, route.data)
+  const hops = useDayHops(sights)
   const hopTo = new Map(hops.map((h) => [h.to.id, h]))
   const totals = dayTotals(hops)
   const toDay = (s: Sight, d: string) => {

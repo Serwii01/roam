@@ -10,7 +10,7 @@ const KINDS: { id: keyof NotificationPrefs; label: string; hint: string }[] = [
   { id: 'travel', label: 'Vuelos y trenes', hint: 'El día antes: a qué hora sales, compañía y reserva.' },
   { id: 'lodging', label: 'Alojamiento', hint: 'El día de entrada: desde qué hora, dirección y reserva.' },
   { id: 'passport', label: 'Pasaporte', hint: 'A 60, 30 y 7 días de un viaje, si te falta o caduca pronto.' },
-  { id: 'social', label: 'Compañeros', hint: 'Cuando alguien se une a uno de tus viajes.' },
+  { id: 'social', label: 'Compañeros', hint: 'Cuando alguien se une a uno de tus viajes o un viaje compartido pasa a realizado.' },
 ]
 
 const WHY: Record<Exclude<PushSupport, 'ok'>, string> = {

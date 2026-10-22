@@ -7,7 +7,9 @@ import { WorldMap } from '../components/LazyWorldMap'
 import { CONTINENT_NAMES } from '../lib/db'
 import { UN_COUNTRY_COUNT } from '../lib/countries'
 import { downloadKml } from '../lib/export'
+import { dayInfo } from '../lib/days'
 import { useTravelData } from '../lib/hooks'
+import { activeTrip as tripOnDay, localDate } from '../lib/today'
 import { formatKm, isDone, missingContinents, tripDays, tripKm, tripYear } from '../lib/stats'
 
 type Filter = { kind: 'all' } | { kind: 'year'; year: number } | { kind: 'solo' } | { kind: 'epic' }
@@ -17,6 +19,7 @@ export function ExplorerPage() {
   const [filter, setFilter] = useState<Filter>({ kind: 'all' })
 
   const done = useMemo(() => trips.filter(isDone), [trips])
+  const today = useMemo(() => tripOnDay(trips, localDate()), [trips])
   const shown = useMemo(() => {
     switch (filter.kind) {
       case 'year':
@@ -46,6 +49,21 @@ export function ExplorerPage() {
   return (
     <div>
       <ErrorNote error={error} />
+      {/* Durante un viaje, lo primero al abrir la app: lo que toca hoy. */}
+      {today && (
+        <Link to="/app/hoy" className="mb-6 flex items-center gap-3 rounded-md bg-ink px-4 py-3 text-paper shadow-[var(--shadow-card)] hover:opacity-95">
+          <Icon name="today" className="text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="label-stamp block text-paper/70">
+              Estás de viaje · día {today.index + 1} de {today.days.length}
+            </span>
+            <span className="block truncate font-display font-semibold">
+              Hoy en {dayInfo(today.trip.stops, today.days[today.index]).stop?.name ?? today.trip.title}: qué toca ahora
+            </span>
+          </span>
+          <Icon name="arrow_forward" />
+        </Link>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <div className="flex flex-wrap items-center gap-3">

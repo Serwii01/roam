@@ -14,6 +14,8 @@ export interface DayLogistic {
   detail?: string
   /** Hora estimada (no apuntada): se enseña con «≈». */
   estimated?: boolean
+  /** Llegada a la ciudad o al alojamiento: los sitios sin hora de ese día van después. */
+  arrival?: boolean
 }
 
 const LEG: Record<TransportMode, string> = { plane: 'vuelo', train: 'tren', bus: 'autobús', boat: 'barco', car: 'coche', bike: 'bici', walk: 'a pie' }
@@ -78,7 +80,7 @@ export function dayLogistics(t: TripWithStops, lodgings: Lodging[], legs: LegDet
     // Día y hora de llegada: un vuelo nocturno llega al día siguiente.
     let arriveDay = s.arrived_on ?? departDay
     if (d?.arrive_time && d.depart_time && arriveDay === departDay && hhmm(d.arrive_time) < hhmm(d.depart_time)) arriveDay = departDay ? addDays(departDay, 1) : arriveDay
-    if (d?.arrive_time) push(arriveDay, { time: hhmm(d.arrive_time), icon: ICON_IN[mode], title: `Llegada a ${s.name}`, detail: [plane && s.to_airport ? `aeropuerto ${s.to_airport}` : null, !d.depart_time ? what : null].filter(Boolean).join(' · ') || undefined })
+    if (d?.arrive_time) push(arriveDay, { time: hhmm(d.arrive_time), arrival: true, icon: ICON_IN[mode], title: `Llegada a ${s.name}`, detail: [plane && s.to_airport ? `aeropuerto ${s.to_airport}` : null, !d.depart_time ? what : null].filter(Boolean).join(' · ') || undefined })
 
     const lod = arriveDay ? lodgingFor(t, lodgings, i, arriveDay) : undefined
     if (lod && d?.arrive_time && arriveDay) {
@@ -89,6 +91,7 @@ export function dayLogistics(t: TripWithStops, lodgings: Lodging[], legs: LegDet
       push(at >= 24 * 60 ? addDays(arriveDay, 1) : arriveDay, {
         time: fromMin(at),
         estimated: true,
+        arrival: true,
         icon: 'hotel',
         title: `Llegas a ${lod.name}`,
         detail: [
@@ -103,7 +106,7 @@ export function dayLogistics(t: TripWithStops, lodgings: Lodging[], legs: LegDet
 
   for (const l of lodgings) {
     if (l.check_in && !arrivals.has(l.id))
-      push(l.check_in, { time: l.check_in_time ? hhmm(l.check_in_time) : null, icon: 'hotel', title: `Entrada en ${l.name}`, detail: l.address ?? undefined })
+      push(l.check_in, { time: l.check_in_time ? hhmm(l.check_in_time) : null, arrival: true, icon: 'hotel', title: `Entrada en ${l.name}`, detail: l.address ?? undefined })
     if (l.check_out) push(l.check_out, { time: l.check_out_time ? hhmm(l.check_out_time) : null, icon: 'logout', title: `Salida de ${l.name}`, detail: l.check_out_time ? `hasta las ${hhmm(l.check_out_time)}` : undefined })
   }
 

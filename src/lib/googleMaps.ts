@@ -43,3 +43,14 @@ export function googleMapsDayLinks(sights: Pick<Sight, 'name' | 'lat' | 'lon'>[]
   }
   return links
 }
+
+/** Cómo llegar desde donde estás (Google Maps usa tu ubicación como origen) a un sitio o a un alojamiento. */
+export function googleMapsDirections(
+  to: Pick<Sight, 'name' | 'lat' | 'lon'> & { address?: string | null },
+  stop?: Pick<Stop, 'name' | 'country_code'>,
+  mode: TravelMode = 'walking',
+): string {
+  const destination = to.address ? `${to.name}, ${to.address}` : placeQuery(to, stop)
+  const params = new URLSearchParams({ api: '1', destination, travelmode: mode })
+  return `https://www.google.com/maps/dir/?${params}`
+}

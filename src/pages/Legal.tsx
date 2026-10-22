@@ -103,7 +103,7 @@ export function PrivacyPage() {
         </li>
         <li>
           Avisos en el móvil, solo si los activas en un móvil o navegador: guardamos la dirección de entrega que da tu navegador para
-          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen). Los
+          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen o viajes compartidos que pasan a realizados). Los
           entrega el servicio de avisos de tu navegador o sistema (Apple, Google o Mozilla), cifrados de forma que no puede leerlos.
           Puedes elegir cuáles recibir o desactivarlos en Ajustes, o quitar el permiso desde el móvil.
         </li>
@@ -118,7 +118,9 @@ export function PrivacyPage() {
         <li>
           Viajes compartidos, solo si invitas a alguien o aceptas una invitación: los participantes de ese viaje ven y editan su contenido (paradas,
           notas, fotos y música) y ven el nombre y el avatar de los demás participantes, nada más de sus cuentas. Es parte del servicio que pides
-          (art. 6.1.b). Puedes salir del viaje, quitar a alguien o anular el enlace cuando quieras.
+          (art. 6.1.b). Solo quien crea el viaje lo marca como realizado; entonces sale también en el perfil de cada participante y, si
+          alguno tiene el perfil público, quien lo visite ve ese viaje (ruta, paradas, sitios y fotos; nunca los gastos). Puedes salir del
+          viaje (quitarlo de tu cuenta), quitar a alguien o anular el enlace cuando quieras.
         </li>
         <li>
           Presupuesto y gastos de un viaje: solo los ven sus participantes, nunca quien mira tu perfil público. Es parte del servicio que pides

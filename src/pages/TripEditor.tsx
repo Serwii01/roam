@@ -17,6 +17,7 @@ import { WorldMap } from '../components/LazyWorldMap'
 import { api, type TripFields } from '../lib/api'
 import type { NewSight } from '../lib/api/types'
 import { useAuth } from '../lib/auth'
+import { notifyDone } from '../lib/push'
 import { computeStamps } from '../lib/badges'
 import { isNote, type Sight, type Stop, type TransportMode, type TripStyle, type TripWithStops } from '../lib/db'
 import { haversine } from '../lib/geo'
@@ -80,9 +81,12 @@ export function TripEditorPage() {
 
   // Carga los campos del viaje existente una sola vez (no pisa lo que se está escribiendo).
   const loadedId = useRef<string | null>(null)
+  // Estado con el que se abrió: si pasa de planificado a realizado, se avisa a los compañeros al guardar.
+  const loadedStatus = useRef<Draft['status']>(undefined)
   useEffect(() => {
     if (trip.data && loadedId.current !== trip.data.id) {
       loadedId.current = trip.data.id
+      loadedStatus.current = trip.data.status
       const { title, style, start_date, end_date, solo, companions, description, status, soundtrack_url } = trip.data
       setDraft({ title, style, start_date, end_date, solo, companions, description, status, soundtrack_url: soundtrack_url ?? null })
     }
@@ -257,6 +261,8 @@ export function TripEditorPage() {
       clearTimeout(saveTimer.current)
       const tt = await ensureTrip()
       await api.updateTrip(tt.id, tripFields(draft))
+      if (loadedStatus.current === 'planned' && draft.status === 'done' && (tt.member_count ?? 0) > 0) void notifyDone(tt.id)
+      loadedStatus.current = draft.status
       navigate(`/app/viajes/${tt.id}`)
     })
 
@@ -334,7 +340,7 @@ export function TripEditorPage() {
         )}
         <div className={`grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_440px] ${step === 'dias' ? 'hidden' : ''}`}>
           <div className="min-w-0">
-            {step === 'destino' && <DestinoStep draft={draft} update={update} />}
+            {step === 'destino' && <DestinoStep draft={draft} update={update} canStatus={isOwner} />}
             {step === 'ruta' && (
               <RutaStep
                 trip={t}
@@ -388,7 +394,7 @@ export function TripEditorPage() {
                 airports={airports}
                 stamps={stamps}
                 countryName={countries.name}
-                onStatus={(s) => update({ status: s })}
+                onStatus={isOwner ? (s) => update({ status: s }) : undefined}
                 canDelete={!!id && isOwner}
                 onDelete={async () => {
                   if (id && (await ask(deleteTripQuestion(draft.title || 'este viaje'))))
@@ -478,7 +484,8 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
 
 // ───────────────────────────── Paso 1: el viaje ─────────────────────────────
 
-function DestinoStep({ draft, update }: { draft: Draft; update: (p: Partial<Draft>) => void }) {
+/** `canStatus`: en un viaje compartido, solo quien lo creó decide si está realizado o planificado. */
+function DestinoStep({ draft, update, canStatus }: { draft: Draft; update: (p: Partial<Draft>) => void; canStatus: boolean }) {
   const [mate, setMate] = useState('')
   const planned = draft.status === 'planned'
   const now = today()
@@ -487,12 +494,12 @@ function DestinoStep({ draft, update }: { draft: Draft; update: (p: Partial<Draf
     if (name && !draft.companions?.includes(name)) update({ companions: [...(draft.companions ?? []), name], solo: false })
     setMate('')
   }
-  const future = !planned && !!draft.start_date && draft.start_date > now
-  const past = planned && !!(draft.end_date ?? draft.start_date) && (draft.end_date ?? draft.start_date)! < now
+  const future = canStatus && !planned && !!draft.start_date && draft.start_date > now
+  const past = canStatus && planned && !!(draft.end_date ?? draft.start_date) && (draft.end_date ?? draft.start_date)! < now
 
   return (
     <div className="space-y-8">
-      <Field label="¿Ya lo has hecho?">
+      <Field label="¿Ya lo has hecho?" hint={canStatus ? undefined : 'Lo decide quien creó el viaje'}>
         <div className="grid gap-3 sm:grid-cols-2">
           {(
             [
@@ -506,8 +513,9 @@ function DestinoStep({ draft, update }: { draft: Draft; update: (p: Partial<Draf
                 key={v}
                 type="button"
                 aria-pressed={on}
+                disabled={!canStatus}
                 onClick={() => update({ status: v })}
-                className={`flex items-start gap-3 rounded-md border-2 p-4 text-left transition ${on ? 'border-accent bg-accent-soft/40' : 'border-surface-highest hover:border-outline'}`}
+                className={`flex items-start gap-3 rounded-md border-2 p-4 text-left transition disabled:cursor-not-allowed ${on ? 'border-accent bg-accent-soft/40' : 'border-surface-highest enabled:hover:border-outline disabled:opacity-50'}`}
               >
                 <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${on ? 'bg-accent text-white' : 'bg-surface-low text-ink-soft'}`}>
                   <Icon name={icon} />
@@ -1093,7 +1101,8 @@ function ResumenStep({
   airports: ReturnType<typeof useAirportMap>
   stamps: ReturnType<typeof computeStamps>
   countryName: (c: string) => string
-  onStatus: (s: 'done' | 'planned') => void
+  /** Sin él (compañero de un viaje compartido), no se puede cambiar el estado. */
+  onStatus?: (s: 'done' | 'planned') => void
   canDelete: boolean
   onDelete: () => void
 }) {
@@ -1129,11 +1138,14 @@ function ResumenStep({
             <div className="flex-1">
               <div className="font-display font-semibold">Es un viaje planificado</div>
               <p className="mt-1 text-sm text-ink-soft">
-                Aparece en tus planes y en la Bucket List, pero no cuenta como visitado ni da sellos. Cuando vuelvas, márcalo como realizado.
+                Aparece en tus planes y en la Bucket List, pero no cuenta como visitado ni da sellos.{' '}
+                {onStatus ? 'Cuando vuelvas, márcalo como realizado.' : 'Cuando quien lo creó lo marque como realizado, saldrá también en tu perfil.'}
               </p>
-              <button type="button" className="btn btn-dark mt-3" onClick={() => onStatus('done')}>
-                <Icon name="task_alt" size={18} /> Ya lo hice: marcar como realizado
-              </button>
+              {onStatus && (
+                <button type="button" className="btn btn-dark mt-3" onClick={() => onStatus('done')}>
+                  <Icon name="task_alt" size={18} /> Ya lo hice: marcar como realizado
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1151,9 +1163,11 @@ function ResumenStep({
           ) : (
             <p className="rounded-md bg-surface-low p-5 text-sm text-ink-soft">Cada país distinto del de salida te da un sello, y cada aeropuerto nacional al que llegas en avión también.</p>
           )}
-          <button type="button" className="mt-3 text-sm text-ink-soft underline-offset-2 hover:text-ink hover:underline" onClick={() => onStatus('planned')}>
-            ¿Aún no lo has hecho? Pásalo a planificado
-          </button>
+          {onStatus && (
+            <button type="button" className="mt-3 text-sm text-ink-soft underline-offset-2 hover:text-ink hover:underline" onClick={() => onStatus('planned')}>
+              ¿Aún no lo has hecho? Pásalo a planificado
+            </button>
+          )}
         </div>
       )}
 
