@@ -102,6 +102,12 @@ export function PrivacyPage() {
           y sin que salga en buscadores. Puedes quitarlo cuando quieras y deja de funcionar al momento.
         </li>
         <li>
+          Avisos en el móvil, solo si los activas en un móvil o navegador: guardamos la dirección de entrega que da tu navegador para
+          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen). Los
+          entrega el servicio de avisos de tu navegador o sistema (Apple, Google o Mozilla), cifrados de forma que no puede leerlos.
+          Puedes elegir cuáles recibir o desactivarlos en Ajustes, o quitar el permiso desde el móvil.
+        </li>
+        <li>
           Suscripción al calendario, solo si la activas: un enlace secreto con tus viajes del último año y los próximos (fechas, trayectos con
           sus horarios y reservas, alojamientos y plan de cada día) para que tu app de calendario los muestre. Lo consulta tu calendario (Apple,
           Google, Microsoft…), que los trata según su propia política. Puedes cambiar el enlace o desactivarlo cuando quieras.

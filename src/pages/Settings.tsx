@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { CalendarSubscription } from '../components/CalendarSubscription'
+import { NotificationsCard } from '../components/NotificationsCard'
 import { InstallCard } from '../components/Pwa'
 import { ThemePicker } from '../components/ThemePicker'
 import { ErrorNote, Eyebrow, Spinner } from '../components/ui'
@@ -138,6 +139,8 @@ export function SettingsPage() {
       <ThemePicker />
 
       <InstallCard />
+
+      <NotificationsCard />
 
       <CalendarSubscription />
 

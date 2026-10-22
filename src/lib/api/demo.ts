@@ -521,6 +521,15 @@ export const demoApi: Api = {
   async listWishlist() {
     return delay(state.wishlist)
   },
+  // Los avisos los envía el servidor: en el modo demo no hay a quién mandarlos.
+  async savePushSubscription() {
+    throw new Error('Los avisos necesitan una cuenta: en el modo demo no hay servidor que los envíe.')
+  },
+  async deletePushSubscription() {},
+  async getNotificationPrefs() {
+    return { travel: true, lodging: true, passport: true, social: true }
+  },
+  async setNotificationPrefs() {},
   // El calendario se sirve desde el servidor: en el modo demo (todo en el navegador) no hay de dónde leerlo.
   async getCalendarFeed() {
     return null

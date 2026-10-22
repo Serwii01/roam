@@ -88,6 +88,12 @@ En la página de cada viaje, la tarjeta **Calendario** genera un archivo `.ics` 
 
 Cada día del plan con sitios tiene el botón «Ruta del día en Google Maps» (`src/lib/googleMaps.ts`): abre Google Maps (la app en el móvil) con los sitios en el orden del plan como ruta a pie; con un solo sitio, su ficha. Los sitios se buscan por nombre, ciudad y país para que Google los reconozca; con más de 11 (el límite de Google) la ruta se parte en varias.
 
+### Avisos en el móvil
+
+En *Perfil y ajustes → Avisos en el móvil* cada móvil o navegador los activa (en iPhone, solo con la app instalada, iOS 16.4+). Cada mañana (cron de Vercel a las 8:00 UTC: 9:00 en invierno y 10:00 en verano en España) `api/push.js` pide a Supabase los avisos del día con `due_notifications()` (migración `20261026000000_push_notifications.sql`) y los envía: vuelos, trenes, autobuses y barcos del día siguiente, entradas al alojamiento y pasaporte a 60, 30 y 7 días de un viaje fuera de la UE. Al unirse alguien a un viaje, el resto recibe un aviso al momento. Cada usuario elige qué avisos quiere; el service worker los muestra con `public/push-sw.js`.
+
+Variables en Vercel: `VITE_VAPID_PUBLIC_KEY` (Config), `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` y `CRON_SECRET` (Secret). Las claves VAPID se generan con `npx web-push generate-vapid-keys`.
+
 ### Modo oscuro
 
 Por defecto la app sigue el tema del dispositivo (y cambia con él); en *Perfil y ajustes → Apariencia* se puede fijar en claro u oscuro (se guarda en ese dispositivo). Los colores son variables CSS (`src/index.css`): el modo oscuro solo cambia sus valores en `:root[data-theme='dark']`, que ponen `index.html` (antes de pintar, sin destello blanco) y `src/lib/theme.ts`. Para texto sobre `bg-ink` usa `text-paper`, no `text-white`: en oscuro, `ink` es claro. Los mapas usan `MAP_COLORS` y, en oscuro, el estilo «Dark» de OpenFreeMap.

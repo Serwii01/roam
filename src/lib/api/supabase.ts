@@ -2,8 +2,9 @@
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
 import type { Airport, Expense, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage, THUMB_MAX } from '../images'
+import { notifyJoin } from '../push'
 import { must, supabase } from '../supabase'
-import type { Api } from './types'
+import type { Api, NotificationPrefs } from './types'
 
 const BUCKET = 'trip-photos'
 const DOCS = 'trip-docs'
@@ -200,7 +201,9 @@ export const supabaseApi: Api = {
   },
   async acceptInvite(token) {
     if (!UUID.test(token)) throw new Error('La invitación no existe')
-    return must(await supabase.rpc('accept_trip_invite', { invite: token })) as string
+    const tripId = must(await supabase.rpc('accept_trip_invite', { invite: token })) as string
+    void notifyJoin(tripId)
+    return tripId
   },
 
   async addStop(trip, stop) {
@@ -425,6 +428,21 @@ export const supabaseApi: Api = {
   },
   async listWishlist() {
     return must(await supabase.from('wishlist').select('*').order('created_at'))
+  },
+  async savePushSubscription(sub) {
+    must(await supabase.from('push_subscriptions').upsert(sub, { onConflict: 'endpoint' }))
+  },
+  async deletePushSubscription(endpoint) {
+    must(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
+  },
+  async getNotificationPrefs() {
+    const row = must(await supabase.from('notification_prefs').select('travel, lodging, passport, social').maybeSingle()) as NotificationPrefs | null
+    return row ?? { travel: true, lodging: true, passport: true, social: true }
+  },
+  async setNotificationPrefs(prefs) {
+    const uid = (await supabase.auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Sin sesión')
+    must(await supabase.from('notification_prefs').upsert({ user_id: uid, ...prefs }))
   },
   async getCalendarFeed() {
     const row = must(await supabase.from('calendar_feeds').select('token').maybeSingle()) as { token: string } | null

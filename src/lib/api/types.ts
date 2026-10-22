@@ -15,6 +15,21 @@ export type NewPackingItem = Pick<PackingItem, 'label' | 'category'> & Partial<P
 
 export type TripFields = Partial<Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 
+export interface PushSubscriptionRow {
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent?: string | null
+}
+
+/** Qué avisos quiere el usuario: vuelos y trenes de mañana, entradas al alojamiento, pasaporte y compañeros. */
+export interface NotificationPrefs {
+  travel: boolean
+  lodging: boolean
+  passport: boolean
+  social: boolean
+}
+
 export interface Visited {
   countries: { code: string; source: 'trip' | 'manual' }[]
   subdivisions: { code: string; source: 'trip' | 'manual' }[]
@@ -129,6 +144,13 @@ export interface Api {
   setSubdivisionMarked(code: string, marked: boolean): Promise<void>
   listWishlist(): Promise<Wish[]>
   setWish(code: string, wished: boolean, note?: string): Promise<void>
+
+  // Avisos en el móvil (Web Push)
+  /** Guarda (o actualiza) la suscripción de este móvil o navegador. */
+  savePushSubscription(sub: PushSubscriptionRow): Promise<void>
+  deletePushSubscription(endpoint: string): Promise<void>
+  getNotificationPrefs(): Promise<NotificationPrefs>
+  setNotificationPrefs(prefs: NotificationPrefs): Promise<void>
 
   // Suscripción al calendario (/cal/<token>.ics)
   /** Token del calendario de tus viajes, o null si no está activado. */

@@ -23,6 +23,7 @@ await db.exec(`
   create function storage.foldername(name text) returns text[] language sql as $$ select string_to_array(name, '/') $$;
   create role anon nologin;
   create role authenticated nologin;
+  create role service_role nologin bypassrls;
 `)
 
 const migrations = fs.readdirSync(path.join(root, 'supabase/migrations')).sort()
@@ -395,6 +396,42 @@ await as(C, async () => {
   await db.exec('set role anon')
   assert.ok((await one('select public.calendar_feed($1) f', [t])).f.trips.some((x) => x.id === tripId), 'también para los compañeros del viaje')
 })
+
+// Avisos en el móvil: cada uno gestiona solo sus suscripciones; due_notifications solo con la clave de servicio.
+const tokyo = (await one('select id from stops where trip_id = $1 and position = 1', [tripId])).id
+await as(A, async () => {
+  await db.query(`insert into push_subscriptions (endpoint, p256dh, auth) values ('https://push.example/ana', 'k', 'a')`)
+  await db.query(`insert into leg_details (stop_id, trip_id, depart_on, depart_time, carrier, booking_ref) values ($1, $2, '2025-03-30', '23:55', 'Iberia', 'QW12')`, [tokyo, tripId])
+})
+await as(B, async () => {
+  await assert.rejects(db.query(`insert into push_subscriptions (user_id, endpoint, p256dh, auth) values ($1, 'https://push.example/x', 'k', 'a')`, [A]), /row-level security/, 'no se suscribe a otro')
+  assert.equal(await count('select count(*) n from push_subscriptions'), 0, 'las suscripciones de otros no se ven')
+  await assert.rejects(db.query(`select * from public.due_notifications('2025-03-29')`), /permission denied/, 'un usuario no lee los avisos de todos')
+})
+await db.exec('set role anon')
+await assert.rejects(db.query(`select * from public.due_notifications('2025-03-29')`), /permission denied/, 'sin sesión tampoco')
+await db.exec('reset role')
+const due = async (day) => {
+  await db.exec('grant usage on schema public to service_role; set role service_role')
+  try {
+    return (await db.query(`select * from public.due_notifications($1)`, [day])).rows
+  } finally {
+    await db.exec('reset role')
+  }
+}
+let rows = await due('2025-03-29')
+const leg = rows.find((r) => r.user_id === A && r.kind === 'travel')
+assert.ok(leg && /^Mañana: vuelo a Tokio/.test(leg.title) && /MAD → HND/.test(leg.body) && /23:55/.test(leg.body) && /IB6251/.test(leg.body), `aviso del vuelo: ${JSON.stringify(rows)}`)
+assert.ok(!rows.some((r) => r.user_id === C), 'Carla no tiene ningún móvil suscrito')
+assert.ok(!(await due('2025-03-31')).some((r) => r.kind === 'travel'), 'la salida de casa no es un tramo')
+const lod = (await due('2025-04-01')).find((r) => r.kind === 'lodging')
+assert.ok(lod && /Apartamento todo el viaje/.test(lod.title) && /15:00/.test(lod.body), 'aviso de la entrada al alojamiento')
+await as(A, () => db.query(`update trips set status = 'planned', start_date = '2031-01-01', end_date = '2031-01-10' where id = $1`, [tripId]))
+const pass = (await due('2030-12-02')).find((r) => r.kind === 'passport')
+assert.ok(pass && /10\/03\/2031/.test(pass.body), `pasaporte que caduca en menos de 6 meses tras volver: ${JSON.stringify(pass)}`)
+assert.ok(!(await due('2030-12-03')).some((r) => r.kind === 'passport'), 'solo a 60, 30 y 7 días')
+await as(A, () => db.query(`insert into notification_prefs (travel) values (false)`))
+assert.ok(!(await due('2025-03-29')).some((r) => r.kind === 'travel'), 'sin avisos de viaje si los desactiva')
 
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
