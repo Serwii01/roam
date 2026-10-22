@@ -70,6 +70,10 @@ Qué incluye (`vite-plugin-pwa`, configurado en `vite.config.ts`):
 - Service worker que guarda la app para abrirla sin conexión; los datos de `/geo`, `/data`, banderas, avatares y teselas del mapa se guardan a medida que se usan. Supabase siempre va a la red.
 - Aviso «Hay una versión nueva de ROAM» con botón **Actualizar** (no recarga sola para no perder un viaje a medio editar).
 
+### Calendario
+
+En la página de cada viaje, la tarjeta **Calendario** genera un archivo `.ics` (`src/lib/calendar.ts`) con las fechas del viaje, los trayectos (con hora y aviso antes de salir si la tienen), los alojamientos (estancia, entrada y salida) y el plan de cada día. En iPhone se abre Calendario; en Android y ordenador se descarga el archivo. Las horas no llevan zona horaria: salen tal cual (la hora local del billete).
+
 ### Sin conexión
 
 - **Tus datos se guardan en el móvil** (`src/lib/queryClient.ts`): la caché de React Query se copia en IndexedDB, así que viajes, pasaporte, países y deseos salen al instante al abrir la app, también en modo avión. Se borra al cerrar sesión o al entrar con otra cuenta.

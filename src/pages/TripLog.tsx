@@ -11,6 +11,7 @@ import { StopSights } from '../components/StopSights'
 import { TripBudget } from '../components/TripBudget'
 import { TripCrew } from '../components/TripCrew'
 import { TripLogistics } from '../components/TripLogistics'
+import { TripCalendar } from '../components/TripCalendar'
 import { TripShareLink } from '../components/TripShareLink'
 import { PassportAlert, WeatherChip } from '../components/Weather'
 import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
@@ -271,6 +272,7 @@ export function TripLogPage() {
                 </div>
                 {map}
               </div>
+              {participant && <TripCalendar trip={t} />}
               {participant && <TripShareLink trip={t} />}
               <TripCrew trip={t} />
               <Soundtrack trip={t} />
