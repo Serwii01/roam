@@ -29,6 +29,7 @@ npm install
 npm run dev        # sin .env.local arranca en modo demo
 npm run build      # iconos + tsc + vite build
 npm run lint       # oxlint
+npm test           # tests de lógica con Vitest (saldos y cola sin conexión)
 npm run test:db    # migraciones, seed y RLS en PGlite
 npm run preview    # tras build; el service worker no se activa con dev
 npx supabase migration list --remote   # historial de migraciones del proyecto enlazado
@@ -36,7 +37,7 @@ npx supabase db push --remote          # aplica las pendientes a PRODUCCIÓN (si
 ```
 Ojo: `.env.local` apunta a la base de **producción**. Para probar sin tocar datos reales, usa el modo demo (`VITE_DEMO=1`). `?fecha=AAAA-MM-DD` cambia el día en el inicio y en Hoy, y `?sello=TR` fuerza el sello al llegar.
 
-No hay tests de frontend ni CI: lo que hay que pasar a mano es `npx tsc -b --noEmit`, `npm run lint` y `npm run test:db`.
+La CI (`.github/workflows/ci.yml`) pasa en cada push `npx tsc -b --noEmit`, `npm run lint`, `npm test` y `npm run test:db`. Los tests de lógica van junto al código (`src/lib/*.test.ts`); las pantallas no tienen tests.
 
 ## Convenciones
 - Un método nuevo de datos va en `Api` (`types.ts`) y en **las dos** implementaciones, `supabase.ts` y `demo.ts`. Si es una escritura de viaje, también en `outbox.ts` para que funcione sin red.

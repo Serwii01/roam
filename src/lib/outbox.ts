@@ -68,6 +68,8 @@ export function isNetworkError(e: unknown) {
   return /sin conexión|failed to fetch|load failed|networkerror|network request failed|fetch failed|AuthRetryableFetchError/i.test(msg)
 }
 
+/** Sesión caducada: el cambio no tiene nada de malo, así que espera en la cola a que se renueve o se vuelva a entrar. */
+const isSessionError = (e: unknown) => /JWT expired|sesión ha caducado.|^Sin sesión/i.test(e instanceof Error ? e.message : String(e))
 
 // ── Caché de React Query ──
 
@@ -458,23 +460,30 @@ export function sync(): Promise<void> {
     emit({ syncing: true })
     let sent = 0
     const failed: string[] = []
+    let cut = false
     try {
-      for (const op of mine()) {
-        try {
-          await (raw[op.method] as (...a: unknown[]) => Promise<unknown>)(...op.args)
-        } catch (e) {
-          if (isNetworkError(e)) break
-          // Ya estaba guardado (se perdió la respuesta la otra vez): no es un fallo.
-          if (!/duplicate key/i.test(String(e))) failed.push(`${op.label}: ${e instanceof Error ? e.message : String(e)}`)
+      // En bucle: lo que se apunta mientras se envía la cola sale en esta misma pasada.
+      while (!cut && mine().length) {
+        for (const op of mine()) {
+          try {
+            await (raw[op.method] as (...a: unknown[]) => Promise<unknown>)(...op.args)
+          } catch (e) {
+            if (isNetworkError(e) || isSessionError(e)) {
+              cut = true
+              break
+            }
+            // Ya estaba guardado (se perdió la respuesta la otra vez): no es un fallo.
+            if (!/duplicate key/i.test(String(e))) failed.push(`${op.label}: ${e instanceof Error ? e.message : String(e)}`)
+          }
+          ops = ops.filter((o) => o.id !== op.id)
+          if (op.localPhoto) {
+            const url = localUrls.get(op.localPhoto)
+            if (url) URL.revokeObjectURL(url)
+            localUrls.delete(op.localPhoto)
+          }
+          sent++
+          await save()
         }
-        ops = ops.filter((o) => o.id !== op.id)
-        if (op.localPhoto) {
-          const url = localUrls.get(op.localPhoto)
-          if (url) URL.revokeObjectURL(url)
-          localUrls.delete(op.localPhoto)
-        }
-        sent++
-        await save()
       }
     } finally {
       emit({ syncing: false, failed: failed.length ? [...state.failed, ...failed] : state.failed })
