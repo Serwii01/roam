@@ -172,7 +172,7 @@ interface PhotoQuery {
   query?: {
     normalized?: { from: string; to: string }[]
     redirects?: { from: string; to: string }[]
-    pages?: { title: string; thumbnail?: { source: string }; pageimage?: string; imageinfo?: { extmetadata?: Record<string, { value?: string } | undefined> }[] }[]
+    pages?: { title: string; index?: number; thumbnail?: { source: string }; pageimage?: string; imageinfo?: { thumburl?: string; extmetadata?: Record<string, { value?: string } | undefined> }[] }[]
   }
 }
 
@@ -197,8 +197,8 @@ const plainText = (html?: string) =>
     .trim()
     .slice(0, 80) || null
 
-async function photoQuery(params: Record<string, string>, signal?: AbortSignal): Promise<NonNullable<PhotoQuery['query']>> {
-  const url = `${API}?${new URLSearchParams({ action: 'query', format: 'json', formatversion: '2', origin: '*', ...params })}`
+async function photoQuery(params: Record<string, string>, signal?: AbortSignal, api = API): Promise<NonNullable<PhotoQuery['query']>> {
+  const url = `${api}?${new URLSearchParams({ action: 'query', format: 'json', formatversion: '2', origin: '*', ...params })}`
   const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(10_000)]) })
   if (!res.ok) throw new Error(`Wikipedia ${res.status}`)
   return ((await res.json()) as PhotoQuery).query ?? {}
@@ -238,4 +238,57 @@ export async function sightPhotos(titles: string[], signal?: AbortSignal): Promi
     }
   }
   return out
+}
+
+/** Nombre de un lugar sin lo que lo acompaña: «Distrito de Üsküdar», «Kabataş, Beyoğlu» y «Balat (Estambul)» → el lugar. */
+const placeName = (s: string) =>
+  fold(s.replace(/\s*\(.*\)\s*$/, '').replace(/,.*$/, ''))
+    .replace(/^(distrito|barrio) de /, '')
+    .replace(/ı/g, 'i')
+    .trim()
+
+// De una en una y con pausa: Wikimedia responde 429 a las ráfagas, y un viaje puede tener decenas de sitios sin artículo.
+const GUESS_PAUSE = 300
+let guessTurn: Promise<unknown> = Promise.resolve()
+
+/**
+ * Foto de un sitio sin artículo enlazado (barrios y lugares de OpenStreetMap, sitios escritos a mano): se busca por
+ * nombre cerca del sitio en Wikipedia, en español y en inglés, y si no, entre las fotos de ese punto en Commons. Solo
+ * vale si el nombre coincide: mejor sin foto que con la de otro sitio.
+ */
+export function guessSightPhoto(name: string, lat: number, lon: number, km: number, signal?: AbortSignal): Promise<SightPhoto | null> {
+  const run = guessTurn.then(() => {
+    signal?.throwIfAborted()
+    return findSightPhoto(name, lat, lon, km, signal)
+  })
+  guessTurn = run.catch(() => {}).then(() => new Promise((done) => setTimeout(done, GUESS_PAUSE)))
+  return run
+}
+
+async function findSightPhoto(name: string, lat: number, lon: number, km: number, signal?: AbortSignal): Promise<SightPhoto | null> {
+  const wanted = placeName(name)
+  if (wanted.length < 3) return null
+  for (const lang of ['es', 'en']) {
+    const q = await photoQuery({ generator: 'search', gsrsearch: `${name} nearcoord:${Math.max(km, 15)}km,${lat},${lon}`, gsrlimit: '5', prop: 'pageimages', piprop: 'thumbnail|name', pithumbsize: '640', pilimit: '5' }, signal, `https://${lang}.wikipedia.org/w/api.php`)
+    const page = (q.pages ?? []).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).find((p) => p.thumbnail && p.pageimage && placeName(p.title) === wanted)
+    if (page) {
+      const file = page.pageimage!
+      const credits = await photoCredits([file], signal)
+      return { url: page.thumbnail!.source, page: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file)}`, author: null, license: null, ...credits.get(file) }
+    }
+  }
+  const q = await photoQuery(
+    { generator: 'search', gsrnamespace: '6', gsrsearch: `${name} filetype:bitmap nearcoord:${km}km,${lat},${lon}`, gsrlimit: '5', prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: '640', iiextmetadatafilter: 'Artist|LicenseShortName' },
+    signal,
+    'https://commons.wikimedia.org/w/api.php',
+  )
+  const file = (q.pages ?? []).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).find((p) => p.imageinfo?.[0]?.thumburl && fold(p.title).replace(/ı/g, 'i').includes(wanted))
+  if (!file) return null
+  const info = file.imageinfo![0]
+  return {
+    url: info.thumburl!,
+    page: `https://commons.wikimedia.org/wiki/${encodeURIComponent(file.title.replace(/ /g, '_'))}`,
+    author: plainText(info.extmetadata?.Artist?.value),
+    license: plainText(info.extmetadata?.LicenseShortName?.value),
+  }
 }

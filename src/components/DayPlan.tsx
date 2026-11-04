@@ -14,7 +14,7 @@ import { useAirportMap, useDayHops, useSightPhotos } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
-import { searchSights, suggestSights, wikiTitle, type SightPhoto, type SightSuggestion } from '../lib/sights'
+import { searchSights, suggestSights, type SightPhoto, type SightSuggestion } from '../lib/sights'
 
 export interface DayPlanOps {
   add: (stopId: string, s: NewSight) => void
@@ -73,7 +73,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
   const legs = useQuery({ queryKey: ['legs', trip.id], queryFn: () => api.listLegDetails(trip.id) })
   const airports = useAirportMap(trip.stops.map((s) => s.to_airport))
   const logistics = useMemo(() => dayLogistics(trip, lodgings.data ?? [], legs.data ?? [], airports), [trip, lodgings.data, legs.data, airports])
-  const photos = useSightPhotos(trip.sights)
+  const photos = useSightPhotos(trip)
   const [active, setActive] = useState<string | null>(null)
   const current = active && days.includes(active) ? active : (days.find((_, i) => !infos[i].travel) ?? days[0])
   const refs = useRef(new Map<string, HTMLElement>())
@@ -232,7 +232,7 @@ function DayCard({
   info: DayInfo
   sights: Sight[]
   logistics: DayLogistic[]
-  photos?: Record<string, SightPhoto>
+  photos: Record<string, SightPhoto>
   allNames: Set<string>
   days: string[]
   infos: DayInfo[]
@@ -329,7 +329,7 @@ function DayCard({
               dragging={drag.state?.from === i}
               settling={!!drag.state && drag.state.from !== i}
               sight={s}
-              photo={isNote(s) ? undefined : photos?.[wikiTitle(s.wiki_url) ?? '']}
+              photo={photos[s.id]}
               hop={hopTo.get(s.id)}
               stop={stop}
               index={i}
@@ -415,7 +415,7 @@ function SightRow({
   dragging: boolean
   settling: boolean
   sight: Sight
-  /** Foto del artículo de Wikipedia del sitio. */
+  /** Foto del sitio, de Wikipedia o Wikimedia Commons. */
   photo?: SightPhoto
   /** Trayecto desde el sitio anterior hasta este. */
   hop?: Hop<Sight>
