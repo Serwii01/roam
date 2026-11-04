@@ -15,6 +15,8 @@ App web e instalable (PWA) para registrar y planificar viajes: mapa y globo 3D, 
 - `src/components/` — componentes; mapas en `WorldMap.tsx` y `RegionMap.tsx`
 - `src/lib/api/` — capa de datos: interfaz `Api` en `types.ts`, implementaciones `supabase.ts` (real) y `demo.ts` (navegador)
 - `src/lib/outbox.ts` — cola de cambios sin conexión; envuelve la API real con `withOffline`
+- `src/lib/offlineDocs.ts` y `docsSync.ts` — documentos guardados en el móvil; `src/components/DocViewer.tsx` los abre (pdf.js)
+- `src/lib/import/booking.ts` — lee confirmaciones de vuelos y hoteles; `src/lib/countryFacts.ts` — ficha práctica de cada país
 - `src/lib/` — lógica de dominio (`days.ts`, `hops.ts`, `arrival.ts`, `today.ts`, `stats.ts`, `badges.ts`, `replay.ts`, `memories.ts`, `welcome.ts`…)
 - `api/` — funciones de Vercel en JavaScript: `share.js`, `og.js`, `calendar.js`, `push.js`
 - `supabase/migrations/` — esquema y RLS; `supabase/seed.sql` lo genera `npm run data`
@@ -43,7 +45,7 @@ No hay tests de frontend ni CI: lo que hay que pasar a mano es `npx tsc -b --noE
 - Las funciones de `api/` y lo que comparten con ellas (`src/lib/calendar.js`) van en JavaScript para que Vercel no tenga que compilarlas. `@vercel/og` está fijado en 0.11.1 (ver `STATUS.md`).
 - Colores con variables CSS de `src/index.css`. El modo oscuro solo cambia sus valores: sobre `bg-ink` usa `text-paper`, no `text-white`.
 - En los mapas, `MAP_COLORS` en vez de colores sueltos.
-- Los iconos de Material Symbols van recortados: `npm run icons` regenera la fuente con los usados (se ejecuta en cada build).
+- Los iconos de Material Symbols van recortados: `npm run icons` regenera la fuente con los usados (se ejecuta en cada build). Solo detecta nombres escritos como `<Icon name="…">` o `icon: '…'`: en un array suelto no los ve.
 
 ## Despliegue
 - Cada `git push` a `main` despliega en Vercel. `vercel.json` define reescrituras, cabeceras y el cron de `/api/push?action=daily` (8:00 UTC).
