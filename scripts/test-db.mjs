@@ -252,6 +252,9 @@ await as(A, async () => {
   await assert.rejects(db.query(`insert into expenses (trip_id, category, amount, currency, paid_by) values ($1, 'food', 5, 'EUR', $2)`, [tripId, C]), /row-level security/, 'solo paga un participante')
   await assert.rejects(db.query(`insert into expenses (trip_id, stop_id, category, amount, currency) values ($1, $2, 'food', 5, 'EUR')`, [tripId, otherTripStop]), /row-level security/, 'la parada es del viaje')
   assert.equal(Number((await one('select sum(amount * rate) n from expenses where trip_id = $1', [tripId])).n), 60000 * 0.0061 + 850)
+  // El ticket tiene que estar en la carpeta del viaje: no se puede apuntar al archivo de otro.
+  await db.query(`update expenses set receipt_path = $1 where trip_id = $2 and category = 'transport'`, [`${tripId}/ticket.jpg`, tripId])
+  await assert.rejects(db.query(`update expenses set receipt_path = 'otro-viaje/ticket.jpg' where trip_id = $1 and category = 'transport'`, [tripId]), /check constraint/, 'ticket de otro viaje')
 })
 // Reparto: pagado por un compañero sin cuenta y repartido por porcentajes.
 await as(A, async () => {

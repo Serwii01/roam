@@ -176,6 +176,8 @@ export interface Expense {
   split_mode?: SplitMode
   /** Personas y valor según el modo; null (gastos antiguos) = a partes iguales entre quienes tienen cuenta. */
   split?: { k: string; v: number }[] | null
+  /** Foto del ticket, en el bucket privado trip-docs. */
+  receipt_path?: string | null
   created_at: string
 }
 

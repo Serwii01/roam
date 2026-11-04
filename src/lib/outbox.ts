@@ -366,6 +366,24 @@ export function withOffline(api: Api): Api {
     deleteExpense(id) {
       return write('deleteExpense', [id], 'Borrar un gasto', () => mapList<Expense>('expenses', withoutId(id)))
     },
+    uploadReceipt(tripId, file, path) {
+      return write(
+        'uploadReceipt',
+        [tripId, file, path],
+        'Subir la foto de un ticket',
+        () => {
+          localUrls.set(path, URL.createObjectURL(file))
+          return path
+        },
+        { localPhoto: path },
+      )
+    },
+    deleteReceipt(path) {
+      return write('deleteReceipt', [path], 'Borrar la foto de un ticket', () => undefined)
+    },
+    async receiptUrl(path) {
+      return localUrls.get(path) ?? api.receiptUrl(path)
+    },
 
     uploadPhoto(tripId, file, stopId) {
       const id = uid()

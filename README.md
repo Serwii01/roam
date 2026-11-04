@@ -122,6 +122,18 @@ El día que se cumplen años de una llegada de un viaje realizado, el inicio ens
 
 Durante un viaje, «Hoy» ofrece activar el sello. Después, al abrir la app o volver a ella en un país del viaje que no sea el de casa, cae su sello a pantalla completa, con vibración en Android (`src/components/ArrivalStamp.tsx`). Una vez por viaje y país. El país se calcula en el móvil con las siluetas de `public/geo` y, en costas e islas que quedan fuera de ellas, con la parada del viaje más cercana (a menos de 100 km) (`src/lib/welcome.ts`): la ubicación no sale del dispositivo. Una PWA no puede leer la ubicación en segundo plano, así que el sello cae al abrir la app. Para probarlo: `/app/hoy?fecha=AAAA-MM-DD&sello=TR`.
 
+### Lo básico del país
+
+«Hoy» enseña, fuera del país de casa, los teléfonos de emergencia, enchufes y si hace falta adaptador, lado de conducción, prefijo y moneda (`src/lib/countryFacts.ts`, `CountryFactsCard.tsx`). Son datos orientativos escritos a mano para unos 70 destinos; sin ficha no se enseña nada. Con el país de casa en España y fuera de la UE, enlaza a las recomendaciones de Exteriores.
+
+### Reservas desde un correo
+
+En «Alojamiento y transporte», «Añadir desde un correo» lee el texto pegado o un archivo `.eml` y propone los vuelos y alojamientos para revisarlos antes de guardar (`src/lib/import/booking.ts`, `BookingImport.tsx`). Primero busca datos schema.org y después patrones en español e inglés. Todo pasa en el navegador. Reenviar los correos a una dirección de la app necesitaría un dominio y un servicio de correo entrante.
+
+### Foto del ticket
+
+Cada gasto admite una foto del ticket: se reduce como las demás fotos, va al bucket privado `trip-docs` y se guarda en `expenses.receipt_path` (migración `20261031000000_expense_receipts.sql`). Sin conexión queda en la cola de `outbox.ts`. Solo se adjunta: el importe no se lee de la foto.
+
 ### Gastos al estilo Tricount
 
 La pestaña Gastos de cada viaje enseña arriba tu saldo («Te deben 45 €», «Debes 12 €», «Estás en paz»), lo gastado entre todos y tu parte, y tres pestañas: **Gastos** (cada uno con lo que mueve en tu saldo: `+456 €` si pagaste tú, `−43 €` si te toca), **Saldos** (quién debe a quién con el mínimo de pagos, «Marcar como pagado» y «Compartir cuentas») y **Resumen** (presupuesto, por día, por persona y categorías). Saldar guarda un movimiento `settlement` (pagó quien debía, le toca a quien recibe): cuenta en los saldos pero no en el total ni en el presupuesto (migración `20261028000000_settlements_lodging_location.sql`).
@@ -143,7 +155,8 @@ Antes de subirse, cada foto se convierte a JPEG de 1600 px como máximo, sin met
 - **Tus datos se guardan en el móvil** (`src/lib/queryClient.ts`): la caché de React Query se copia en IndexedDB, así que viajes, pasaporte, países y deseos salen al instante al abrir la app, también en modo avión. Se borra al cerrar sesión o al entrar con otra cuenta.
 - **Los cambios hechos sin red se guardan en cola** (`src/lib/outbox.ts`): paradas, sitios, viajes nuevos, gastos, presupuesto, equipaje, alojamientos, trayectos, fotos, países marcados y deseos. Se ven al momento y se envían en orden al volver la conexión; la cabecera enseña «Sin conexión» o los cambios pendientes. Si el servidor rechaza alguno al enviarlo, la app lo avisa.
 - Los registros nuevos llevan su id desde el navegador: editar una parada recién creada sin red funciona, y reenviar una alta que ya había llegado no la duplica.
-- Siguen necesitando internet: invitaciones, enlaces públicos, perfil, pasaportes, documentos, amigos y borrar la cuenta.
+- **Documentos en el móvil** (`src/lib/offlineDocs.ts`, `docsSync.ts`): desde 30 días antes de la salida hasta la vuelta, los archivos del viaje se copian en IndexedDB al abrir la app y se abren en un visor propio (`DocViewer.tsx`, con pdf.js: Chrome para Android no abre un PDF guardado). No se descargan con el ahorro de datos activado. Se borran al acabar el viaje y al cerrar sesión.
+- Siguen necesitando internet: invitaciones, enlaces públicos, perfil, pasaportes, documentos de otros viajes, tickets ya subidos, amigos y borrar la cuenta.
 - Sin red, el buscador de ciudades usa el catálogo corto (~7.300 ciudades) que la app guarda al entrar, y las fotos ya vistas salen de la caché del service worker.
 
 Para probarla en local: `npm run build && npm run preview` (el service worker no se activa con `npm run dev`). Necesita HTTPS en producción, que Vercel ya da.

@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ask } from '../components/ConfirmDialog'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDay } from '../components/DatePicker'
+import { DocViewer } from '../components/DocViewer'
 import { Icon } from '../components/Icon'
 import { useWeather } from '../components/Weather'
 import { ErrorNote, Flag } from '../components/ui'
 import { api } from '../lib/api'
 import type { DocumentKind, PackingCategory, Stop, TripDocument, TripWithStops } from '../lib/db'
+import { DOCS_AHEAD_DAYS, fetchDoc } from '../lib/docsSync'
+import { useSavedDocs } from '../lib/offlineDocs'
 import { PACKING_CATEGORIES, PACKING_ORDER, PACKING_TEMPLATES, packingSuggestions } from '../lib/packing'
 import { KIND_LABEL, weatherFor } from '../lib/weather'
 
@@ -252,20 +255,13 @@ export function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
     onSuccess: refresh,
   })
   const remove = useMutation({ mutationFn: (d: TripDocument) => api.deleteDocument(d), onSuccess: refresh })
+  const saved = useSavedDocs()
+  const [viewing, setViewing] = useState<{ blob: Blob; name: string } | null>(null)
+  const closeViewer = useCallback(() => setViewing(null), [])
   const open = useMutation({
-    // La pestaña se abre en el mismo toque (si no, Safari la bloquea) y luego se le pone el enlace temporal.
     mutationFn: async (d: TripDocument) => {
-      const tab = window.open('about:blank', '_blank')
-      try {
-        const url = await api.documentUrl(d)
-        if (tab) {
-          tab.opener = null
-          tab.location.href = url
-        } else location.href = url
-      } catch (e) {
-        tab?.close()
-        throw e
-      }
+      if (!saved.has(d.id) && !navigator.onLine) throw new Error('Este documento no está guardado en el móvil y ahora no hay conexión.')
+      setViewing({ blob: await fetchDoc(d), name: d.name })
     },
   })
   const list = docs.data ?? []
@@ -285,10 +281,15 @@ export function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
                   <span className="block truncate font-semibold hover:underline">{d.name}</span>
                   <span className="text-xs text-ink-soft">
                     {DOC_KINDS[d.kind].label} · {d.size ? `${(d.size / 1024 / 1024).toFixed(1)} MB` : ''} · {formatDay(d.created_at.slice(0, 10))}
+                    {saved.has(d.id) && (
+                      <span className="ml-1 inline-flex items-center gap-0.5 align-bottom text-accent">
+                        · <Icon name="offline_pin" size={14} /> En el móvil
+                      </span>
+                    )}
                   </span>
                 </button>
                 <button type="button" className="btn btn-ghost shrink-0" onClick={() => open.mutate(d)}>
-                  <Icon name="open_in_new" size={18} /> <span className="hidden sm:inline">Abrir</span>
+                  <Icon name="visibility" size={18} /> <span className="hidden sm:inline">Abrir</span>
                 </button>
                 <button
                   type="button"
@@ -335,7 +336,12 @@ export function DocumentsTab({ trip: t }: { trip: TripWithStops }) {
           <Icon name="lock" size={14} className="mt-0.5 shrink-0" /> Privado: solo los participantes del viaje pueden abrirlos, con enlaces que caducan en 5 minutos. Máximo 10 MB por archivo. Evita
           subir copias del pasaporte o del DNI si no hacen falta.
         </p>
+        <p className="flex gap-2 text-xs text-ink-soft">
+          <Icon name="offline_pin" size={14} className="mt-0.5 shrink-0" /> Sin conexión: desde {DOCS_AHEAD_DAYS} días antes de la salida y hasta la vuelta se guardan solos en este móvil. Se borran al acabar el viaje y al
+          cerrar sesión.
+        </p>
       </aside>
+      {viewing && <DocViewer blob={viewing.blob} name={viewing.name} onClose={closeViewer} />}
     </div>
   )
 }

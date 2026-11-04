@@ -15,7 +15,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], lodgings: [], legs: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], lodgings: [], legs: [], receipts: {}, ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -457,8 +457,24 @@ export const demoApi: Api = {
     return delay(state.expenses.find((e) => e.id === id)!)
   },
   async deleteExpense(id) {
+    const path = state.expenses.find((e) => e.id === id)?.receipt_path
+    if (path) delete state.receipts[path]
     state.expenses = state.expenses.filter((e) => e.id !== id)
     save()
+  },
+  async uploadReceipt(_tripId, file, path) {
+    state.receipts[path] = await toDataUrl(file)
+    save()
+    return delay(path)
+  },
+  async deleteReceipt(path) {
+    delete state.receipts[path]
+    save()
+  },
+  async receiptUrl(path) {
+    const data = state.receipts[path]
+    if (!data) throw new Error('El ticket ya no está')
+    return URL.createObjectURL(await (await fetch(data)).blob())
   },
 
   async uploadPhoto(tripId, file, stopId) {

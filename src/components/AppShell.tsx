@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
+import { useOfflineDocsSync } from '../lib/docsSync'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { UN_COUNTRY_COUNT, loadWorldShapes } from '../lib/countries'
@@ -48,6 +49,7 @@ export function Logo({ to = '/' }: { to?: string }) {
 }
 
 export function AppShell() {
+  useOfflineDocsSync()
   const { stats } = useTravelData()
   const { nav } = useNav()
   const { demo } = useAuth()

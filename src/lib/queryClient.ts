@@ -1,6 +1,7 @@
 import { onlineManager, QueryClient } from '@tanstack/react-query'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { createStore, del, get, set } from 'idb-keyval'
+import { clearSavedDocs } from './offlineDocs'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -50,6 +51,7 @@ export const persistOptions = {
 export async function clearLocalData() {
   queryClient.clear()
   await persister.removeClient()
+  await clearSavedDocs().catch(() => {})
   // Fotos guardadas por el service worker para verlas sin conexión.
   if (typeof caches !== 'undefined') await caches.delete('roam-photos').catch(() => {})
   try {

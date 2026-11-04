@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ask } from './ConfirmDialog'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Avatar } from './Avatar'
 import { DateField, daysBetween, formatDay } from './DatePicker'
+import { DocViewer } from './DocViewer'
 import { Icon } from './Icon'
 import { ErrorNote } from './ui'
 import { api } from '../lib/api'
 import type { NewExpense } from '../lib/api/types'
 import { useUser } from '../lib/auth'
+import { uid } from '../lib/id'
+import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
 import { localeCountry } from '../lib/geocode'
 import { useProfile } from '../lib/hooks'
 import type { Expense, ExpenseCategory, SplitMode, TripMember, TripWithStops } from '../lib/db'
@@ -23,6 +26,27 @@ const parseNum = (s: string) => {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 const fmtNum = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',')
+
+/** Abre la foto del ticket de un gasto. */
+function ReceiptButton({ path, label, className = '' }: { path: string; label: string; className?: string }) {
+  const [blob, setBlob] = useState<Blob | null>(null)
+  const close = useCallback(() => setBlob(null), [])
+  const open = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(await api.receiptUrl(path))
+      if (!res.ok) throw new Error('No se ha podido abrir el ticket')
+      setBlob(await res.blob())
+    },
+  })
+  return (
+    <>
+      <button type="button" aria-label={label} title={open.isError ? 'No se ha podido abrir: necesita conexión' : label} className={className} disabled={open.isPending} onClick={() => open.mutate()}>
+        <Icon name={open.isError ? 'cloud_off' : 'receipt_long'} size={18} />
+      </button>
+      {blob && <DocViewer blob={blob} name="Ticket.jpg" onClose={close} />}
+    </>
+  )
+}
 
 /** Una persona del reparto: con cuenta ('u:<id>') o compañero añadido a mano ('g:<nombre>'). */
 export interface Person {
@@ -283,12 +307,12 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                           </li>
                         )
                       return (
-                        <li key={e.id}>
+                        <li key={e.id} className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => setForm(e)}
                             aria-label={`Editar ${e.description || cat.label}`}
-                            className="group flex w-full items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
+                            className="group flex min-w-0 flex-1 items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
                           >
                             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white" style={{ background: cat.color }}>
                               <Icon name={cat.icon} size={16} />
@@ -314,6 +338,7 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                             </span>
                             <Icon name="edit" size={16} className="shrink-0 text-ink-soft opacity-50 transition group-hover:opacity-100" />
                           </button>
+                          {e.receipt_path && <ReceiptButton path={e.receipt_path} label={`Ver el ticket de ${e.description || cat.label}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-accent hover:bg-surface-container" />}
                         </li>
                       )
                     })}
@@ -557,6 +582,9 @@ function ExpenseForm({
   const [currency, setCurrency] = useState(editing?.currency ?? currencyForCountry(trip.stops.find((s) => s.id === stopId)?.country_code) ?? tripCurrency)
   const [touchedCurrency, setTouchedCurrency] = useState(!!editing)
   const [description, setDescription] = useState(editing?.description ?? '')
+  const [receipt, setReceipt] = useState<File | null>(null)
+  const [dropReceipt, setDropReceipt] = useState(false)
+  const oldReceipt = editing?.receipt_path ?? null
   const [date, setDate] = useState<string | null>(editing ? editing.spent_on : inTrip ? today() : (trip.start_date ?? null))
   const [payer, setPayer] = useState<string | null>(editing ? payerOf(editing) : `u:${me}`)
   const initial = editing?.split?.length ? editing.split : null
@@ -658,7 +686,14 @@ function ExpenseForm({
         description: description.trim() || null,
         spent_on: date,
       }
-      return editing ? api.updateExpense(editing.id, body) : api.addExpense(trip.id, body)
+      // Solo se toca la columna si cambia el ticket. El archivo va antes: el gasto no debe apuntar a algo que no existe.
+      if (receipt) {
+        body.receipt_path = `${trip.id}/${uid()}.jpg`
+        await api.uploadReceipt(trip.id, receipt, body.receipt_path)
+      } else if (dropReceipt) body.receipt_path = null
+      const result = await (editing ? api.updateExpense(editing.id, body) : api.addExpense(trip.id, body))
+      if (oldReceipt && (receipt || dropReceipt)) await api.deleteReceipt(oldReceipt)
+      return result
     },
     onSuccess: onDone,
   })
@@ -757,6 +792,44 @@ function ExpenseForm({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
+
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        {oldReceipt && !dropReceipt && !receipt ? (
+          <>
+            <ReceiptButton path={oldReceipt} label="Ver el ticket" className="grid h-8 w-8 place-items-center rounded-full bg-card text-accent ring-1 ring-outline-soft" />
+            <span className="text-ink-soft">Ticket guardado</span>
+          </>
+        ) : receipt ? (
+          <span className="flex min-w-0 items-center gap-1 text-ink-soft">
+            <Icon name="receipt_long" size={18} className="text-accent" /> <span className="truncate">{receipt.name}</span>
+          </span>
+        ) : null}
+        <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-full bg-card px-3 text-xs font-semibold ring-1 ring-outline-soft">
+          <Icon name="add_a_photo" size={16} /> {receipt || (oldReceipt && !dropReceipt) ? 'Cambiar ticket' : 'Foto del ticket'}
+          <input
+            type="file"
+            accept={IMAGE_ACCEPT}
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file && looksLikeImage(file)) setReceipt(file)
+            }}
+          />
+        </label>
+        {(receipt || (oldReceipt && !dropReceipt)) && (
+          <button
+            type="button"
+            className="text-xs font-semibold text-ink-soft underline"
+            onClick={() => {
+              setReceipt(null)
+              setDropReceipt(!!oldReceipt)
+            }}
+          >
+            Quitar
+          </button>
+        )}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <DateField value={date} min={trip.start_date} max={trip.end_date} onChange={setDate} placeholder="Fecha" label="Fecha del gasto" />

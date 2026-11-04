@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { CountryFactsCard } from '../components/CountryFactsCard'
 import { formatDay } from '../components/DatePicker'
 import { Icon } from '../components/Icon'
 import { WeatherChip } from '../components/Weather'
@@ -112,6 +113,7 @@ function TripToday({ trip: t, days, index, day, now }: { trip: TripWithStops; da
       <Tomorrow day={tomorrow} last={last} logistics={logistics.get(tomorrow) ?? []} sights={last ? [] : sightsOf(tomorrow)} stop={last ? undefined : dayInfo(t.stops, tomorrow).stop} href={tab('dias')} />
 
       <ArrivalStampOffer trip={t} />
+      {stop && <TodayCountryFacts stop={stop} />}
 
       <nav aria-label="Atajos del viaje" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(
@@ -130,6 +132,13 @@ function TripToday({ trip: t, days, index, day, now }: { trip: TripWithStops; da
       </nav>
     </div>
   )
+}
+
+function TodayCountryFacts({ stop }: { stop: Stop }) {
+  const profile = useProfile()
+  const countries = useQuery({ queryKey: ['countries'], queryFn: () => api.listCountries(), staleTime: Infinity })
+  const name = countries.data?.find((c) => c.code === stop.country_code)?.name ?? stop.country_code
+  return <CountryFactsCard country={stop.country_code} countryName={name} home={profile.data?.home_country} />
 }
 
 /** En un viaje con países de destino: activar el sello al llegar. El permiso de ubicación se pide al pulsar. */

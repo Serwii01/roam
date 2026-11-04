@@ -168,6 +168,8 @@ export const supabaseApi: Api = {
     if (photos.length) await supabase.storage.from(BUCKET).remove(photos.flatMap((p) => [p.path, thumbOf(p.path)]))
     const docs = must(await supabase.from('trip_documents').select('path').eq('trip_id', id)) as { path: string }[]
     if (docs.length) await supabase.storage.from(DOCS).remove(docs.map((d) => d.path))
+    const receipts = must(await supabase.from('expenses').select('receipt_path').eq('trip_id', id).not('receipt_path', 'is', null)) as { receipt_path: string }[]
+    if (receipts.length) await supabase.storage.from(DOCS).remove(receipts.map((r) => r.receipt_path))
     must(await supabase.from('trips').delete().eq('id', id))
   },
 
@@ -365,7 +367,24 @@ export const supabaseApi: Api = {
     return must(await supabase.from('expenses').update(patch).eq('id', id).select().single())
   },
   async deleteExpense(id) {
+    const row = must(await supabase.from('expenses').select('receipt_path').eq('id', id).maybeSingle()) as { receipt_path: string | null } | null
+    if (row?.receipt_path) await supabase.storage.from(DOCS).remove([row.receipt_path])
     must(await supabase.from('expenses').delete().eq('id', id))
+  },
+  async uploadReceipt(_tripId, file, path) {
+    const image = await prepareImage(file)
+    const up = await supabase.storage.from(DOCS).upload(path, image, { contentType: 'image/jpeg', upsert: false })
+    // Al reenviar la cola puede que ya hubiera llegado: no es un error.
+    if (up.error && !/exists|duplicate/i.test(up.error.message)) throw new Error(up.error.message)
+    return path
+  },
+  async deleteReceipt(path) {
+    await supabase.storage.from(DOCS).remove([path])
+  },
+  async receiptUrl(path) {
+    const { data, error } = await supabase.storage.from(DOCS).createSignedUrl(path, 300)
+    if (error || !data) throw new Error(error?.message ?? 'No se pudo abrir el ticket')
+    return data.signedUrl
   },
 
   async uploadPhoto(tripId, file, stopId) {
@@ -492,6 +511,8 @@ export const supabaseApi: Api = {
     if (owned.length) {
       const docs = must(await supabase.from('trip_documents').select('path').in('trip_id', owned)) as { path: string }[]
       for (let i = 0; i < docs.length; i += 100) await supabase.storage.from(DOCS).remove(docs.slice(i, i + 100).map((d) => d.path))
+      const receipts = must(await supabase.from('expenses').select('receipt_path').in('trip_id', owned).not('receipt_path', 'is', null)) as { receipt_path: string }[]
+      for (let i = 0; i < receipts.length; i += 100) await supabase.storage.from(DOCS).remove(receipts.slice(i, i + 100).map((r) => r.receipt_path))
     }
     must(await supabase.rpc('delete_my_account'))
     await supabase.auth.signOut()

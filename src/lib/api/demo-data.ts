@@ -24,6 +24,8 @@ export interface DemoState {
   packing: PackingItem[]
   /** En la demo el archivo va como data URL (pequeño) dentro del propio registro. */
   documents: (TripDocument & { dataUrl: string })[]
+  /** Fotos de tickets, por ruta. */
+  receipts: Record<string, string>
   lodgings: Lodging[]
   legs: LegDetail[]
 }
@@ -276,6 +278,7 @@ export function demoState(): DemoState {
     follows: [],
     packing: [],
     documents: [],
+    receipts: {},
     lodgings: [
       { id: 'lod1', trip_id: 'kioto', stop_id: 'kioto-s1', name: 'Hotel Gracery Shinjuku', address: '1-19-1 Kabukicho, Shinjuku, Tokio', check_in: '2024-10-13', check_in_time: '15:00', check_out: '2024-10-16', check_out_time: '11:00', booking_ref: 'BK-48211', url: null, notes: null, user_id: DEMO_USER_ID, created_at: '2024-09-01T00:00:00Z' },
       { id: 'lod2', trip_id: 'kioto', stop_id: 'kioto-s2', name: 'Ryokan en Gion', address: 'Gionmachi, Higashiyama, Kioto', check_in: '2024-10-16', check_in_time: '16:00', check_out: '2024-10-20', check_out_time: '10:00', booking_ref: null, url: null, notes: 'Cena kaiseki incluida la primera noche', user_id: DEMO_USER_ID, created_at: '2024-09-01T00:00:00Z' },

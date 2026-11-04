@@ -7,7 +7,7 @@ export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
 export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'kind'>>
 
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> &
-  Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split'>>
+  Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split' | 'receipt_path'>>
 
 export type NewLodging = Pick<Lodging, 'name'> & Partial<Omit<Lodging, 'id' | 'trip_id' | 'user_id' | 'created_at' | 'name'>>
 export type LegPatch = Partial<Omit<LegDetail, 'stop_id' | 'trip_id' | 'updated_at'>>
@@ -131,6 +131,11 @@ export interface Api {
   addExpense(tripId: string, expense: NewExpense): Promise<Expense>
   updateExpense(id: string, patch: Partial<NewExpense>): Promise<Expense>
   deleteExpense(id: string): Promise<void>
+  /** Sube la foto de un ticket a `path` (elegida en el navegador: así se puede apuntar en el gasto sin conexión). */
+  uploadReceipt(tripId: string, file: File, path: string): Promise<string>
+  deleteReceipt(path: string): Promise<void>
+  /** Enlace temporal para ver el ticket. */
+  receiptUrl(path: string): Promise<string>
 
   // Fotos
   uploadPhoto(tripId: string, file: File, stopId?: string | null): Promise<Photo>

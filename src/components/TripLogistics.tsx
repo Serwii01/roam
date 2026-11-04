@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { BookingImport } from './BookingImport'
 import { ask } from './ConfirmDialog'
 import { DateField, TimeField, daysBetween, formatDay } from './DatePicker'
 import { Icon } from './Icon'
@@ -66,6 +67,7 @@ export function TripLogistics({ trip: t }: { trip: TripWithStops }) {
         </span>
       </div>
       <ErrorNote error={lodgings.error ?? legs.error} />
+      <BookingImport trip={t} onSaved={() => void refresh()} />
 
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-ink-soft">Alojamiento:</span>

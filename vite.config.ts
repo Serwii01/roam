@@ -40,7 +40,7 @@ export default defineConfig({
       workbox: {
         // Solo la app (JS, CSS, HTML, fuentes e iconos). Los datos de /geo y /data pesan decenas de MB:
         // se guardan en caché a medida que se usan, más abajo.
-        globPatterns: ['**/*.{js,css,html,woff2,svg,png,ico}'],
+        globPatterns: ['**/*.{js,mjs,css,html,woff2,svg,png,ico}'],
         // heic-to (3 MB) solo hace falta al importar fotos HEIC: se guarda la primera vez que se usa.
         globIgnores: ['geo/**', 'data/**', 'flags/**', 'avatars/**', 'apple-splash-*.png', 'assets/heic-to-*.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
