@@ -10,11 +10,11 @@ import type { NewSight } from '../lib/api/types'
 import { api } from '../lib/api'
 import { dayLogistics, type DayLogistic } from '../lib/arrival'
 import { isNote, type Sight, type Stop, type TripWithStops } from '../lib/db'
-import { useAirportMap, useDayHops } from '../lib/hooks'
+import { useAirportMap, useDayHops, useSightPhotos } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
-import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
+import { searchSights, suggestSights, wikiTitle, type SightPhoto, type SightSuggestion } from '../lib/sights'
 
 export interface DayPlanOps {
   add: (stopId: string, s: NewSight) => void
@@ -73,6 +73,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
   const legs = useQuery({ queryKey: ['legs', trip.id], queryFn: () => api.listLegDetails(trip.id) })
   const airports = useAirportMap(trip.stops.map((s) => s.to_airport))
   const logistics = useMemo(() => dayLogistics(trip, lodgings.data ?? [], legs.data ?? [], airports), [trip, lodgings.data, legs.data, airports])
+  const photos = useSightPhotos(trip.sights)
   const [active, setActive] = useState<string | null>(null)
   const current = active && days.includes(active) ? active : (days.find((_, i) => !infos[i].travel) ?? days[0])
   const refs = useRef(new Map<string, HTMLElement>())
@@ -130,6 +131,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
                 info={infos[i]}
                 sights={byDay.get(d) ?? []}
                 logistics={logistics.get(d) ?? []}
+                photos={photos}
                 allNames={new Set(trip.sights.map((s) => s.name.toLowerCase()))}
                 days={days}
                 infos={infos}
@@ -186,11 +188,38 @@ function GoogleMapsDay({ sights, stop, compact = false }: { sights: Sight[]; sto
   )
 }
 
+/** Foto de un sitio con su autoría, que la licencia obliga a citar. Si la imagen no carga, no se enseña nada. */
+function SightImage({ photo, name, faded }: { photo: SightPhoto; name: string; faded: boolean }) {
+  const [broken, setBroken] = useState(false)
+  if (broken) return null
+  const credit = [photo.author, photo.license].filter(Boolean).join(' · ') || 'Wikimedia Commons'
+  return (
+    <figure className="mt-1.5">
+      <img
+        src={photo.url}
+        alt={name}
+        loading="lazy"
+        draggable={false}
+        crossOrigin="anonymous"
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        className={`h-40 w-full rounded-xs bg-surface-container object-cover transition ${faded ? 'opacity-60' : ''}`}
+      />
+      <figcaption className="mt-0.5 truncate text-[11px] text-ink-soft">
+        <a href={photo.page} target="_blank" rel="noreferrer" className="hover:underline">
+          Foto: {credit}
+        </a>
+      </figcaption>
+    </figure>
+  )
+}
+
 function DayCard({
   n,
   info,
   sights,
   logistics,
+  photos,
   allNames,
   days,
   infos,
@@ -203,6 +232,7 @@ function DayCard({
   info: DayInfo
   sights: Sight[]
   logistics: DayLogistic[]
+  photos?: Record<string, SightPhoto>
   allNames: Set<string>
   days: string[]
   infos: DayInfo[]
@@ -299,6 +329,7 @@ function DayCard({
               dragging={drag.state?.from === i}
               settling={!!drag.state && drag.state.from !== i}
               sight={s}
+              photo={isNote(s) ? undefined : photos?.[wikiTitle(s.wiki_url) ?? '']}
               hop={hopTo.get(s.id)}
               stop={stop}
               index={i}
@@ -362,6 +393,7 @@ function SightRow({
   dragging,
   settling,
   sight: s,
+  photo,
   hop,
   stop,
   index,
@@ -383,6 +415,8 @@ function SightRow({
   dragging: boolean
   settling: boolean
   sight: Sight
+  /** Foto del artículo de Wikipedia del sitio. */
+  photo?: SightPhoto
   /** Trayecto desde el sitio anterior hasta este. */
   hop?: Hop<Sight>
   stop?: Stop
@@ -457,6 +491,7 @@ function SightRow({
             </button>
           )}
         </div>
+        {photo && <SightImage photo={photo} name={s.name} faded={planned && s.done} />}
         {menu && editable && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-surface-highest pt-1.5 text-sm">
             <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">

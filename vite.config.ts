@@ -79,6 +79,16 @@ export default defineConfig({
             },
           },
           {
+            // Fotos de Wikipedia del día a día: las ya vistas siguen disponibles sin conexión.
+            urlPattern: ({ url }) => /^(upload|thumb)\.wikimedia\.org$/.test(url.hostname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sight-photos',
+              expiration: { maxEntries: 300, maxAgeSeconds: 90 * DAY, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Teselas del mapa (OpenFreeMap): llevan la versión en la ruta, no cambian.
             urlPattern: ({ url }) => url.hostname === 'tiles.openfreemap.org' && /\.(pbf|png|webp)$/.test(url.pathname),
             handler: 'CacheFirst',

@@ -304,6 +304,7 @@ const CREDITS: { what: string; who: string; license: string; url: string; note?:
   { what: 'Fotos HEIC del iPhone', who: 'heic-to, con libheif y libde265', license: 'LGPL-3.0', url: 'https://github.com/hoppergee/heic-to', note: 'Módulo sin modificar que se carga solo al subir una foto HEIC.' },
   { what: 'Motor de mapas', who: 'MapLibre GL JS', license: 'BSD-3-Clause', url: 'https://maplibre.org' },
   { what: 'Sitios para ver (ideas y búsqueda)', who: 'Wikipedia en español · Fundación Wikimedia', license: 'API pública; los títulos enlazan a los artículos (CC BY-SA)', url: 'https://es.wikipedia.org' },
+  { what: 'Fotos de los sitios', who: 'Wikimedia Commons, vía Wikipedia en español', license: 'Imágenes de licencia libre; autor y licencia bajo cada foto', url: 'https://commons.wikimedia.org' },
   { what: 'El tiempo', who: 'Open-Meteo', license: 'Datos CC BY 4.0 (uso no comercial gratuito)', url: 'https://open-meteo.com' },
   { what: 'Rutas de vuelos', who: 'adsbdb', license: 'API pública gratuita (código MIT)', url: 'https://www.adsbdb.com' },
   { what: 'Lectura de fotos (EXIF)', who: 'exifr', license: 'MIT', url: 'https://github.com/MikeKovarik/exifr' },

@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import { useUser } from './auth'
-import type { Country, Sight, TripWithStops } from './db'
+import { isNote, type Country, type Sight, type TripWithStops } from './db'
 import { dayHops, dayPoints, routeLegs } from './hops'
+import { sightPhotos, wikiTitle } from './sights'
 import { computeStats, type AirportMap } from './stats'
 
 const REF = { staleTime: Infinity, gcTime: Infinity }
@@ -123,4 +124,18 @@ export function useDayHops<T extends Sight>(sights: T[]) {
     retry: false,
   })
   return dayHops(sights, route.data)
+}
+
+/** Fotos de Wikipedia de los sitios de un viaje, en una sola petición: un artículo casi nunca cambia de foto. */
+export function useSightPhotos(sights: Sight[]) {
+  const titles = [...new Set(sights.filter((s) => !isNote(s)).flatMap((s) => wikiTitle(s.wiki_url) ?? []))].sort()
+  const q = useQuery({
+    queryKey: ['sight-photos', titles.join('|')],
+    queryFn: ({ signal }) => sightPhotos(titles, signal),
+    enabled: titles.length > 0,
+    staleTime: 30 * 86_400_000,
+    gcTime: 30 * 86_400_000,
+    retry: false,
+  })
+  return q.data
 }

@@ -157,3 +157,85 @@ export async function searchSights(q: string, lat: number, lon: number, signal?:
     .map(({ x }) => x)
     .slice(0, 8)
 }
+
+// ── Fotos de los sitios ──
+
+export interface SightPhoto {
+  url: string
+  /** Página de la imagen en Wikimedia Commons, con su autoría y licencia completas. */
+  page: string
+  author: string | null
+  license: string | null
+}
+
+interface PhotoQuery {
+  query?: {
+    normalized?: { from: string; to: string }[]
+    redirects?: { from: string; to: string }[]
+    pages?: { title: string; thumbnail?: { source: string }; pageimage?: string; imageinfo?: { extmetadata?: Record<string, { value?: string } | undefined> }[] }[]
+  }
+}
+
+/** Título del artículo a partir de su enlace; null si no es de Wikipedia en español. */
+export function wikiTitle(url: string | null | undefined) {
+  const path = url?.match(/^https:\/\/es\.wikipedia\.org\/wiki\/(.+)$/)?.[1]
+  if (!path) return null
+  try {
+    return decodeURIComponent(path).replace(/_/g, ' ')
+  } catch {
+    return null
+  }
+}
+
+const plainText = (html?: string) =>
+  html
+    ?.replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || null
+
+async function photoQuery(params: Record<string, string>, signal?: AbortSignal): Promise<NonNullable<PhotoQuery['query']>> {
+  const url = `${API}?${new URLSearchParams({ action: 'query', format: 'json', formatversion: '2', origin: '*', ...params })}`
+  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(10_000)]) })
+  if (!res.ok) throw new Error(`Wikipedia ${res.status}`)
+  return ((await res.json()) as PhotoQuery).query ?? {}
+}
+
+/** Autor y licencia de cada imagen. Si falla, las fotos se enseñan igual, con el enlace a su página. */
+async function photoCredits(files: string[], signal?: AbortSignal) {
+  const credits = new Map<string, Pick<SightPhoto, 'author' | 'license'>>()
+  try {
+    const q = await photoQuery({ prop: 'imageinfo', iiprop: 'extmetadata', iilimit: '1', iiextmetadatafilter: 'Artist|LicenseShortName', titles: files.map((f) => `Archivo:${f}`).join('|') }, signal)
+    for (const p of q.pages ?? []) {
+      const meta = p.imageinfo?.[0]?.extmetadata
+      credits.set(p.title.replace(/^[^:]+:/, '').replace(/ /g, '_'), { author: plainText(meta?.Artist?.value), license: plainText(meta?.LicenseShortName?.value) })
+    }
+  } catch (e) {
+    if (signal?.aborted) throw e
+  }
+  return credits
+}
+
+/**
+ * Foto principal de cada artículo, por título. Wikipedia solo devuelve aquí imágenes de licencia libre.
+ * De 50 en 50, el máximo de la API sin cuenta. Los artículos sin foto no aparecen en el resultado.
+ */
+export async function sightPhotos(titles: string[], signal?: AbortSignal): Promise<Record<string, SightPhoto>> {
+  const out: Record<string, SightPhoto> = {}
+  for (let i = 0; i < titles.length; i += 50) {
+    const batch = titles.slice(i, i + 50)
+    const q = await photoQuery({ prop: 'pageimages', piprop: 'thumbnail|name', pithumbsize: '640', pilimit: '50', redirects: '1', titles: batch.join('|') }, signal)
+    const pages = new Map((q.pages ?? []).map((p) => [p.title, p]))
+    const follow = (list: { from: string; to: string }[] | undefined, title: string) => list?.find((x) => x.from === title)?.to ?? title
+    const found = batch.map((title) => ({ title, page: pages.get(follow(q.redirects, follow(q.normalized, title))) })).filter((x) => x.page?.thumbnail && x.page.pageimage)
+    const credits = await photoCredits([...new Set(found.map((x) => x.page!.pageimage!))], signal)
+    for (const { title, page } of found) {
+      const file = page!.pageimage!
+      out[title] = { url: page!.thumbnail!.source, page: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file)}`, author: null, license: null, ...credits.get(file) }
+    }
+  }
+  return out
+}
