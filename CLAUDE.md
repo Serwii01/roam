@@ -15,7 +15,7 @@ App web e instalable (PWA) para registrar y planificar viajes: mapa y globo 3D, 
 - `src/components/` — componentes; mapas en `WorldMap.tsx` y `RegionMap.tsx`
 - `src/lib/api/` — capa de datos: interfaz `Api` en `types.ts`, implementaciones `supabase.ts` (real) y `demo.ts` (navegador)
 - `src/lib/outbox.ts` — cola de cambios sin conexión; envuelve la API real con `withOffline`
-- `src/lib/` — lógica de dominio (`days.ts`, `hops.ts`, `arrival.ts`, `today.ts`, `stats.ts`, `badges.ts`…)
+- `src/lib/` — lógica de dominio (`days.ts`, `hops.ts`, `arrival.ts`, `today.ts`, `stats.ts`, `badges.ts`, `replay.ts`, `memories.ts`, `welcome.ts`…)
 - `api/` — funciones de Vercel en JavaScript: `share.js`, `og.js`, `calendar.js`, `push.js`
 - `supabase/migrations/` — esquema y RLS; `supabase/seed.sql` lo genera `npm run data`
 - `scripts/` — datos, iconos, avatares y prueba de base de datos
@@ -32,6 +32,8 @@ npm run preview    # tras build; el service worker no se activa con dev
 npx supabase migration list --remote   # historial de migraciones del proyecto enlazado
 npx supabase db push --remote          # aplica las pendientes a PRODUCCIÓN (sin --remote va a la base local)
 ```
+Ojo: `.env.local` apunta a la base de **producción**. Para probar sin tocar datos reales, usa el modo demo (`VITE_DEMO=1`). `?fecha=AAAA-MM-DD` cambia el día en el inicio y en Hoy, y `?sello=TR` fuerza el sello al llegar.
+
 No hay tests de frontend ni CI: lo que hay que pasar a mano es `npx tsc -b --noEmit`, `npm run lint` y `npm run test:db`.
 
 ## Convenciones

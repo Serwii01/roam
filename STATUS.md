@@ -3,7 +3,7 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-App funcional con un conjunto amplio de funciones: PWA instalable, modo sin conexión, plan día a día, pantalla «Hoy», gastos tipo Tricount, calendario, avisos y modo oscuro. La base de datos de producción está al día con `main`: las 17 migraciones aplicadas y en el historial (2026-11-03). `tsc`, `lint` (0 errores, 61 avisos) y `test:db` pasan. No se ha probado aún en un móvil real ni contra producción.
+App en `main` (5ac35e8) con «Revive tu viaje», recuerdos y sello al llegar, además de PWA, modo sin conexión, plan día a día, «Hoy», gastos tipo Tricount, calendario, avisos y modo oscuro. Producción tiene las 17 migraciones aplicadas y en el historial. `tsc`, `lint` (0 errores, 61 avisos), `test:db` y el build pasan. Las tres funciones nuevas solo se han probado en modo demo: falta confirmar el despliegue en Vercel y probarlas en un móvil real.
 
 ## Siguientes pasos
 - [ ] Probar en un móvil real «Revive tu viaje» (fluidez y carga del mapa), los recuerdos y el sello al llegar
@@ -14,8 +14,18 @@ App funcional con un conjunto amplio de funciones: PWA instalable, modo sin cone
 - [ ] Poner al día la portada del README: la tabla de stack aún dice que OAuth es «más adelante» y no menciona las funciones de Vercel
 - [ ] Revisar los puntos de «Antes de publicar» del README: región de Supabase, datos legales y marca «ROAM» en OEPM y EUIPO
 - [ ] Valorar una CI mínima (`tsc`, `lint`, `test:db`) en GitHub Actions: ahora no hay ninguna
+- [ ] Tests de `outbox.ts` y de los saldos de gastos, y después la CI mínima
+- [ ] Documentos disponibles sin conexión: ahora necesitan internet
+- [ ] Borrar las ramas `docs/claude-status` y `feat/revive-recuerdos-sello`, aquí y en GitHub
 
 ## Última sesión
+
+### 2026-11-04
+- Subido a `main` (5ac35e8): «Revive tu viaje», recuerdos y sello al llegar
+- Aplicada y verificada en producción `20261030000000_memories.sql`; `due_notifications` sigue cerrada para `anon` y `authenticated`
+- Probado en modo demo y con coordenadas reales; corregida la detección de país en costas e islas con la parada más cercana
+- No comprobado: despliegue en Vercel, móvil real, lectura real del GPS y recepción de un aviso real
+
 ### 2026-11-03
 - Añadidos «Revive tu viaje», recuerdos y sello al llegar, probados en modo demo (ver README). Aplicada `20261030000000_memories.sql` en producción y subido a `main`
 - Pull de los 21 commits del 22 oct hechos desde otro equipo
@@ -33,9 +43,13 @@ App funcional con un conjunto amplio de funciones: PWA instalable, modo sin cone
 - Funciones de `api/` en JavaScript y `@vercel/og` fijado en 0.11.1: la versión con HarfBuzz requería `fs` y no funciona en Edge.
 - El aviso de versión nueva no recarga solo, para no perder un viaje a medio editar.
 - Solo el creador marca un viaje compartido como realizado; lo impone un disparador en la base de datos.
+- El sello al llegar compara con el país de casa del perfil, no con la primera parada: muchos viajes no apuntan la salida de casa.
+- «Revive tu viaje» es una línea de tiempo calculada (`src/lib/replay.ts`), no animaciones encadenadas: así se puede pausar y saltar.
 
 ## Problemas conocidos
 - `.env.local` no tiene `VITE_VAPID_PUBLIC_KEY` ni `VITE_OAUTH_PROVIDERS`: en local no se pueden probar los avisos ni el botón de Google.
 - 61 avisos de `oxlint`, en su mayoría reglas de React (`Date` durante el render, `setState` en efectos). No bloquean.
 - Sin tests de frontend: la lógica de `outbox.ts`, `days.ts` y los saldos de gastos no tiene pruebas automáticas.
 - `version` sigue en `0.0.0` en `package.json`.
+- `public/geo/world.json` está simplificado: deja fuera ciudades de costa e islas (Estambul, Reikiavik, Fiyi). `arrivalCountry` lo suple con la parada del viaje a menos de 100 km; fuera de eso, no se detecta el país.
+- `.env.local` apunta a la base de producción: `npm run dev` con él trabaja con datos reales. Para probar sin tocarlos, usar modo demo.
