@@ -5,6 +5,7 @@ import { UN_COUNTRY_COUNT, loadWorldShapes } from '../lib/countries'
 import { useProfile, useTravelData } from '../lib/hooks'
 import { takePendingInvite } from '../lib/invites'
 import { activeTrip, localDate } from '../lib/today'
+import { ArrivalStamp } from './ArrivalStamp'
 import { Avatar } from './Avatar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
@@ -126,6 +127,7 @@ export function AppShell() {
       <BottomNav />
       <SyncErrors />
       <InstallBanner />
+      <ArrivalStamp />
 
       <footer className="bg-surface-low pb-20 xl:pb-0">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 md:px-12">

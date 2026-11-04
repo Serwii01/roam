@@ -22,12 +22,13 @@ export interface PushSubscriptionRow {
   user_agent?: string | null
 }
 
-/** Qué avisos quiere el usuario: vuelos y trenes de mañana, entradas al alojamiento, pasaporte y compañeros. */
+/** Qué avisos quiere el usuario: vuelos y trenes de mañana, entradas al alojamiento, pasaporte, compañeros y recuerdos. */
 export interface NotificationPrefs {
   travel: boolean
   lodging: boolean
   passport: boolean
   social: boolean
+  memories: boolean
 }
 
 export interface Visited {

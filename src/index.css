@@ -329,3 +329,25 @@ body {
 .maplibregl-ctrl-attrib a {
   color: inherit;
 }
+
+/* Sello que cae (al llegar a un país y en «Revive tu viaje») y fotos de la repetición del viaje. */
+@keyframes stamp-drop {
+  0% { opacity: 0; transform: scale(3.2) rotate(-14deg); }
+  55% { opacity: 1; transform: scale(0.92) rotate(2deg); }
+  75% { transform: scale(1.05) rotate(-1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes replay-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes replay-photo {
+  from { opacity: 0; transform: translateY(24px) rotate(3deg) scale(0.94); }
+  to { opacity: 1; }
+}
+.stamp-drop { animation: stamp-drop 620ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.replay-fade { animation: replay-fade 420ms ease-out both; }
+.replay-photo { animation: replay-photo 480ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .stamp-drop, .replay-fade, .replay-photo { animation: none; }
+}

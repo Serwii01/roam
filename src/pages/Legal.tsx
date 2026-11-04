@@ -103,9 +103,13 @@ export function PrivacyPage() {
         </li>
         <li>
           Avisos en el móvil, solo si los activas en un móvil o navegador: guardamos la dirección de entrega que da tu navegador para
-          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen o viajes compartidos que pasan a realizados). Los
+          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen, viajes compartidos que pasan a realizados y recuerdos de viajes pasados). Los
           entrega el servicio de avisos de tu navegador o sistema (Apple, Google o Mozilla), cifrados de forma que no puede leerlos.
           Puedes elegir cuáles recibir o desactivarlos en Ajustes, o quitar el permiso desde el móvil.
+        </li>
+        <li>
+          Sello al llegar, solo si lo activas en un viaje: la app lee la ubicación de tu móvil al abrirla durante ese viaje para saber en qué país
+          estás. Se comprueba en tu propio móvil: la ubicación no se envía a nuestros servidores ni se guarda. Puedes quitar el permiso desde el móvil.
         </li>
         <li>
           Suscripción al calendario, solo si la activas: un enlace secreto con tus viajes del último año y los próximos (fechas, trayectos con

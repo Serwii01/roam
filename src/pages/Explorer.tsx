@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { TripCard } from '../components/TripCard'
 import { Empty, ErrorNote, Eyebrow, Spinner, formatDate } from '../components/ui'
+import { api } from '../lib/api'
 import { WorldMap } from '../components/LazyWorldMap'
 import { CONTINENT_NAMES } from '../lib/db'
 import { UN_COUNTRY_COUNT } from '../lib/countries'
 import { downloadKml } from '../lib/export'
 import { dayInfo } from '../lib/days'
 import { useTravelData } from '../lib/hooks'
+import { memoryOfDay, yearsAgo } from '../lib/memories'
 import { activeTrip as tripOnDay, localDate } from '../lib/today'
 import { formatKm, isDone, missingContinents, tripDays, tripKm, tripYear } from '../lib/stats'
 
@@ -20,6 +22,9 @@ export function ExplorerPage() {
 
   const done = useMemo(() => trips.filter(isDone), [trips])
   const today = useMemo(() => tripOnDay(trips, localDate()), [trips])
+  // Otro día con ?fecha=AAAA-MM-DD, como en Hoy.
+  const [params] = useSearchParams()
+  const memory = useMemo(() => memoryOfDay(trips, params.get('fecha') ?? localDate()), [trips, params])
   const shown = useMemo(() => {
     switch (filter.kind) {
       case 'year':
@@ -62,6 +67,26 @@ export function ExplorerPage() {
             </span>
           </span>
           <Icon name="arrow_forward" />
+        </Link>
+      )}
+      {/* Tal día como hoy: el recuerdo con su foto, y abre la repetición del viaje. */}
+      {memory && (
+        <Link to={`/app/viajes/${memory.trip.id}?revive=1`} className="card mb-6 flex items-center gap-4 p-3 hover:opacity-95">
+          {memory.photo ? (
+            <img src={api.photoThumbUrl(memory.photo.path)} alt="" className="h-16 w-16 shrink-0 rounded-sm object-cover" />
+          ) : (
+            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-sm bg-accent-soft text-accent-ink">
+              <Icon name="public" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="label-stamp block text-ink-soft">Tal día como hoy</span>
+            <span className="block truncate font-display font-semibold">
+              {yearsAgo(memory.years)} llegabas a {memory.stop.name}
+            </span>
+            <span className="block truncate text-sm text-ink-soft">Revive «{memory.trip.title}»</span>
+          </span>
+          <Icon name="play_arrow" filled className="text-accent" />
         </Link>
       )}
       <div className="flex flex-wrap items-end justify-between gap-6">

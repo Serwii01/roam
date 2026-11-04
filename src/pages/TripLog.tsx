@@ -32,6 +32,7 @@ import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
 import { DocumentsTab, PackingTab, WeatherTab } from './Planner'
 
 const ShareSheet = lazy(() => import('../components/ShareSheet').then((m) => ({ default: m.ShareSheet })))
+const TripReplay = lazy(() => import('../components/TripReplay').then((m) => ({ default: m.TripReplay })))
 
 const TABS = [
   { id: 'resumen', label: 'Resumen', icon: 'dashboard', private: false },
@@ -59,6 +60,8 @@ export function TripLogPage() {
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
   const [viewer, setViewer] = useState<number | null>(null)
   const [sharing, setSharing] = useState(false)
+  // ?revive=1: los recuerdos abren el viaje directamente en la repetición.
+  const [replaying, setReplaying] = useState(params.get('revive') === '1')
   const me = useAuth().user?.id
   const passports = usePassports()
   const profile = useProfile()
@@ -112,6 +115,10 @@ export function TripLogPage() {
   const shareData = useMemo(() => t && tripCardData(t, airports, name), [t, airports, byCode])
   const sharePhotos = useMemo(() => [...new Set([...(t?.cover_url ? [t.cover_url] : []), ...gallery.map((g) => g.url)])], [t, gallery])
   const openPhoto = (pid: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === pid)))
+  const closeReplay = () => {
+    setReplaying(false)
+    if (params.has('revive')) setParams({}, { replace: true })
+  }
   const legs = useMemo(() => (t ? t.stops.slice(1).map((s, j) => ({ stop: s, km: legKm(t.stops, j + 1, airports) })) : []), [t, airports])
 
   if (trip.isLoading) return <Spinner label="Abriendo bitácora" />
@@ -213,7 +220,12 @@ export function TripLogPage() {
               <Icon name="task_alt" size={18} /> Ya lo hice
             </button>
           )}
-          <button className={`btn ${planned && owner ? 'btn-ghost' : 'btn-accent'}`} onClick={() => setSharing(true)}>
+          {t.stops.length > 1 && (
+            <button className={`btn ${planned ? 'btn-ghost' : 'btn-accent'}`} onClick={() => setReplaying(true)}>
+              <Icon name="play_arrow" filled size={18} /> {planned ? 'Ver la ruta animada' : 'Revive el viaje'}
+            </button>
+          )}
+          <button className={`btn ${(planned && owner) || t.stops.length > 1 ? 'btn-ghost' : 'btn-accent'}`} onClick={() => setSharing(true)}>
             <Icon name="ios_share" size={18} /> Compartir imagen
           </button>
           {participant && (
@@ -356,6 +368,20 @@ export function TripLogPage() {
       {sharing && shareData && (
         <Suspense fallback={null}>
           <ShareSheet data={shareData} photos={sharePhotos} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
+      {replaying && t.stops.length > 1 && (
+        <Suspense fallback={null}>
+          <TripReplay
+            trip={t}
+            airports={airports}
+            countryName={name}
+            onShare={() => {
+              closeReplay()
+              setSharing(true)
+            }}
+            onClose={closeReplay}
+          />
         </Suspense>
       )}
       {viewer !== null && gallery.length > 0 && <PhotoViewer photos={gallery} index={viewer} onIndex={setViewer} onClose={() => setViewer(null)} />}

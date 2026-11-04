@@ -436,8 +436,8 @@ export const supabaseApi: Api = {
     must(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
   },
   async getNotificationPrefs() {
-    const row = must(await supabase.from('notification_prefs').select('travel, lodging, passport, social').maybeSingle()) as NotificationPrefs | null
-    return row ?? { travel: true, lodging: true, passport: true, social: true }
+    const row = must(await supabase.from('notification_prefs').select('travel, lodging, passport, social, memories').maybeSingle()) as NotificationPrefs | null
+    return row ?? { travel: true, lodging: true, passport: true, social: true, memories: true }
   },
   async setNotificationPrefs(prefs) {
     const uid = (await supabase.auth.getSession()).data.session?.user.id

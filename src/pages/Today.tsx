@@ -11,8 +11,9 @@ import { isNote, type Lodging, type Sight, type Stop, type TripWithStops } from 
 import { addDays, dayInfo, orderDay, sightDay, weekday } from '../lib/days'
 import { googleMapsDirections } from '../lib/googleMaps'
 import { distance, minutes, type Hop } from '../lib/hops'
-import { useAirportMap, useDayHops, useTravelMutation, useTrips } from '../lib/hooks'
+import { useAirportMap, useDayHops, useProfile, useTravelMutation, useTrips } from '../lib/hooks'
 import { activeTrip, localDate, localTime, lodgingTonight, nextTrip, nextUp, timeline, type TimelineItem } from '../lib/today'
+import { arrivalStampsEnabled, currentPosition, enableArrivalStamps, hasArrivals } from '../lib/welcome'
 
 /** Fecha y hora de «ahora» (se pueden fijar con ?fecha=AAAA-MM-DD y ?hora=HH:MM para ver otro día). */
 function useNow() {
@@ -110,6 +111,8 @@ function TripToday({ trip: t, days, index, day, now }: { trip: TripWithStops; da
 
       <Tomorrow day={tomorrow} last={last} logistics={logistics.get(tomorrow) ?? []} sights={last ? [] : sightsOf(tomorrow)} stop={last ? undefined : dayInfo(t.stops, tomorrow).stop} href={tab('dias')} />
 
+      <ArrivalStampOffer trip={t} />
+
       <nav aria-label="Atajos del viaje" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(
           [
@@ -126,6 +129,37 @@ function TripToday({ trip: t, days, index, day, now }: { trip: TripWithStops; da
         ))}
       </nav>
     </div>
+  )
+}
+
+/** En un viaje con países de destino: activar el sello al llegar. El permiso de ubicación se pide al pulsar. */
+function ArrivalStampOffer({ trip: t }: { trip: TripWithStops }) {
+  const [on, setOn] = useState(arrivalStampsEnabled)
+  const [error, setError] = useState(false)
+  const profile = useProfile()
+  if (on || !profile.data || !('geolocation' in navigator) || !hasArrivals(t, profile.data.home_country)) return null
+  const enable = async () => {
+    try {
+      await currentPosition()
+      enableArrivalStamps()
+      setOn(true)
+    } catch {
+      setError(true)
+    }
+  }
+  return (
+    <section className="card flex flex-wrap items-center gap-3 p-4">
+      <Icon name="approval" className="text-accent" />
+      <div className="min-w-[12rem] flex-1">
+        <div className="font-display font-semibold">Sello al llegar</div>
+        <p className="text-sm text-ink-soft">
+          {error ? 'No se ha podido leer tu ubicación. Permítela en los ajustes del móvil y vuelve a probar.' : 'Al abrir la app en un país nuevo del viaje, te cae su sello. La ubicación no sale de tu móvil.'}
+        </p>
+      </div>
+      <button type="button" className="btn btn-dark" onClick={enable}>
+        Activar
+      </button>
+    </section>
   )
 }
 

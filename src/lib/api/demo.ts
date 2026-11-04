@@ -527,7 +527,7 @@ export const demoApi: Api = {
   },
   async deletePushSubscription() {},
   async getNotificationPrefs() {
-    return { travel: true, lodging: true, passport: true, social: true }
+    return { travel: true, lodging: true, passport: true, social: true, memories: true }
   },
   async setNotificationPrefs() {},
   // El calendario se sirve desde el servidor: en el modo demo (todo en el navegador) no hay de dónde leerlo.

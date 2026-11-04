@@ -110,6 +110,18 @@ Durante un viaje (hoy entre la ida y la vuelta), «Hoy» (`/app/hoy`, `src/pages
 
 Solo quien crea el viaje lo marca como realizado o planificado (lo impide un disparador en la base de datos; los compañeros siguen editando todo lo demás). Al marcarlo como realizado, los compañeros con cuenta reciben un aviso y el viaje sale en su perfil: su bitácora, su pasaporte, su mapa y, si su perfil es público, en su página pública (con la ruta, los sitios y las fotos; nunca los gastos). Cada compañero puede quitarlo de su cuenta («Más → Quitar de mi cuenta», que es salir del viaje). Migración `20261029000000_shared_trip_status.sql`.
 
+### Revive tu viaje
+
+En la página de cada viaje con al menos dos paradas, «Revive el viaje» («Ver la ruta animada» si aún está planificado) abre una repetición a pantalla completa (`src/components/TripReplay.tsx`): la cámara recorre la ruta en el globo, en cada parada salen sus fotos, se ilumina el país y cae el sello de cada país nuevo, con el contador de kilómetros y, si el viaje tiene banda sonora, el reproductor de Spotify. Las fotos sin parada salen juntas antes de terminar. Es una línea de tiempo calculada (`src/lib/replay.ts`): cada fotograma sale del segundo en el que se está, así que se puede pausar y saltar con la barra. Con «reducir movimiento» en el dispositivo, la cámara se queda quieta. Sin red para el mapa base usa las siluetas de los países. `?revive=1` abre el viaje directamente en la repetición.
+
+### Recuerdos
+
+El día que se cumplen años de una llegada de un viaje realizado, el inicio enseña «Hace 3 años llegabas a Estambul» con su foto (`src/lib/memories.ts`) y llega un aviso por la mañana (`due_notifications()`, migración `20261030000000_memories.sql`), como mucho uno al día. Los dos abren la repetición del viaje. No cuentan la ciudad de salida ni la vuelta a casa, y van primero las paradas con fotos y las más antiguas. El aviso es solo texto: las fotos son privadas y sus enlaces caducan. Para ver otro día en el inicio, `?fecha=AAAA-MM-DD`.
+
+### Sello al llegar
+
+Durante un viaje, «Hoy» ofrece activar el sello. Después, al abrir la app o volver a ella en un país del viaje que no sea el de casa, cae su sello a pantalla completa, con vibración en Android (`src/components/ArrivalStamp.tsx`). Una vez por viaje y país. El país se calcula en el móvil con las siluetas de `public/geo` y, en costas e islas que quedan fuera de ellas, con la parada del viaje más cercana (a menos de 100 km) (`src/lib/welcome.ts`): la ubicación no sale del dispositivo. Una PWA no puede leer la ubicación en segundo plano, así que el sello cae al abrir la app. Para probarlo: `/app/hoy?fecha=AAAA-MM-DD&sello=TR`.
+
 ### Gastos al estilo Tricount
 
 La pestaña Gastos de cada viaje enseña arriba tu saldo («Te deben 45 €», «Debes 12 €», «Estás en paz»), lo gastado entre todos y tu parte, y tres pestañas: **Gastos** (cada uno con lo que mueve en tu saldo: `+456 €` si pagaste tú, `−43 €` si te toca), **Saldos** (quién debe a quién con el mínimo de pagos, «Marcar como pagado» y «Compartir cuentas») y **Resumen** (presupuesto, por día, por persona y categorías). Saldar guarda un movimiento `settlement` (pagó quien debía, le toca a quien recibe): cuenta en los saldos pero no en el total ni en el presupuesto (migración `20261028000000_settlements_lodging_location.sql`).

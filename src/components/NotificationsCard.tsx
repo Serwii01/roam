@@ -11,6 +11,7 @@ const KINDS: { id: keyof NotificationPrefs; label: string; hint: string }[] = [
   { id: 'lodging', label: 'Alojamiento', hint: 'El día de entrada: desde qué hora, dirección y reserva.' },
   { id: 'passport', label: 'Pasaporte', hint: 'A 60, 30 y 7 días de un viaje, si te falta o caduca pronto.' },
   { id: 'social', label: 'Compañeros', hint: 'Cuando alguien se une a uno de tus viajes o un viaje compartido pasa a realizado.' },
+  { id: 'memories', label: 'Recuerdos', hint: 'El día que se cumplen años de una llegada: «Hace 3 años llegabas a Estambul».' },
 ]
 
 const WHY: Record<Exclude<PushSupport, 'ok'>, string> = {
