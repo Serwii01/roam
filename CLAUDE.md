@@ -44,6 +44,7 @@ La CI de GitHub Actions (`.github/workflows/ci.yml`) pasa `npx tsc -b --noEmit`,
 - Los registros nuevos llevan el id generado en el navegador (`src/lib/id.ts`): así reenviar una alta no la duplica.
 - Cada cambio de esquema es una migración nueva con su RLS; `test:db` comprueba el aislamiento entre usuarios.
 - Las funciones de `api/` y lo que comparten con ellas (`src/lib/calendar.js`) van en JavaScript para que Vercel no tenga que compilarlas. `@vercel/og` está fijado en 0.11.1 (ver `STATUS.md`).
+- Fotos del viaje con `<PhotoImg path>` (`src/components/PhotoImg.tsx`), no `<img src={api.photoUrl(...)}>`: los enlaces firmados caducan y solo así se repintan y se vuelven a firmar. Una lista que guarde enlaces en `useMemo` depende de `usePhotoLinks()`.
 - Colores con variables CSS de `src/index.css`. El modo oscuro solo cambia sus valores: sobre `bg-ink` usa `text-paper`, no `text-white`.
 - En los mapas, `MAP_COLORS` en vez de colores sueltos.
 - Los iconos de Material Symbols van recortados: `npm run icons` regenera la fuente con los usados (se ejecuta en cada build). Solo detecta nombres escritos como `<Icon name="…">` o `icon: '…'`: en un array suelto no los ve.

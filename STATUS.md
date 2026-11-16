@@ -3,7 +3,7 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al llegar, probados en móvil real. En la rama `feat/viaje-sin-conexion-y-reservas` (56eea96, en GitHub, sin fusionar) están los documentos sin conexión, las reservas desde un correo, la ficha del país y la foto del ticket: pasan `tsc`, `lint`, `test:db` y build, y funcionan en modo demo. Producción ya tiene las 18 migraciones, incluida la de tickets. Falta probar la rama en un móvil real antes de fusionarla.
+Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al llegar. La rama `feat/viaje-sin-conexion-y-reservas` (83f5cb3, subida a GitHub por primera vez el 2026-11-16, sin fusionar) suma documentos sin conexión, reservas desde un correo, ficha del país, foto del ticket, tests con Vitest y CI, sello en costas e islas, ideas por zonas, arreglo de fotos y resumen del tiempo. Pasa tsc, lint, 126 tests y test:db; falta probarla en un móvil real antes de fusionar.
 
 ## Siguientes pasos
 - [x] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
@@ -11,8 +11,6 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - [x] Probar en un móvil real: instalación, avisos, modo sin conexión y pantalla «Hoy»
 - [ ] Poner al día la portada del README: la tabla de stack aún dice que OAuth es «más adelante» y no menciona las funciones de Vercel
 - [ ] Revisar los puntos de «Antes de publicar» del README: región de Supabase, datos legales y marca «ROAM» en OEPM y EUIPO
-- [x] CI mínima en GitHub Actions (`.github/workflows/ci.yml`): `tsc`, `lint`, `npm test` y `test:db` en cada push
-- [x] Tests con Vitest de `outbox.ts` y de los saldos de gastos (`src/lib/*.test.ts`, `npm test`)
 - [ ] Borrar las ramas `docs/claude-status` y `feat/revive-recuerdos-sello`, aquí y en GitHub
 - [ ] Probar en un móvil real la rama `feat/viaje-sin-conexion-y-reservas`: visor de PDF en modo avión, tickets sin conexión y reservas con correos reales
 - [ ] Revisar los datos de `src/lib/countryFacts.ts` (sobre todo los teléfonos de emergencia) y el enlace a Exteriores, que no se pudo comprobar
@@ -20,8 +18,19 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - [ ] Comprobar en Vercel las variables de avisos: `VITE_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
 - [ ] Decidir si se reenvían correos a una dirección de la app: necesita dominio y servicio de correo entrante
 - [ ] Probar la lectura real del GPS del sello al llegar en un país del viaje
+- [ ] Comprobar en GitHub Actions que la CI de `feat/viaje-sin-conexion-y-reservas` pasa (gh no está instalado en este equipo)
+- [ ] En el móvil: portadas de la bitácora tras horas sin abrir la app, foto recién subida sin recargar, resumen del tiempo e ideas por zonas del día a día
+- [ ] Aviso push para hacer el check-in 24 h antes de un vuelo (hay cron, push y datos del vuelo)
 
 ## Última sesión
+
+### 2026-11-16
+- Vitest (`npm test`, 126 tests: saldos, cola sin conexión, días, sello, ideas, fotos, tiempo) y CI en GitHub Actions (tsc, lint, tests, test:db)
+- Sello al llegar: borde más cercano a ≤15 km y parada del viaje para costas, islas perdidas (Ibiza, Azores) y aeropuertos de frontera (Ginebra)
+- Ideas del día a día por zonas de ~1 km (primero la de al lado de lo que ya tienes ese día) y sin repetir sitios de otros días (nombre sin tildes, artículo o <150 m)
+- Fotos rotas o en blanco en la bitácora: enlaces firmados caducados en caché sin repintar; ahora se repintan y se vuelven a firmar al fallar (`PhotoImg`, `refreshPhotos`)
+- Resumen del tiempo de todo el viaje y por parada en el resumen del viaje (sustituye a la lista del día de llegada)
+- Lint de 61 a 52 avisos; `useCountries().name` estable
 
 ### 2026-11-04
 - Subido a `main` (5ac35e8): «Revive tu viaje», recuerdos y sello al llegar
@@ -34,14 +43,6 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - Migración `20261031000000_expense_receipts.sql` aplicada en producción desde el editor SQL y registrada con `migration repair`; las 18 coinciden y `db push` está al día
 - Pasan `tsc`, `lint` (0 errores), `test:db` y build. Probado en modo demo: ficha del país, guardado de documentos, tickets y reservas
 - No comprobado: visor de PDF dentro de la app (el panel oculto para requestAnimationFrame; la lectura del PDF guardado sí se probó aparte), modo avión real, cola sin conexión de tickets y correos reales
-
-### 2026-11-03
-- Añadidos «Revive tu viaje», recuerdos y sello al llegar, probados en modo demo (ver README). Aplicada `20261030000000_memories.sql` en producción y subido a `main`
-- Pull de los 21 commits del 22 oct hechos desde otro equipo
-- Creados `CLAUDE.md` y este `STATUS.md` a partir del repo; no se tocó código
-- Comprobado: `npm ci`, `tsc`, `lint`, `test:db` y el estado de las migraciones en producción
-- Revisadas las 5 migraciones pendientes contra producción: `20261025` a `20261028` ya estaban aplicadas fuera del historial (seguramente desde el editor SQL) y coincidían con los archivos, así que se marcaron con `migration repair`
-- Aplicada en producción la `20261029` con `db push --remote`; ningún viaje de perfil privado pasó a ser visible (recuento previo: 0)
 
 ## Decisiones
 - La ubicación del sello al llegar se resuelve en el móvil contra `public/geo`: no sale del dispositivo. Es opcional y se activa en Hoy.
@@ -58,6 +59,8 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - Reservas: se pegan o se sube un `.eml` y se leen en el navegador, con revisión antes de guardar. No se reenvían correos: necesitaría dominio y servicio de correo entrante.
 - Foto del ticket: solo se adjunta; el importe no se lee de la foto. Va al bucket `trip-docs`, en la carpeta del viaje.
 - Ficha del país: datos escritos a mano para unos 70 destinos, marcados como orientativos; sin ficha no se enseña nada.
+- No se rehace `world.json` (simplificar menos cambia el mapa y su peso): la detección del país al llegar se compensa en `arrivalCountry`
+- Las fotos se pintan con `<PhotoImg path>`, no con `api.photoUrl` en un `<img>`: así se repintan y reintentan cuando caduca el enlace
 
 ## Problemas conocidos
 - `.env.local` no tiene `VITE_VAPID_PUBLIC_KEY` ni `VITE_OAUTH_PROVIDERS`: en local no se pueden probar los avisos ni el botón de Google.
@@ -70,3 +73,4 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - pdf.js pinta con `requestAnimationFrame`: en una pestaña o panel oculto el visor no dibuja las páginas.
 - En PowerShell de este equipo los scripts están bloqueados: `npx` no funciona y hay que usar `npx.cmd`.
 - `db push` y `migration repair` sobre producción piden confirmación; en modo agente hacen falta `--yes` y el visto bueno del usuario.
+- Ninguna de las mejoras de esta sesión se ha visto en el navegador: la vista previa de Claude abre el `launch.json` de EstudiosCriticos (en roam hay `.claude/launch.json` con `demo`, sin commit)
