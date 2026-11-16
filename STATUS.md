@@ -64,7 +64,7 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - 52 avisos de `oxlint`: `setState` en efectos (22), `only-export-components` (19, solo afecta a la recarga en caliente), `Date` durante el render y dos falsos positivos de refs en el arrastre. No bloquean.
 - Sin tests de componentes: hay tests de la lógica de `outbox.ts`, `money.ts` (saldos) y `days.ts` (fechas y orden del plan).
 - `version` sigue en `0.0.0` en `package.json`.
-- `public/geo/world.json` está simplificado: deja fuera ciudades de costa e islas (Estambul, Reikiavik, Fiyi). `arrivalCountry` lo suple con la parada del viaje a menos de 100 km; fuera de eso, no se detecta el país.
+- `public/geo/world.json` está simplificado (`-simplify 22%`): recorta la costa unos km (21 de 36 ciudades de costa o isla probadas caían «en el mar»), se come islas como Ibiza, Santorini o Azores y deja el aeropuerto de Ginebra en Francia. `arrivalCountry` lo suple: borde más cercano a ≤ 15 km, parada del viaje a ≤ 100 km fuera de las siluetas y a ≤ 30 km si la silueta da un país que no es del viaje (ver `welcome.test.ts`). Una isla perdida sin parada del viaje cerca sigue sin detectarse; arreglarlo de raíz es simplificar menos en `build-data.mjs` (cambia el mapa y el peso del archivo).
 - `.env.local` apunta a la base de producción: `npm run dev` con él trabaja con datos reales. Para probar sin tocarlos, usar modo demo.
 - El modo demo no pasa por `outbox.ts`: la cola sin conexión de los tickets solo se puede probar con Supabase real.
 - pdf.js pinta con `requestAnimationFrame`: en una pestaña o panel oculto el visor no dibuja las páginas.

@@ -51,15 +51,76 @@ export function countryAt(shapes: Shapes, lon: number, lat: number): string | nu
   return null
 }
 
-/** Hasta aquí de una parada del viaje se cuenta como estar en ella (Estambul, Reikiavik o Fiyi caen fuera de las siluetas). */
-const NEAR_STOP_KM = 100
+const KM_LAT = 110.57
+const wrapLon = (d: number) => (d > 180 ? d - 360 : d < -180 ? d + 360 : d)
 
-/** En qué país del viaje estás: el de las siluetas o, si no da ninguno, el de la parada más cercana. */
+/** Distancia en km del punto `p` al segmento a-b (proyección local: basta para unas decenas de km). */
+function segmentKm(p: [number, number], kmLon: number, a: Position, b: Position) {
+  const ax = wrapLon(a[0] - p[0]) * kmLon
+  const ay = (a[1] - p[1]) * KM_LAT
+  const dx = wrapLon(b[0] - p[0]) * kmLon - ax
+  const dy = (b[1] - p[1]) * KM_LAT - ay
+  const len = dx * dx + dy * dy
+  const t = len ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len)) : 0
+  return Math.hypot(ax + t * dx, ay + t * dy)
+}
+
+const bboxes = new WeakMap<object, [number, number, number, number]>()
+function bboxOf(f: Shapes['features'][number]): [number, number, number, number] {
+  let b = bboxes.get(f)
+  if (!b) {
+    b = [Infinity, Infinity, -Infinity, -Infinity]
+    const g = f.geometry
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
+    for (const poly of polys) for (const [x, y] of poly[0]) b = [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)]
+    bboxes.set(f, b)
+  }
+  return b
+}
+
+/**
+ * País cuyo borde queda más cerca, a `maxKm` como mucho. Las siluetas simplificadas recortan la costa unos
+ * kilómetros: el centro de Estambul, Reikiavik, Venecia, Copenhague o Hong Kong caen «en el mar».
+ */
+export function nearestCountry(shapes: Shapes, lon: number, lat: number, maxKm: number): string | null {
+  const p: [number, number] = [lon, lat]
+  const kmLon = Math.max(1, Math.cos((lat * Math.PI) / 180) * 111.32)
+  const mLat = maxKm / KM_LAT
+  const mLon = maxKm / kmLon
+  let best: { code: string; km: number } | null = null
+  for (const f of shapes.features) {
+    const [x0, y0, x1, y1] = bboxOf(f)
+    const outLon = lon < x0 ? x0 - lon : lon > x1 ? lon - x1 : 0
+    if (lat < y0 - mLat || lat > y1 + mLat || Math.min(outLon, 360 - outLon) > mLon) continue
+    const g = f.geometry
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
+    for (const poly of polys)
+      for (const ring of poly)
+        for (let i = 1; i < ring.length; i++) {
+          const km = segmentKm(p, kmLon, ring[i - 1], ring[i])
+          if (km <= maxKm && (!best || km < best.km)) best = { code: f.properties.code, km }
+        }
+  }
+  return best?.code ?? null
+}
+
+/** Hasta aquí del borde de un país se cuenta como estar en él (la costa recortada por la simplificación). */
+const NEAR_BORDER_KM = 15
+/** Hasta aquí de una parada del viaje se cuenta como estar en ella (islas que el mapa simplificado no tiene, como Ibiza o Azores). */
+const NEAR_STOP_KM = 100
+/** En un país que no es del viaje, una parada así de cerca manda: aeropuertos de frontera como Ginebra, que la silueta deja en Francia. */
+const BORDER_STOP_KM = 30
+
+/**
+ * En qué país del viaje estás: el de las siluetas (o el de la costa más cercana). Si no es ninguno de los del viaje,
+ * el de la parada más cercana: fuera de las siluetas, hasta 100 km; dentro de otro país, hasta 30 km.
+ */
 export function arrivalCountry(shapes: Shapes, trip: TripWithStops, lon: number, lat: number): string | null {
-  const found = countryAt(shapes, lon, lat)
-  if (found) return found
+  const found = countryAt(shapes, lon, lat) ?? nearestCountry(shapes, lon, lat, NEAR_BORDER_KM)
+  if (found && trip.stops.some((s) => s.country_code === found)) return found
   const near = trip.stops.map((s) => ({ s, km: haversine([lon, lat], [s.lon, s.lat]) })).sort((a, b) => a.km - b.km)[0]
-  return near && near.km <= NEAR_STOP_KM ? near.s.country_code : null
+  if (near && near.km <= (found ? BORDER_STOP_KM : NEAR_STOP_KM)) return near.s.country_code
+  return found
 }
 
 /** País de casa: el del perfil o, sin él, el de salida del viaje. Muchos viajes no apuntan la salida de casa. */
