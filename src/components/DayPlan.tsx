@@ -14,7 +14,11 @@ import { useAirportMap, useDayHops } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
+import { findTaken, ideaZones } from '../lib/ideas'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
+
+/** Un sitio ya puesto en el viaje y el número de su día (0 si queda fuera de los días del viaje). */
+type PlannedSight = Sight & { dayN: number }
 
 export interface DayPlanOps {
   add: (stopId: string, s: NewSight) => void
@@ -67,6 +71,17 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
     for (const [d, list] of m) m.set(d, orderDay(list))
     return m
   }, [trip.sights, trip.stops, days])
+  // Sitios ya puestos en el viaje, con su día: las ideas no los vuelven a proponer y la búsqueda dice en qué día están.
+  const taken = useMemo<PlannedSight[]>(
+    () =>
+      trip.sights
+        .filter((s) => !isNote(s))
+        .map((s) => {
+          const d = sightDay(s, trip.stops, days)
+          return { ...s, dayN: d ? days.indexOf(d) + 1 : 0 }
+        }),
+    [trip.sights, trip.stops, days],
+  )
   // Vuelos, trenes y alojamientos (los mismos datos que «Alojamiento y transporte»): horarios de cada día y a qué
   // hora más o menos se llega al alojamiento. Sin acceso (no participante), las listas llegan vacías.
   const lodgings = useQuery({ queryKey: ['lodgings', trip.id], queryFn: () => api.listLodgings(trip.id) })
@@ -130,7 +145,7 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
                 info={infos[i]}
                 sights={byDay.get(d) ?? []}
                 logistics={logistics.get(d) ?? []}
-                allNames={new Set(trip.sights.map((s) => s.name.toLowerCase()))}
+                taken={taken}
                 days={days}
                 infos={infos}
                 planned={planned}
@@ -191,7 +206,7 @@ function DayCard({
   info,
   sights,
   logistics,
-  allNames,
+  taken,
   days,
   infos,
   planned,
@@ -203,7 +218,7 @@ function DayCard({
   info: DayInfo
   sights: Sight[]
   logistics: DayLogistic[]
-  allNames: Set<string>
+  taken: PlannedSight[]
   days: string[]
   infos: DayInfo[]
   planned: boolean
@@ -341,9 +356,10 @@ function DayCard({
             lat={stop.lat}
             lon={stop.lon}
             city={stop.name}
-            taken={allNames}
+            taken={taken}
+            today={places}
             placeholder={planned ? `¿Qué vas a ver en ${stop.name}?` : `¿Qué visitaste en ${stop.name}?`}
-            onAdd={(x) => ops.add(stop.id, { ...x, day, done: !planned, position: sights.length })}
+            onAdd={(x, k = 0) => ops.add(stop.id, { ...x, day, done: !planned, position: sights.length + k })}
           />
           <NoteAdder onAdd={(name) => ops.add(stop.id, { name, kind: 'note', day, done: false, position: sights.length })} />
         </div>
@@ -564,8 +580,29 @@ function NoteAdder({ onAdd }: { onAdd: (text: string) => void }) {
   )
 }
 
-/** Buscador de sitios cerca de una ciudad (Wikipedia), con ideas y texto libre. */
-export function SightPicker({ lat, lon, city, taken, placeholder, onAdd }: { lat: number; lon: number; city: string; taken: Set<string>; placeholder: string; onAdd: (s: NewSight) => void }) {
+/**
+ * Buscador de sitios cerca de una ciudad (Wikipedia), con ideas por zonas y texto libre. Lo que ya está en el viaje
+ * (`taken`, en cualquier día) no sale en las ideas, y en la búsqueda sale marcado con su día.
+ */
+function SightPicker({
+  lat,
+  lon,
+  city,
+  taken,
+  today,
+  placeholder,
+  onAdd,
+}: {
+  lat: number
+  lon: number
+  city: string
+  taken: PlannedSight[]
+  /** Sitios de este día: las ideas de su zona salen primero. */
+  today: Sight[]
+  placeholder: string
+  /** `offset`: para añadir varios seguidos (una zona entera) sin que compartan posición. */
+  onAdd: (s: NewSight, offset?: number) => void
+}) {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<SightSuggestion[]>([])
   const [searching, setSearching] = useState(false)
@@ -600,8 +637,12 @@ export function SightPicker({ lat, lon, city, taken, placeholder, onAdd }: { lat
       .catch(() => setIdeasError(true))
   }, [ideasOpen, ideas, lat, lon, city])
 
+  const zones = useMemo(() => (ideas ? ideaZones(ideas, { city, center: { lat, lon }, taken, day: today }) : []), [ideas, city, lat, lon, taken, today])
+
+  const toNew = (s: SightSuggestion): NewSight => ({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url ?? null })
   const pick = (s: SightSuggestion) => {
-    onAdd({ name: s.title, lat: s.lat, lon: s.lon, wiki_url: s.url ?? null })
+    if (findTaken(s, taken)) return
+    onAdd(toNew(s))
     setQ('')
     setResults([])
   }
@@ -635,18 +676,30 @@ export function SightPicker({ lat, lon, city, taken, placeholder, onAdd }: { lat
         </div>
         {q.trim().length >= 2 && (results.length > 0 || !searching) && (
           <ul className="card absolute z-40 mt-1 max-h-72 w-full overflow-auto p-1">
-            {results.map((r) => (
-              <li key={r.title}>
-                <button type="button" onClick={() => pick(r)} className="flex w-full items-start gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-surface-low">
-                  <Icon name="location_on" size={16} className="mt-0.5 text-accent" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold">{r.title}</span>
-                    {r.description && <span className="block truncate text-xs text-ink-soft">{r.description}</span>}
-                  </span>
-                  <span className="label-stamp shrink-0 text-ink-soft">{r.km < 1 ? '<1 km' : `${Math.round(r.km).toLocaleString('es-ES')} km`}</span>
-                </button>
-              </li>
-            ))}
+            {results.map((r) => {
+              const had = findTaken(r, taken)
+              return (
+                <li key={r.title}>
+                  <button
+                    type="button"
+                    onClick={() => pick(r)}
+                    disabled={!!had}
+                    className="flex w-full items-start gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-surface-low disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent"
+                  >
+                    <Icon name="location_on" size={16} className="mt-0.5 text-accent" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{r.title}</span>
+                      {r.description && <span className="block truncate text-xs text-ink-soft">{r.description}</span>}
+                    </span>
+                    {had ? (
+                      <span className="label-stamp shrink-0 text-accent-deep">{had.dayN ? `Ya en el día ${had.dayN}` : 'Ya en el viaje'}</span>
+                    ) : (
+                      <span className="label-stamp shrink-0 text-ink-soft">{r.km < 1 ? '<1 km' : `${Math.round(r.km).toLocaleString('es-ES')} km`}</span>
+                    )}
+                  </button>
+                </li>
+              )
+            })}
             <li>
               <button type="button" onClick={free} className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-ink-soft hover:bg-surface-low">
                 <Icon name="edit" size={16} /> Añadir «{q.trim()}» tal cual
@@ -672,21 +725,37 @@ export function SightPicker({ lat, lon, city, taken, placeholder, onAdd }: { lat
             <Icon name="sync" size={16} className="animate-spin" /> Buscando sitios conocidos…
           </p>
         ) : (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {ideas
-              .filter((s) => !taken.has(s.title.toLowerCase()))
-              .slice(0, 10)
-              .map((s) => (
-                <button key={s.title} type="button" onClick={() => pick(s)} title={s.description} className="inline-flex items-center gap-1 rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-outline-soft transition hover:ring-ink">
-                  <Icon name="add" size={14} className="text-accent" /> {s.title}
-                </button>
-              ))}
-            <span className="text-[11px] text-ink-soft">
+          <div className="space-y-3">
+            {zones.map((z) => (
+              <div key={z.label}>
+                <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold">
+                    {z.near ? <Icon name="near_me" size={14} className="text-accent" /> : <Icon name="location_city" size={14} className="text-accent" />}
+                    {z.label}
+                    {z.where && <span className="font-normal text-ink-soft">· {z.where}</span>}
+                  </span>
+                  {z.ideas.length > 1 && (
+                    <button type="button" onClick={() => z.ideas.forEach((s, k) => onAdd(toNew(s), k))} className="text-xs font-semibold text-accent-deep hover:underline">
+                      Añadir {z.ideas.length === 2 ? 'los dos' : `los ${z.ideas.length}`} a este día
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {z.ideas.map((s) => (
+                    <button key={s.title} type="button" onClick={() => pick(s)} title={s.description} className="inline-flex items-center gap-1 rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-outline-soft transition hover:ring-ink">
+                      <Icon name="add" size={14} className="text-accent" /> {s.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p className="text-[11px] text-ink-soft">
+              {zones.length ? 'Agrupadas por zonas que se recorren andando, sin lo que ya tienes en otros días. ' : ideas.length ? `Ya tienes en el viaje todas las ideas cerca de ${city}: busca más arriba. ` : 'No hay sitios conocidos cerca en Wikipedia: escríbelos arriba. '}
               Ideas de{' '}
               <a href="https://es.wikipedia.org" target="_blank" rel="noreferrer" className="underline">
                 Wikipedia
               </a>
-            </span>
+            </p>
           </div>
         )}
       </div>

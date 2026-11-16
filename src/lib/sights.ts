@@ -75,7 +75,8 @@ export function suggestSights(lat: number, lon: number, stopName: string): Promi
           .filter((pg) => !NOT_TITLE.test(pg.title) && !NOT_DESC.test(pg.description ?? '') && pg.title.toLowerCase() !== stopName.toLowerCase())
           .map((pg) => ({ pg, score: (pg.length ?? 0) * (SIGHT_DESC.test(pg.description ?? '') || SIGHT_TITLE.test(pg.title) ? 3 : 1) }))
           .sort((a, b) => b.score - a.score)
-          .slice(0, 16)
+          // Bastantes para repartirlas por zonas y que queden ideas tras quitar lo que ya está en el viaje.
+          .slice(0, 30)
           .map(({ pg }) => toSuggestion(pg, lat, lon))
           .filter((x): x is SightSuggestion => !!x),
       )
