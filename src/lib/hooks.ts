@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import { useUser } from './auth'
@@ -11,7 +11,8 @@ const REF = { staleTime: Infinity, gcTime: Infinity }
 export function useCountries() {
   const q = useQuery({ queryKey: ['countries'], queryFn: () => api.listCountries(), ...REF })
   const byCode = useMemo(() => new Map<string, Country>((q.data ?? []).map((c) => [c.code, c])), [q.data])
-  const name = (code: string) => byCode.get(code)?.name ?? code
+  // Estable mientras no cambie la lista: se puede usar como dependencia de useMemo.
+  const name = useCallback((code: string) => byCode.get(code)?.name ?? code, [byCode])
   return { ...q, list: q.data ?? [], byCode, name }
 }
 

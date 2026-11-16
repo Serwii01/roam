@@ -308,7 +308,12 @@ console.log('public/flags: banderas copiadas')
     const polys = feat.geometry?.type === 'Polygon' ? [feat.geometry.coordinates] : feat.geometry?.type === 'MultiPolygon' ? feat.geometry.coordinates : []
     for (const poly of polys) {
       let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
-      for (const [x, y] of poly[0]) ((x0 = Math.min(x0, x)), (y0 = Math.min(y0, y)), (x1 = Math.max(x1, x)), (y1 = Math.max(y1, y)))
+      for (const [x, y] of poly[0]) {
+        x0 = Math.min(x0, x)
+        y0 = Math.min(y0, y)
+        x1 = Math.max(x1, x)
+        y1 = Math.max(y1, y)
+      }
       adminByCc.set(p.iso_a2, [...(adminByCc.get(p.iso_a2) ?? []), { label, poly, bbox: [x0, y0, x1, y1] }])
     }
   }

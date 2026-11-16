@@ -6,13 +6,13 @@
 Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al llegar, probados en móvil real. En la rama `feat/viaje-sin-conexion-y-reservas` (56eea96, en GitHub, sin fusionar) están los documentos sin conexión, las reservas desde un correo, la ficha del país y la foto del ticket: pasan `tsc`, `lint`, `test:db` y build, y funcionan en modo demo. Producción ya tiene las 18 migraciones, incluida la de tickets. Falta probar la rama en un móvil real antes de fusionarla.
 
 ## Siguientes pasos
-- [ ] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
+- [x] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
 - [ ] Comprobar que `VITE_OAUTH_PROVIDERS=google` está en Vercel y que el acceso con Google está configurado (ver README)
-- [ ] Probar en un móvil real: instalación, avisos, modo sin conexión y pantalla «Hoy»
+- [x] Probar en un móvil real: instalación, avisos, modo sin conexión y pantalla «Hoy»
 - [ ] Poner al día la portada del README: la tabla de stack aún dice que OAuth es «más adelante» y no menciona las funciones de Vercel
 - [ ] Revisar los puntos de «Antes de publicar» del README: región de Supabase, datos legales y marca «ROAM» en OEPM y EUIPO
-- [ ] Valorar una CI mínima (`tsc`, `lint`, `test:db`) en GitHub Actions: ahora no hay ninguna
-- [ ] Tests de `outbox.ts` y de los saldos de gastos, y después la CI mínima
+- [x] CI mínima en GitHub Actions (`.github/workflows/ci.yml`): `tsc`, `lint`, `npm test` y `test:db` en cada push
+- [x] Tests con Vitest de `outbox.ts` y de los saldos de gastos (`src/lib/*.test.ts`, `npm test`)
 - [ ] Borrar las ramas `docs/claude-status` y `feat/revive-recuerdos-sello`, aquí y en GitHub
 - [ ] Probar en un móvil real la rama `feat/viaje-sin-conexion-y-reservas`: visor de PDF en modo avión, tickets sin conexión y reservas con correos reales
 - [ ] Revisar los datos de `src/lib/countryFacts.ts` (sobre todo los teléfonos de emergencia) y el enlace a Exteriores, que no se pudo comprobar
@@ -61,8 +61,8 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 
 ## Problemas conocidos
 - `.env.local` no tiene `VITE_VAPID_PUBLIC_KEY` ni `VITE_OAUTH_PROVIDERS`: en local no se pueden probar los avisos ni el botón de Google.
-- 61 avisos de `oxlint`, en su mayoría reglas de React (`Date` durante el render, `setState` en efectos). No bloquean.
-- Sin tests de frontend: la lógica de `outbox.ts`, `days.ts` y los saldos de gastos no tiene pruebas automáticas.
+- 52 avisos de `oxlint`: `setState` en efectos (22), `only-export-components` (19, solo afecta a la recarga en caliente), `Date` durante el render y dos falsos positivos de refs en el arrastre. No bloquean.
+- Sin tests de componentes: hay tests de la lógica de `outbox.ts`, `money.ts` (saldos) y `days.ts` (fechas y orden del plan).
 - `version` sigue en `0.0.0` en `package.json`.
 - `public/geo/world.json` está simplificado: deja fuera ciudades de costa e islas (Estambul, Reikiavik, Fiyi). `arrivalCountry` lo suple con la parada del viaje a menos de 100 km; fuera de eso, no se detecta el país.
 - `.env.local` apunta a la base de producción: `npm run dev` con él trabaja con datos reales. Para probar sin tocarlos, usar modo demo.

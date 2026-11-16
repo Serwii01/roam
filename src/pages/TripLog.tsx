@@ -56,7 +56,7 @@ export function TripLogPage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const trip = useTrip(id)
-  const { name, byCode } = useCountries()
+  const { name } = useCountries()
   const airports = useAirportMap(trip.data?.stops.flatMap((s) => [s.from_airport, s.to_airport]) ?? [])
   const [viewer, setViewer] = useState<number | null>(null)
   const [sharing, setSharing] = useState(false)
@@ -111,8 +111,7 @@ export function TripLogPage() {
         return { id: p.id, url: api.photoUrl(p.path), thumb: api.photoThumbUrl(p.path), stopId: p.stop_id, stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
       })
   }, [t])
-  // `name` cambia en cada render; lo que importa es `byCode`.
-  const shareData = useMemo(() => t && tripCardData(t, airports, name), [t, airports, byCode])
+  const shareData = useMemo(() => t && tripCardData(t, airports, name), [t, airports, name])
   const sharePhotos = useMemo(() => [...new Set([...(t?.cover_url ? [t.cover_url] : []), ...gallery.map((g) => g.url)])], [t, gallery])
   const openPhoto = (pid: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === pid)))
   const closeReplay = () => {

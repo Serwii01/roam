@@ -145,7 +145,7 @@ export function WorldMap({
       }
     }
     return { type: 'FeatureCollection', features } as FeatureCollection<LineString, RouteProps>
-  }, [trips, airports, highlight])
+  }, [trips, highlight])
 
   const points = useMemo(() => {
     const seen = new Set<string>()

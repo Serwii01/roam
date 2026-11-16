@@ -62,10 +62,15 @@ export function AirportInput({
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
           if (!results.length) return
-          if (e.key === 'ArrowDown') (e.preventDefault(), setActive((i) => Math.min(i + 1, results.length - 1)))
-          else if (e.key === 'ArrowUp') (e.preventDefault(), setActive((i) => Math.max(i - 1, 0)))
-          else if (e.key === 'Enter') (e.preventDefault(), pick(results[active]), (e.target as HTMLInputElement).blur())
-          else if (e.key === 'Escape') setOpen(false)
+          if (e.key === 'Escape') return setOpen(false)
+          if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+          e.preventDefault()
+          if (e.key === 'ArrowDown') setActive((i) => Math.min(i + 1, results.length - 1))
+          else if (e.key === 'ArrowUp') setActive((i) => Math.max(i - 1, 0))
+          else {
+            pick(results[active])
+            ;(e.target as HTMLInputElement).blur()
+          }
         }}
       />
       {open && results.length > 0 && (

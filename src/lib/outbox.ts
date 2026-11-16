@@ -498,6 +498,9 @@ export function setOutboxUser(id: string | null) {
 
 export const dismissFailed = () => emit({ failed: [] })
 
+/** Estado actual de la cola, fuera de React (tests). */
+export const outboxState = () => state
+
 export function useOutbox() {
   return useSyncExternalStore(
     (l) => {

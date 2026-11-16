@@ -1,0 +1,30 @@
+# Comprobaciones en cada push y pull request: tipos, lint, tests de la lógica y base de datos (PGlite, sin Supabase).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos
+        run: npx tsc -b --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: Base de datos (migraciones, seed y RLS)
+        run: npm run test:db

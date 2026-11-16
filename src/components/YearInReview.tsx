@@ -31,8 +31,7 @@ export function YearInReview({
   const year = picked ?? years[0]
   const { byCode, name } = countries
   const r = useMemo(() => (year ? computeYear(trips, year, airports, byCode) : null), [trips, year, airports, byCode])
-  // `name` cambia en cada render; lo que importa es `byCode`.
-  const shareData = useMemo(() => r && yearCardData(r, airports, profile?.display_name || profile?.username, name), [r, airports, profile, byCode])
+  const shareData = useMemo(() => r && yearCardData(r, airports, profile?.display_name || profile?.username, name), [r, airports, profile, name])
 
   if (!r) {
     return (
