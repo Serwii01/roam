@@ -501,6 +501,8 @@ export const demoApi: Api = {
   photoThumbUrl(path) {
     return path
   },
+  // En el navegador las fotos van como data: URL y no caducan.
+  async refreshPhotos() {},
 
   async getVisited(userId) {
     const other = demoPerson(userId)

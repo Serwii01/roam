@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Avatar } from './Avatar'
 import { Logo } from './AppShell'
 import { Icon } from './Icon'
+import { PhotoImg } from './PhotoImg'
+import { usePhotoLinks } from '../lib/photoLinks'
 import { PhotoViewer, type ViewerPhoto } from './PhotoViewer'
 import { SpotifyPlayer } from './Spotify'
 import { StopSights } from './StopSights'
@@ -81,12 +83,15 @@ export function PublicTripView({ trip: t, owner }: { trip: TripWithStops; owner:
   const countries = tripCountries(t)
   const home = t.stops[0]?.country_code
   const visited = countries.length > 1 ? countries.filter((c) => c !== home) : countries
+  const links = usePhotoLinks()
   const gallery = useMemo<ViewerPhoto[]>(() => {
     const order = new Map(t.stops.map((s, i) => [s.id, i]))
     return [...t.photos]
       .sort((a, b) => (order.get(a.stop_id ?? '') ?? Infinity) - (order.get(b.stop_id ?? '') ?? Infinity))
       .map((p) => ({ id: p.id, url: api.photoUrl(p.path), caption: t.stops.find((s) => s.id === p.stop_id)?.name ?? t.title }))
-  }, [t])
+  // Los enlaces firmados cambian fuera de React (photoLinks.ts): `links` hace que la galería los vuelva a leer.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, links])
   const open = (photoId: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === photoId)))
   const ownerName = (
     <span className="flex items-center gap-2">
@@ -154,7 +159,7 @@ export function PublicTripView({ trip: t, owner }: { trip: TripWithStops; owner:
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     {photos.map((p) => (
                       <button key={p.id} onClick={() => open(p.id)} aria-label={`Ver foto de ${s.name}`} className="aspect-square overflow-hidden rounded-sm bg-surface-container">
-                        <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        <PhotoImg path={p.path} alt="" loading="lazy" className="h-full w-full object-cover" />
                       </button>
                     ))}
                   </div>

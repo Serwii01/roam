@@ -143,6 +143,11 @@ export interface Api {
   photoUrl(path: string): string
   /** Versión pequeña (miniaturas y portadas de tarjeta); si no la hay, la foto entera. */
   photoThumbUrl(path: string): string
+  /**
+   * Vuelve a firmar los enlaces de esas fotos (caducados, rechazados o aún sin firmar, como una recién subida).
+   * Las peticiones seguidas se juntan en una; avisa con photoLinksChanged().
+   */
+  refreshPhotos(paths: string[]): Promise<void>
 
   // Lugares
   getVisited(userId: string): Promise<Visited>

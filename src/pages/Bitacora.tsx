@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/Icon'
+import { PhotoImg } from '../components/PhotoImg'
 import { SharedBadge } from '../components/TripCard'
 import { Empty, Eyebrow, Flag, Spinner, formatRange, plural } from '../components/ui'
 import { WorldMap } from '../components/LazyWorldMap'
-import { api } from '../lib/api'
 import { useTravelData } from '../lib/hooks'
 import { formatKm, isDone, tripCountries, tripDays, tripKm, tripYear } from '../lib/stats'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
@@ -68,13 +68,17 @@ export function BitacoraPage() {
               </div>
               <ol className="relative space-y-3 border-l-2 border-surface-highest pl-6">
                 {ts.map((t) => {
-                  const cover = t.cover_url ?? (t.photos[0] ? api.photoThumbUrl(t.photos[0].path) : null)
+                  const coverPath = t.photos[0]?.path
                   return (
                     <li key={t.id} className="relative" onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(undefined)}>
                       <span className={`absolute -left-[31px] top-6 h-3 w-3 rounded-full border-2 border-surface ${hover === t.id ? 'bg-accent' : 'bg-ink'}`} />
                       <Link to={`/app/viajes/${t.id}`} className="card flex gap-4 overflow-hidden p-3 transition hover:-translate-y-0.5">
                         <div className="h-24 w-32 shrink-0 overflow-hidden rounded-sm bg-surface-container">
-                          {cover && <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />}
+                          {t.cover_url ? (
+                            <img src={t.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          ) : (
+                            coverPath && <PhotoImg path={coverPath} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1 py-1">
                           <div className="label-code flex flex-wrap gap-x-3 text-ink-soft">

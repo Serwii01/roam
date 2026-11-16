@@ -5,6 +5,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
 import { DayPlan } from '../components/DayPlan'
 import { Icon } from '../components/Icon'
+import { PhotoImg } from '../components/PhotoImg'
+import { usePhotoLinks } from '../lib/photoLinks'
 import { PhotoViewer, type ViewerPhoto } from '../components/PhotoViewer'
 import { SpotifyLogo, SpotifyPlayer } from '../components/Spotify'
 import { StopSights } from '../components/StopSights'
@@ -13,7 +15,7 @@ import { TripCrew } from '../components/TripCrew'
 import { TripLogistics } from '../components/TripLogistics'
 import { TripCalendar } from '../components/TripCalendar'
 import { TripShareLink } from '../components/TripShareLink'
-import { PassportAlert, WeatherChip } from '../components/Weather'
+import { PassportAlert, TripWeatherSummary, WeatherChip } from '../components/Weather'
 import { Empty, ErrorNote, Flag, Spinner, StatTile, Stars, coords, formatDate, plural } from '../components/ui'
 import { WorldMap } from '../components/LazyWorldMap'
 import { api } from '../lib/api'
@@ -29,7 +31,7 @@ import { passportWarnings } from '../lib/passportCheck'
 import { tripCardData } from '../lib/shareData'
 import { formatKm, legKm, tripCountries, tripDays, tripKm, tripModes } from '../lib/stats'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
-import { DocumentsTab, PackingTab, WeatherTab } from './Planner'
+import { DocumentsTab, PackingTab } from './Planner'
 
 const ShareSheet = lazy(() => import('../components/ShareSheet').then((m) => ({ default: m.ShareSheet })))
 const TripReplay = lazy(() => import('../components/TripReplay').then((m) => ({ default: m.TripReplay })))
@@ -99,6 +101,7 @@ export function TripLogPage() {
     if (top < 64) window.scrollBy({ top: top - 64 })
   }
 
+  const links = usePhotoLinks()
   // Todas las fotos en el orden de la ruta (las que no tienen parada, al final), para la galería y el visor.
   const gallery = useMemo<(ViewerPhoto & { thumb: string; stopId: string | null; stopName?: string })[]>(() => {
     if (!t) return []
@@ -110,7 +113,9 @@ export function TripLogPage() {
         const when = stop?.arrived_on ? formatDate(stop.arrived_on, 'long') : null
         return { id: p.id, url: api.photoUrl(p.path), thumb: api.photoThumbUrl(p.path), stopId: p.stop_id, stopName: stop?.name, caption: [p.caption, stop?.name, when].filter(Boolean).join(' · ') || t.title }
       })
-  }, [t])
+  // Los enlaces firmados cambian fuera de React (photoLinks.ts): `links` hace que la galería los vuelva a leer.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, links])
   const shareData = useMemo(() => t && tripCardData(t, airports, name), [t, airports, name])
   const sharePhotos = useMemo(() => [...new Set([...(t?.cover_url ? [t.cover_url] : []), ...gallery.map((g) => g.url)])], [t, gallery])
   const openPhoto = (pid: string) => setViewer(Math.max(0, gallery.findIndex((g) => g.id === pid)))
@@ -295,12 +300,12 @@ export function TripLogPage() {
               ) : (
                 <ReadDetails trip={t} />
               )}
-              {planned && participant && t.stops.length > 0 && (
+              {t.stops.length > 0 && (t.start_date || t.stops.some((s) => s.arrived_on)) && (
                 <section>
                   <h2 className="headline-sm mb-3 flex items-center gap-2 uppercase">
-                    <Icon name="partly_cloudy_day" className="text-accent" /> Tiempo previsto
+                    <Icon name="partly_cloudy_day" className="text-accent" /> {planned ? 'Tiempo previsto' : 'El tiempo que hizo'}
                   </h2>
-                  <WeatherTab trip={t} />
+                  <TripWeatherSummary trip={t} />
                 </section>
               )}
             </div>
@@ -936,7 +941,7 @@ function RouteTab({
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   {photos.slice(0, 6).map((p) => (
                     <button key={p.id} onClick={() => onPhoto(p.id)} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-container" aria-label={`Ver foto de ${s.name}`}>
-                      <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      <PhotoImg path={p.path} alt="" loading="lazy" className="h-full w-full object-cover" />
                     </button>
                   ))}
                 </div>

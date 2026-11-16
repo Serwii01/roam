@@ -6,6 +6,7 @@ import { AirportInput } from '../components/AirportInput'
 import { DateField, DateRangeField, daysBetween, formatDay } from '../components/DatePicker'
 import { AddFlight, FlightField } from '../components/FlightLookup'
 import { Icon } from '../components/Icon'
+import { PhotoImg } from '../components/PhotoImg'
 import { useDragOrder } from '../components/useDragOrder'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { SpotifyField } from '../components/Spotify'
@@ -1070,7 +1071,7 @@ function RecuerdosStep({
                 .filter((p) => p.stop_id === s.id)
                 .map((p) => (
                   <div key={p.id} className="relative h-20 w-28 overflow-hidden rounded-sm">
-                    <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <PhotoImg path={p.path} alt="" loading="lazy" className="h-full w-full object-cover" />
                     <button type="button" onClick={() => onDeletePhoto(p)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white" aria-label="Eliminar foto">
                       <Icon name="close" size={16} />
                     </button>
@@ -1197,7 +1198,7 @@ function PhotoStrip({ trip, onUpload }: { trip: TripWithStops | undefined | null
       <div className="grid grid-cols-3 gap-2">
         {photos.slice(0, 2).map((p) => (
           <div key={p.id} className="relative aspect-square overflow-hidden rounded-sm bg-surface-container">
-            <img src={api.photoThumbUrl(p.path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+            <PhotoImg path={p.path} alt="" loading="lazy" className="h-full w-full object-cover" />
           </div>
         ))}
         <label

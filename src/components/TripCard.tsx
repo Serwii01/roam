@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { TripWithStops } from '../lib/db'
 import { useCountries } from '../lib/hooks'
 import { formatKm, tripDays, tripKm, tripMainCountry, tripModes, type AirportMap } from '../lib/stats'
 import { TRANSPORT, TRIP_STYLES } from '../lib/transport'
 import { Icon } from './Icon'
+import { PhotoImg } from './PhotoImg'
 import { Stars, formatDate } from './ui'
 
 /** Marca de viaje compartido con el número de viajeros (creador + compañeros); nada si es solo tuyo. */
@@ -24,7 +24,7 @@ export function SharedBadge({ trip, size = 15 }: { trip: TripWithStops; size?: n
 /** `to`: adónde lleva la tarjeta (por defecto, la bitácora del viaje en la app). */
 export function TripCard({ trip, airports, to }: { trip: TripWithStops; airports: AirportMap; to?: string }) {
   const { name } = useCountries()
-  const cover = trip.cover_url ?? (trip.photos[0] ? api.photoThumbUrl(trip.photos[0].path) : null)
+  const coverPath = trip.photos[0]?.path
   const modes = tripModes(trip)
   const ratings = trip.stops.map((s) => s.rating).filter((r): r is number => !!r)
   const rating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
@@ -35,8 +35,10 @@ export function TripCard({ trip, airports, to }: { trip: TripWithStops; airports
   return (
     <Link to={to ?? `/app/viajes/${trip.id}`} className="card group block overflow-hidden transition hover:-translate-y-0.5">
       <div className="relative aspect-[16/10] overflow-hidden bg-surface-container">
-        {cover ? (
-          <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+        {trip.cover_url ? (
+          <img src={trip.cover_url} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+        ) : coverPath ? (
+          <PhotoImg path={coverPath} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
           <div className="dot-grid grid h-full place-items-center">
             <Icon name="landscape" size={40} className="text-outline-soft" />

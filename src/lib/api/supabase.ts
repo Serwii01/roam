@@ -2,6 +2,7 @@
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
 import type { Airport, Expense, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage, THUMB_MAX } from '../images'
+import { photoLinksChanged } from '../photoLinks'
 import { notifyJoin } from '../push'
 import { must, supabase } from '../supabase'
 import type { Api, NotificationPrefs } from './types'
@@ -47,7 +48,41 @@ async function signPhotos(paths: string[]) {
   // Sin enlace (p. ej. una foto antigua sin miniatura) se apunta vacío para no volver a pedirlo en un rato.
   for (const d of data ?? []) if (d.path) signed.set(d.path, { url: d.signedUrl ?? '', expires: now + SIGNED_TTL * 1000 })
   saveSigned()
+  photoLinksChanged()
   setTimeout(() => void backfillThumbs(paths), 4000)
+}
+
+// Fotos que fallaron al cargar o aún sin enlace: se firman juntas y cada una como mucho una vez cada 5 minutos
+// (sin conexión fallaría siempre, y el service worker ya sirve la foto guardada por su ruta).
+const RETRY_MS = 5 * 60_000
+const retried = new Map<string, number>()
+let queued = new Set<string>()
+let flush: Promise<void> | null = null
+
+function refreshPhotos(paths: string[]): Promise<void> {
+  const now = Date.now()
+  for (const p of paths) {
+    if (now - (retried.get(p) ?? 0) < RETRY_MS) continue
+    retried.set(p, now)
+    queued.add(p)
+  }
+  if (!queued.size) return flush ?? Promise.resolve()
+  flush ??= new Promise<void>((r) => setTimeout(r, 50)).then(async () => {
+    const batch = [...queued]
+    queued = new Set()
+    flush = null
+    // Se fuerza la firma aunque el enlace guardado aún no haya caducado: si ha fallado, no vale.
+    for (const p of batch) {
+      signed.delete(p)
+      if (p.endsWith('.jpg')) signed.delete(thumbOf(p))
+    }
+    try {
+      await signPhotos(batch)
+    } catch {
+      /* sin conexión: se reintenta pasados unos minutos */
+    }
+  })
+  return flush
 }
 
 /** Crea en segundo plano las miniaturas que faltan de tus fotos antiguas (unas pocas cada vez). */
@@ -66,7 +101,11 @@ async function backfillThumbs(paths: string[]) {
       const up = await supabase.storage.from(BUCKET).upload(thumbOf(p), thumb, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' })
       if (up.error) continue
       const { data } = await supabase.storage.from(BUCKET).createSignedUrl(thumbOf(p), SIGNED_TTL)
-      if (data?.signedUrl) signed.set(thumbOf(p), { url: data.signedUrl, expires: Date.now() + SIGNED_TTL * 1000 })
+      if (data?.signedUrl) {
+        signed.set(thumbOf(p), { url: data.signedUrl, expires: Date.now() + SIGNED_TTL * 1000 })
+        saveSigned()
+        photoLinksChanged()
+      }
     } catch {
       /* se intentará en otra sesión */
     }
@@ -417,6 +456,7 @@ export const supabaseApi: Api = {
   photoThumbUrl(path) {
     return signed.get(thumbOf(path))?.url || signed.get(path)?.url || ''
   },
+  refreshPhotos,
 
   async getVisited(userId) {
     const [c, s] = await Promise.all([

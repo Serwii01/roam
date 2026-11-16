@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
+import { PhotoImg } from '../components/PhotoImg'
 import { TripCard } from '../components/TripCard'
 import { Empty, ErrorNote, Eyebrow, Spinner, formatDate } from '../components/ui'
-import { api } from '../lib/api'
 import { WorldMap } from '../components/LazyWorldMap'
 import { CONTINENT_NAMES } from '../lib/db'
 import { UN_COUNTRY_COUNT } from '../lib/countries'
@@ -73,7 +73,9 @@ export function ExplorerPage() {
       {memory && (
         <Link to={`/app/viajes/${memory.trip.id}?revive=1`} className="card mb-6 flex items-center gap-4 p-3 hover:opacity-95">
           {memory.photo ? (
-            <img src={api.photoThumbUrl(memory.photo.path)} alt="" className="h-16 w-16 shrink-0 rounded-sm object-cover" />
+            <span className="h-16 w-16 shrink-0 overflow-hidden rounded-sm bg-surface-container">
+              <PhotoImg path={memory.photo.path} alt="" className="h-full w-full object-cover" />
+            </span>
           ) : (
             <span className="grid h-16 w-16 shrink-0 place-items-center rounded-sm bg-accent-soft text-accent-ink">
               <Icon name="public" />

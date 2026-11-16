@@ -12,6 +12,7 @@ import { buildReplay, replayFrame, type ReplayFrame } from '../lib/replay'
 import { formatKm, tripCountries, tripDays, type AirportMap } from '../lib/stats'
 import { TRANSPORT } from '../lib/transport'
 import { Icon } from './Icon'
+import { PhotoImg } from './PhotoImg'
 import { SpotifyPlayer } from './Spotify'
 import { Stamp } from './Stamp'
 import { Flag, formatDate, plural } from './ui'
@@ -217,7 +218,7 @@ export function TripReplay({
         <div className={`pointer-events-none absolute inset-x-0 flex flex-col items-center gap-3 px-4 ${atStop ? 'bottom-24 md:bottom-28' : 'inset-y-0 justify-center'}`}>
           {photo && (
             <figure key={photo.id} className="replay-photo w-[min(78vw,26rem)] rotate-[-1.5deg] bg-white p-2 pb-3 text-ink shadow-2xl">
-              <img src={api.photoUrl(photo.path)} alt={photo.caption ?? `Foto de ${stop.name}`} className="aspect-[4/3] w-full bg-black/10 object-cover" />
+              <PhotoImg full path={photo.path} alt={photo.caption ?? `Foto de ${stop.name}`} className="aspect-[4/3] w-full bg-black/10 object-cover" />
               {photo.caption && <figcaption className="mt-2 truncate px-1 text-center text-sm text-[#1a1c1d]">{photo.caption}</figcaption>}
             </figure>
           )}

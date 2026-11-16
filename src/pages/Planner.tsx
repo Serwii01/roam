@@ -5,17 +5,16 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { formatDay } from '../components/DatePicker'
 import { DocViewer } from '../components/DocViewer'
 import { Icon } from '../components/Icon'
-import { useWeather } from '../components/Weather'
-import { ErrorNote, Flag } from '../components/ui'
+import { ErrorNote } from '../components/ui'
 import { api } from '../lib/api'
-import type { DocumentKind, PackingCategory, Stop, TripDocument, TripWithStops } from '../lib/db'
+import type { DocumentKind, PackingCategory, TripDocument, TripWithStops } from '../lib/db'
 import { DOCS_AHEAD_DAYS, fetchDoc } from '../lib/docsSync'
 import { useSavedDocs } from '../lib/offlineDocs'
 import { PACKING_CATEGORIES, PACKING_ORDER, PACKING_TEMPLATES, packingSuggestions } from '../lib/packing'
-import { KIND_LABEL, weatherFor } from '../lib/weather'
+import { weatherFor } from '../lib/weather'
 
-// Pestañas del viaje que antes vivían en el planificador (/app/viajes/:id/plan): tiempo, equipaje y
-// documentos. Ahora están en la página del viaje; la dirección antigua lleva a la pestaña equivalente.
+// Pestañas del viaje que antes vivían en el planificador (/app/viajes/:id/plan): equipaje y documentos (el
+// tiempo está en el resumen del viaje, components/Weather.tsx). Ahora están en la página del viaje; la dirección antigua lleva a la pestaña equivalente.
 const OLD_TABS: Record<string, string> = { itinerario: 'dias', tiempo: 'resumen', equipaje: 'equipaje', documentos: 'documentos' }
 
 export function PlannerPage() {
@@ -23,62 +22,6 @@ export function PlannerPage() {
   const [params] = useSearchParams()
   const tab = OLD_TABS[params.get('tab') ?? 'itinerario'] ?? 'dias'
   return <Navigate to={`/app/viajes/${id}${tab === 'resumen' ? '' : `?tab=${tab}`}`} replace />
-}
-
-// ───────────────────────────── Tiempo ─────────────────────────────
-
-export function WeatherTab({ trip: t }: { trip: TripWithStops }) {
-  const stops = t.stops.map((s) => ({ s, date: s.arrived_on ?? t.start_date }))
-  return (
-    <div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {stops.map(({ s, date }, i) => (
-          <WeatherCard key={s.id} stop={s} date={date} n={i + 1} />
-        ))}
-      </div>
-      <p className="mt-4 text-xs text-ink-soft">
-        Datos del tiempo de{' '}
-        <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className="underline">
-          Open-Meteo
-        </a>{' '}
-        (CC BY 4.0). Más allá de 15 días se muestra el clima habitual de esas fechas (media de los 3 años anteriores).
-      </p>
-    </div>
-  )
-}
-
-function WeatherCard({ stop, date, n }: { stop: Stop; date: string | null; n: number }) {
-  const w = useWeather(stop.lat, stop.lon, date)
-  return (
-    <div className="card p-4">
-      <div className="flex items-center gap-2">
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs text-paper">{n}</span>
-        <span className="min-w-0 flex-1 truncate font-display font-semibold">{stop.name}</span>
-        <Flag code={stop.country_code} />
-      </div>
-      <div className="mt-1 text-sm text-ink-soft">{date ? formatDay(date) : 'Sin fecha'}</div>
-      {!date ? (
-        <p className="mt-3 text-sm text-ink-soft">Pon la fecha de llegada para ver el tiempo.</p>
-      ) : w.isError ? (
-        <p className="mt-3 text-sm text-ink-soft">No se pudo consultar el tiempo.</p>
-      ) : !w.data ? (
-        <div className="mt-3 h-16 animate-pulse rounded-sm bg-surface-container" />
-      ) : (
-        <div className="mt-3 flex items-center gap-3">
-          <Icon name={w.data.icon} size={40} className="text-accent" />
-          <div>
-            <div className="font-display text-2xl font-bold">
-              {Math.round(w.data.tmax)}° <span className="text-base font-normal text-ink-soft">/ {Math.round(w.data.tmin)}°</span>
-            </div>
-            <div className="text-sm">
-              {w.data.label} · {w.data.rain}
-            </div>
-            <div className="label-stamp mt-0.5 text-ink-soft">{KIND_LABEL[w.data.kind]}</div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ───────────────────────────── Equipaje ─────────────────────────────
