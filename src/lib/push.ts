@@ -71,11 +71,13 @@ export async function unsubscribePush(): Promise<string | null> {
   return sub.endpoint
 }
 
-async function callPush(action: 'test' | 'join' | 'done', body?: unknown) {
+async function callPush(action: 'test' | 'join' | 'done' | 'flush', body?: unknown) {
   const token = (await supabase.auth.getSession()).data.session?.access_token
   if (!token) throw new Error('Sin sesión')
   const res = await fetch(`/api/push?action=${action}`, {
     method: 'POST',
+    // Que llegue aunque se cierre la app justo después de guardar.
+    keepalive: true,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -87,6 +89,70 @@ async function callPush(action: 'test' | 'join' | 'done', body?: unknown) {
 /** Aviso de prueba a todos tus móviles con los avisos activados. Devuelve a cuántos se envió. */
 export async function sendTestPush(): Promise<number> {
   return (await callPush('test')).sent ?? 0
+}
+
+/**
+ * Envía los avisos que ha creado la base de datos con tus últimos cambios (gastos, pagos…). Se espera un momento para
+ * juntar varios seguidos. Si falla, no pasa nada: quedan en la bandeja y los recoge el siguiente envío.
+ */
+let flushTimer: ReturnType<typeof setTimeout> | undefined
+export function flushNotifications() {
+  clearTimeout(flushTimer)
+  flushTimer = setTimeout(() => void callPush('flush').catch(() => {}), 1200)
+}
+
+// ── Activados por defecto ──
+// El navegador obliga a pedir permiso con un toque: la app lo propone al entrar (PushPrompt) y, una vez dado, mantiene la
+// suscripción sola. Solo se queda sin avisos quien los desactiva en este móvil.
+const OFF_KEY = 'roam.push.off'
+const ASKED_KEY = 'roam.push.asked'
+const read = (k: string) => {
+  try {
+    return localStorage.getItem(k)
+  } catch {
+    return null
+  }
+}
+const write = (k: string, v: string | null) => {
+  try {
+    if (v === null) localStorage.removeItem(k)
+    else localStorage.setItem(k, v)
+  } catch {
+    /* sin almacenamiento: se volverá a preguntar */
+  }
+}
+export const setPushOff = (off: boolean) => write(OFF_KEY, off ? '1' : null)
+const WEEK = 7 * 86_400_000
+export const snoozePrompt = () => write(ASKED_KEY, String(Date.now()))
+
+/** Guarda la suscripción de este móvil en la cuenta. La pone supabase.ts (que importa este módulo). */
+let saveSubscription: (sub: PushSubscriptionRow) => Promise<void> = async () => {}
+export const setSaveSubscription = (fn: typeof saveSubscription) => {
+  saveSubscription = fn
+}
+
+/** Pide permiso si hace falta, suscribe este móvil y lo guarda en la cuenta. */
+export async function enablePush() {
+  const sub = await subscribePush()
+  try {
+    await saveSubscription(sub)
+  } catch (e) {
+    // La suscripción del navegador es de otra cuenta que se usó aquí: se tira y se crea una nueva.
+    if (!/row-level security|policy/i.test(String(e))) throw e
+    await unsubscribePush()
+    await saveSubscription(await subscribePush())
+  }
+}
+
+/** Qué hacer al entrar: suscribir sin preguntar (ya hay permiso), proponerlo o nada. */
+export function pushPlan(x: { support: PushSupport; permission: string; off: boolean; askedAt: number; now: number }): 'subscribe' | 'ask' | 'none' {
+  if (x.support !== 'ok' || x.off) return 'none'
+  if (x.permission === 'granted') return 'subscribe'
+  return x.permission === 'default' && x.now - x.askedAt > WEEK ? 'ask' : 'none'
+}
+export async function currentPushPlan() {
+  const support = await pushSupport()
+  return pushPlan({ support, permission: support === 'ok' ? Notification.permission : 'denied', off: read(OFF_KEY) === '1', askedAt: Number(read(ASKED_KEY) ?? 0), now: Date.now() })
 }
 
 /** Al unirse a un viaje: avisa al resto. Si falla (sin red, sin configurar), no pasa nada. */

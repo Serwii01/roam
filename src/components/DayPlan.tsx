@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DateRangeField, TimeField, formatDay } from './DatePicker'
+import { ask } from './ConfirmDialog'
 import { Icon } from './Icon'
 import { useDragOrder } from './useDragOrder'
 import { WeatherChip } from './Weather'
@@ -14,6 +15,7 @@ import { useAirportMap, useDayHops } from '../lib/hooks'
 import { dayInfo, orderDay, reorderDay, setDayTime, sightDay, tripDays, weekday, type DayInfo, type DayPatch } from '../lib/days'
 import { googleMapsDayLinks } from '../lib/googleMaps'
 import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
+import { nearOrder } from '../lib/nearOrder'
 import { findTaken, ideaZones } from '../lib/ideas'
 import { searchSights, suggestSights, type SightSuggestion } from '../lib/sights'
 
@@ -22,7 +24,7 @@ type PlannedSight = Sight & { dayN: number }
 
 export interface DayPlanOps {
   add: (stopId: string, s: NewSight) => void
-  update: (id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position' | 'day' | 'time' | 'stop_id'>>) => void
+  update: (id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position' | 'day' | 'time' | 'stop_id' | 'lat' | 'lon' | 'wiki_url'>>) => void
   remove: (id: string) => void
 }
 
@@ -176,10 +178,12 @@ export function DayPlan({ trip, ops, editable = true, onSetDates }: { trip: Trip
 
 /**
  * Abre en Google Maps los sitios del día en el orden del plan: uno, como búsqueda; varios, como ruta a pie
- * (en Google Maps se puede cambiar a transporte público o coche). Con más de 11 sitios, en varias partes.
+ * (en Google Maps se puede cambiar a transporte público o coche). Si no caben en una ruta, en varias partes.
  */
-function GoogleMapsDay({ sights, stop, compact = false }: { sights: Sight[]; stop: Stop; compact?: boolean }) {
+function GoogleMapsDay({ sights: all, stop, compact = false }: { sights: Sight[]; stop: Stop; compact?: boolean }) {
+  const sights = all.filter((s) => !isNote(s)) // las notas no son sitios
   const links = googleMapsDayLinks(sights, stop)
+  const lost = sights.filter((s) => s.lat == null || s.lon == null).length
   if (!links.length) return null
   const label = sights.length === 1 ? 'Ver en Google Maps' : 'Ruta del día en Google Maps'
   return (
@@ -193,10 +197,15 @@ function GoogleMapsDay({ sights, stop, compact = false }: { sights: Sight[]; sto
           className={compact ? 'label-code flex items-center gap-1 text-accent-deep hover:underline' : 'btn btn-ghost px-3! py-1.5! text-sm'}
         >
           <Icon name="directions_walk" size={compact ? 14 : 18} className="text-accent" />
-          {links.length > 1 ? `${label} · parte ${i + 1}` : label}
+          {links.length > 1 ? `${compact ? 'Ruta' : 'Ruta del día'} · parte ${i + 1} de ${links.length}` : label}
           <Icon name="open_in_new" size={compact ? 12 : 14} className="text-ink-soft" />
         </a>
       ))}
+      {lost > 0 && !compact && (
+        <p className="w-full text-xs text-ink-soft">
+          {lost === 1 ? '1 sitio no tiene ubicación' : `${lost} sitios no tienen ubicación`}: Google los busca por el nombre y puede no acertar.
+        </p>
+      )}
     </div>
   )
 }
@@ -241,6 +250,18 @@ function DayCard({
   const hops = useDayHops(sights)
   const hopTo = new Map(hops.map((h) => [h.to.id, h]))
   const totals = dayTotals(hops)
+  // Solo en viajes por hacer: en uno ya hecho, el orden es el que se siguió.
+  const near = editable && planned ? nearOrder(sights) : null
+  async function sortNear() {
+    if (!near) return
+    const ok = await ask({
+      title: '¿Ordenar el día por cercanía?',
+      body: `Empieza por el mismo sitio y ahorra unos ${distance(near.saved)} en línea recta. Después puedes mover los sitios como quieras.`,
+      confirm: 'Ordenar',
+      icon: 'route',
+    })
+    if (ok) near.order.forEach((s, i) => s.position !== i && ops.update(s.id, { position: i }))
+  }
   const toDay = (s: Sight, d: string) => {
     const target = infos.find((x) => x.day === d)?.stop
     ops.update(s.id, { day: d, ...(target && target.id !== s.stop_id ? { stop_id: target.id } : {}) })
@@ -328,6 +349,7 @@ function DayCard({
               onMove={(dir) => reorder(i, i + dir)}
               onDay={(d) => toDay(s, d)}
               onRemove={() => ops.remove(s.id)}
+              onLocate={(x) => ops.update(s.id, { lat: x.lat, lon: x.lon, ...(x.url ? { wiki_url: x.url } : {}) })}
             />
           ))}
         </ol>
@@ -347,6 +369,11 @@ function DayCard({
             </span>
           )}
         </p>
+      )}
+      {near && (
+        <button type="button" className="btn btn-ghost mt-3 px-3! py-1.5! text-sm" onClick={sortNear}>
+          <Icon name="route" size={18} className="text-accent" /> Ordenar por cercanía (−{distance(near.saved)})
+        </button>
       )}
       {stop && <GoogleMapsDay sights={places} stop={stop} />}
 
@@ -392,6 +419,7 @@ function SightRow({
   onMove,
   onDay,
   onRemove,
+  onLocate,
 }: {
   /** Asa para arrastrar (useDragOrder) y cómo se mueve la fila mientras tanto. */
   handle: React.ReactNode
@@ -415,7 +443,11 @@ function SightRow({
   onMove: (dir: -1 | 1) => void
   onDay: (d: string) => void
   onRemove: () => void
+  /** Pone (o corrige) la ubicación del sitio. */
+  onLocate: (x: SightSuggestion) => void
 }) {
+  const [locating, setLocating] = useState(false)
+  const unlocated = !isNote(s) && (s.lat == null || s.lon == null)
   const [name, setName] = useState(s.name)
   const [menu, setMenu] = useState(false)
   useEffect(() => setName(s.name), [s.name])
@@ -473,6 +505,23 @@ function SightRow({
             </button>
           )}
         </div>
+        {unlocated && editable && stop && !locating && (
+          <button type="button" onClick={() => setLocating(true)} className="ml-9 mt-0.5 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-accent-deep hover:underline">
+            <Icon name="location_on" size={14} /> Sin ubicación: ponla para que la ruta sea exacta
+          </button>
+        )}
+        {locating && stop && (
+          <LocatePlace
+            initial={s.name}
+            stop={stop}
+            onCancel={() => setLocating(false)}
+            onPick={(x) => {
+              onLocate(x)
+              setLocating(false)
+              setMenu(false)
+            }}
+          />
+        )}
         {menu && editable && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-surface-highest pt-1.5 text-sm">
             <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft disabled:opacity-30">
@@ -500,6 +549,11 @@ function SightRow({
                 ))}
               </select>
             </label>
+            {!note && stop && (
+              <button type="button" onClick={() => setLocating(true)} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 ring-1 ring-outline-soft">
+                <Icon name="location_on" size={14} /> {unlocated ? 'Ubicar en el mapa' : 'Corregir ubicación'}
+              </button>
+            )}
             <button type="button" onClick={onRemove} className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-red-700 hover:bg-red-50">
               <Icon name="delete" size={14} /> Quitar
             </button>
@@ -535,6 +589,48 @@ function HopLine({ hop, stop, faded }: { hop: Hop<Sight>; stop?: Stop; faded: bo
           {hop.tight === 0 ? 'No da tiempo: misma hora que el anterior' : `No da tiempo: solo ${minutes(hop.tight)} desde las ${hop.from.time!.slice(0, 5)}`}
         </span>
       )}
+    </div>
+  )
+}
+
+/** Busca dónde está un sitio escrito a mano (o mal situado) y guarda su ubicación; el nombre no cambia. */
+function LocatePlace({ initial, stop, onPick, onCancel }: { initial: string; stop: Stop; onPick: (x: SightSuggestion) => void; onCancel: () => void }) {
+  const [q, setQ] = useState(initial)
+  const found = useQuery({
+    queryKey: ['locate', q.trim(), stop.id],
+    queryFn: async ({ signal }) => {
+      // Espera a que se deje de escribir.
+      await new Promise((r) => setTimeout(r, 350))
+      return signal.aborted ? [] : searchSights(q, stop.lat, stop.lon, signal)
+    },
+    enabled: q.trim().length >= 2,
+    retry: false,
+  })
+  return (
+    <div className="mt-1.5 rounded-sm bg-card p-2 ring-1 ring-accent">
+      <div className="flex items-center gap-2">
+        <input autoFocus aria-label="Buscar la ubicación" className="field min-w-0 flex-1 py-2!" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Buscar cerca de ${stop.name}`} />
+        <button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container" aria-label="Cancelar" onClick={onCancel}>
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+      <ul className="mt-1">
+        {(found.data ?? []).map((r) => (
+          <li key={`${r.title}${r.lat}`}>
+            <button type="button" onClick={() => onPick(r)} className="flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-low">
+              <Icon name="location_on" size={16} className="shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{r.title}</span>
+                {r.description && <span className="block truncate text-xs text-ink-soft">{r.description}</span>}
+              </span>
+              <span className="label-stamp shrink-0 text-ink-soft">{r.km < 1 ? '<1 km' : `${Math.round(r.km)} km`}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {found.isFetching && <p className="px-2 py-1 text-xs text-ink-soft">Buscando…</p>}
+      {found.isError && <p className="px-2 py-1 text-xs text-red-700">No se pudo buscar. Comprueba la conexión.</p>}
+      {found.isSuccess && !found.isFetching && !found.data.length && <p className="px-2 py-1 text-xs text-ink-soft">Sin resultados: prueba con otro nombre o con la calle.</p>}
     </div>
   )
 }

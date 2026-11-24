@@ -261,7 +261,7 @@ export function LandingPage() {
 
       <footer className="bg-surface-low">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 md:px-12">
-          <span className="label-stamp text-ink-soft">ROAM · Kinetic travel tracker</span>
+          <span className="label-stamp text-ink-soft">ROAM · Tus viajes en un mapa</span>
           <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
             <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
               © colaboradores de OpenStreetMap

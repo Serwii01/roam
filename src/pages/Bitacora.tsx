@@ -13,7 +13,7 @@ export function BitacoraPage() {
   const { loading, trips, stats, airports } = useTravelData()
   const [view, setView] = useState<'done' | 'planned'>('done')
   const [hover, setHover] = useState<string | undefined>()
-  if (loading) return <Spinner label="Abriendo archivo" />
+  if (loading) return <Spinner label="Cargando tus viajes" />
 
   const list = trips.filter((t) => (view === 'done' ? isDone(t) : !isDone(t)))
   const byYear = new Map<string, typeof list>()
@@ -26,14 +26,14 @@ export function BitacoraPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <Eyebrow>Archivo de expediciones // {plural(stats.trips, 'registro', 'registros')}</Eyebrow>
+          <Eyebrow>{plural(stats.trips, 'registro', 'registros')}</Eyebrow>
           <h1 className="display-hero mt-3">Bitácora & rutas</h1>
           <p className="mt-3 text-lg text-ink-soft">
             {plural(stats.trips, 'expedición completada', 'expediciones completadas')} · {plural(stats.planned, 'planificada', 'planificadas')} ·{' '}
             <span className="text-accent">{formatKm(stats.totalKm)} km</span>
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="chip-row w-[calc(100%+2rem)] md:w-auto">
           <button className="chip" aria-pressed={view === 'done'} onClick={() => setView('done')}>
             Completadas
           </button>
@@ -61,19 +61,19 @@ export function BitacoraPage() {
           {[...byYear].map(([year, ts]) => (
             <section key={year}>
               <div className="mb-4 flex items-baseline gap-3">
-                <h2 className="font-display text-5xl font-bold tracking-tight">{year}</h2>
+                <h2 className="font-display text-4xl font-bold md:text-5xl tracking-tight">{year}</h2>
                 <span className="label-code text-ink-soft">
                   {plural(ts.length, 'viaje', 'viajes')} · {formatKm(ts.reduce((a, t) => a + tripKm(t, airports), 0))} km
                 </span>
               </div>
-              <ol className="relative space-y-3 border-l-2 border-surface-highest pl-6">
+              <ol className="relative space-y-3 border-l-2 border-surface-highest pl-4 sm:pl-6">
                 {ts.map((t) => {
                   const coverPath = t.photos[0]?.path
                   return (
                     <li key={t.id} className="relative" onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(undefined)}>
-                      <span className={`absolute -left-[31px] top-6 h-3 w-3 rounded-full border-2 border-surface ${hover === t.id ? 'bg-accent' : 'bg-ink'}`} />
+                      <span className={`absolute -left-[23px] top-6 sm:-left-[31px] h-3 w-3 rounded-full border-2 border-surface ${hover === t.id ? 'bg-accent' : 'bg-ink'}`} />
                       <Link to={`/app/viajes/${t.id}`} className="card flex gap-4 overflow-hidden p-3 transition hover:-translate-y-0.5">
-                        <div className="h-24 w-32 shrink-0 overflow-hidden rounded-sm bg-surface-container">
+                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-sm bg-surface-container sm:w-32">
                           {t.cover_url ? (
                             <img src={t.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
                           ) : (
@@ -87,10 +87,10 @@ export function BitacoraPage() {
                             {t.style && <span className="text-accent-deep">{TRIP_STYLES[t.style].label}</span>}
                             <SharedBadge trip={t} size={14} />
                           </div>
-                          <h3 className="headline-sm mt-1 truncate">{t.title}</h3>
-                          <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-soft">
+                          <h3 className="headline-sm mt-1 line-clamp-2">{t.title}</h3>
+                          <div className="mt-2 line-clamp-2 text-sm text-ink-soft sm:flex sm:flex-wrap sm:items-center sm:gap-x-1.5 sm:gap-y-1">
                             {t.stops.map((s, i) => (
-                              <span key={s.id} className="flex items-center gap-1.5">
+                              <span key={s.id} className="mr-1.5 inline-flex items-center gap-1.5 align-middle sm:mr-0">
                                 {i > 0 && <Icon name={TRANSPORT[s.transport_in ?? 'car'].icon} size={14} className="text-accent" />}
                                 {s.name}
                               </span>

@@ -7,7 +7,7 @@ vi.mock('../supabase', () => ({
   must: (r: unknown) => r,
   supabase: { storage: { from: () => ({ createSignedUrls }) }, auth: { getSession: async () => ({ data: { session: null } }) } },
 }))
-vi.mock('../push', () => ({ notifyJoin: () => {} }))
+vi.mock('../push', () => ({ notifyJoin: () => {}, flushNotifications: () => {}, setSaveSubscription: () => {} }))
 vi.mock('../images', () => ({ prepareImage: async (f: File) => f, THUMB_MAX: 640 }))
 
 let api: typeof import('./supabase')['supabaseApi']

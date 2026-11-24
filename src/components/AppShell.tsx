@@ -1,9 +1,10 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useOfflineDocsSync } from '../lib/docsSync'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../lib/auth'
+import { useAuth, useUser } from '../lib/auth'
 import { UN_COUNTRY_COUNT, loadWorldShapes } from '../lib/countries'
 import { useProfile, useTravelData } from '../lib/hooks'
+import { useNotifications } from '../lib/live'
 import { takePendingInvite } from '../lib/invites'
 import { activeTrip, localDate } from '../lib/today'
 import { ArrivalStamp } from './ArrivalStamp'
@@ -12,6 +13,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { Icon } from './Icon'
 import { OfflineStatus, SyncErrors } from './OfflineStatus'
 import { InstallBanner } from './Pwa'
+import { PushPrompt } from './PushPrompt'
 import { Spinner } from './ui'
 
 const TODAY = { to: '/app/hoy', label: 'Hoy', short: 'Hoy', icon: 'today', end: false }
@@ -42,7 +44,7 @@ export function Logo({ to = '/' }: { to?: string }) {
       <img src="/favicon.svg" alt="" className="h-8 w-8" />
       <span className="flex flex-col leading-none">
         <span className="font-display text-lg font-semibold uppercase tracking-tight">ROAM</span>
-        <span className="label-stamp mt-0.5 hidden text-ink-soft sm:block">Kinetic Travel Tracker</span>
+        <span className="label-stamp mt-0.5 hidden text-ink-soft sm:block">Tus viajes</span>
       </span>
     </Link>
   )
@@ -77,6 +79,9 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-sm focus:bg-ink focus:px-4 focus:py-2 focus:text-paper">
+        Saltar al contenido
+      </a>
       {demo && (
         <div className="label-stamp bg-night px-4 py-1.5 text-center text-white/80">
           Modo demo · los datos se guardan en este navegador · configura Supabase en <code>.env.local</code> para usar cuentas reales
@@ -112,12 +117,13 @@ export function AppShell() {
               Registrar viaje
             </Link>
             <OfflineStatus />
+            <Bell />
             <UserMenu />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-28 pt-6 md:px-12 md:pt-8 xl:pb-16">
+      <main id="contenido" tabIndex={-1} className="outline-none mx-auto w-full max-w-[1400px] flex-1 px-4 pb-28 pt-6 md:px-12 md:pt-8 xl:pb-16">
         {/* La cabecera se queda mientras se descarga la pantalla; un fallo en ella no tumba la app. */}
         <ErrorBoundary key={location.pathname}>
           <Suspense fallback={<Spinner />}>
@@ -129,12 +135,13 @@ export function AppShell() {
       <BottomNav />
       <SyncErrors />
       <InstallBanner />
+      <PushPrompt />
       <ArrivalStamp />
 
       <footer className="bg-surface-low pb-20 xl:pb-0">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 md:px-12">
-          <span className="label-stamp text-ink-soft">ROAM archive v1.0 · expedition telemetry</span>
-          <nav className="label-code flex gap-6 text-ink-soft">
+          <span className="label-stamp text-ink-soft">ROAM · tus viajes en un mapa</span>
+          <nav className="label-code flex flex-wrap gap-x-5 gap-y-2 text-ink-soft [&>a]:whitespace-nowrap">
             <Link to="/app">Explorador</Link>
             <Link to="/app/bitacora">Bitácora</Link>
             <Link to="/app/pasaporte">Pasaporte</Link>
@@ -151,6 +158,18 @@ export function AppShell() {
         </div>
       </footer>
     </div>
+  )
+}
+
+/** Campana con los avisos sin leer. */
+function Bell() {
+  const user = useUser()
+  const { unread } = useNotifications(user.id)
+  return (
+    <Link to="/app/avisos" aria-label={unread ? `Avisos: ${unread} sin leer` : 'Avisos'} className="relative grid h-11 w-11 place-items-center rounded-full text-ink-soft hover:bg-surface-low hover:text-ink">
+      <Icon name="notifications" size={24} />
+      {unread > 0 && <span className="absolute right-0.5 top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[11px] font-bold leading-none text-white ring-2 ring-surface">{unread > 9 ? '9+' : unread}</span>}
+    </Link>
   )
 }
 
@@ -241,7 +260,12 @@ function BottomNav() {
   const { pathname } = useLocation()
   useEffect(() => setMore(false), [pathname])
   const { mobile: main, more: rest } = useNav()
+  const { trips } = useTravelData()
   const inRest = rest.some((n) => pathname.startsWith(n.to))
+  // «+» según dónde estés: dentro de un viaje (o en Hoy, durante uno) apunta un gasto; en el resto, registra un viaje.
+  const open = pathname.match(/^\/app\/viajes\/([^/]+)$/)?.[1]
+  const here = pathname === '/app/hoy' ? activeTrip(trips, localDate())?.trip : trips.find((t) => t.id === open)
+  const plus = here ? { to: `/app/viajes/${here.id}?tab=gastos&nuevo=1`, label: 'Gasto', aria: 'Apuntar un gasto' } : { to: '/app/viajes/nuevo', label: 'Nuevo', aria: 'Registrar viaje' }
   // En el editor y el importador manda su propia barra de acciones de abajo.
   if (/\/(viajes\/nuevo|editar|importar)$/.test(pathname)) return null
   const item = (active: boolean) => `flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-semibold transition ${active ? 'text-accent-deep' : 'text-ink-soft'}`
@@ -283,11 +307,11 @@ function BottomNav() {
             )}
           </NavLink>
         ))}
-        <Link to="/app/viajes/nuevo" aria-label="Registrar viaje" className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[11px] font-semibold text-ink">
+        <Link to={plus.to} aria-label={plus.aria} className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[11px] font-semibold text-ink">
           <span className="-mt-5 grid h-12 w-12 place-items-center rounded-full bg-accent text-white shadow-lg ring-4 ring-surface">
             <Icon name="add" size={26} />
           </span>
-          Nuevo
+          {plus.label}
         </Link>
         <NavLink to={main[2].to} className={({ isActive }) => item(isActive)}>
           {({ isActive }) => (

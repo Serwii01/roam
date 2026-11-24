@@ -28,6 +28,8 @@ const CreditsPage = page(() => import('./pages/Legal'), 'CreditsPage')
 const InvitePage = page(() => import('./pages/Invite'), 'InvitePage')
 const ImportPage = page(() => import('./pages/Import'), 'ImportPage')
 const FriendsPage = page(() => import('./pages/Friends'), 'FriendsPage')
+const NotificationsPage = page(() => import('./pages/Notifications'), 'NotificationsPage')
+const QuickExpensePage = page(() => import('./pages/QuickExpense'), 'QuickExpensePage')
 const PlannerPage = page(() => import('./pages/Planner'), 'PlannerPage')
 const TodayPage = page(() => import('./pages/Today'), 'TodayPage')
 const SharedTripPage = page(() => import('./pages/Public'), 'SharedTripPage')
@@ -94,6 +96,8 @@ export default function App() {
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route index element={<ExplorerPage />} />
           <Route path="bitacora" element={<BitacoraPage />} />
+          <Route path="avisos" element={<NotificationsPage />} />
+          <Route path="gasto" element={<QuickExpensePage />} />
           <Route path="hoy" element={<TodayPage />} />
           <Route path="viajes/nuevo" element={<TripEditorPage />} />
           <Route path="importar" element={<ImportPage />} />

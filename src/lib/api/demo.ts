@@ -1,11 +1,11 @@
 // Modo demo: misma interfaz que Supabase, con los datos del usuario en localStorage y la
 // referencia (países, subdivisiones, aeropuertos) leída de /data/*.json, generados por `npm run data`.
-import type { Airport, Country, Expense, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops, LegDetail, Lodging } from '../db'
+import type { Airport, Country, Expense, ExpenseChange, InvitePreview, Photo, Sight, Stop, Subdivision, Trip, TripInvite, TripWithStops, LegDetail, Lodging } from '../db'
 import { nearestAirportLocal, searchAirportsLocal } from '../airportIndex'
 import { prepareImage } from '../images'
 import { demoState, DEMO_USER_ID, type DemoState } from './demo-data'
 import { DEMO_PEOPLE, demoPerson } from './demo-people'
-import type { Api } from './types'
+import { ALL_NOTIFICATIONS, type Api } from './types'
 
 const KEY = 'rumbo-demo-v1'
 
@@ -15,7 +15,7 @@ function load(): DemoState {
   try {
     const raw = localStorage.getItem(KEY)
     // Estados guardados por versiones anteriores no tienen compañeros ni invitaciones.
-    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], lodgings: [], legs: [], receipts: {}, ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
+    if (raw) return { members: [], invites: [], sights: [], budgets: [], expenses: [], follows: [], packing: [], documents: [], lodgings: [], legs: [], receipts: {}, history: [], ...(JSON.parse(raw) as Partial<DemoState>) } as DemoState
   } catch {
     /* almacenamiento no disponible: se usa el estado inicial en memoria */
   }
@@ -37,6 +37,15 @@ export function resetDemo() {
 
 const delay = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), 60))
 const uid = () => crypto.randomUUID()
+/** Lo que en Supabase hacen los disparadores: estado de los pagos, historial y cuentas cerradas. */
+function checkOpen(tripId: string) {
+  if (state.budgets.find((b) => b.trip_id === tripId)?.closed_at) throw new Error('Las cuentas de este viaje están cerradas. Reábrelas para cambiar los gastos.')
+}
+function logChange(action: ExpenseChange['action'], before: Expense | null, after: Expense | null) {
+  const e = (after ?? before)!
+  state.history.unshift({ id: Date.now() + state.history.length, trip_id: e.trip_id, expense_id: e.id, actor_id: DEMO_USER_ID, action, before: structuredClone(before), after: structuredClone(after), created_at: now() })
+  state.history = state.history.slice(0, 200)
+}
 const now = () => new Date().toISOString()
 
 // ── Referencia ──
@@ -436,28 +445,50 @@ export const demoApi: Api = {
     return delay(state.budgets.find((b) => b.trip_id === tripId) ?? null)
   },
   async setBudget(tripId, budget) {
-    const b = { trip_id: tripId, ...budget, updated_at: now() }
+    const b = { ...state.budgets.find((x) => x.trip_id === tripId), trip_id: tripId, ...budget, updated_at: now() }
     state.budgets = [...state.budgets.filter((x) => x.trip_id !== tripId), b]
     save()
     return delay(b)
+  },
+  async setAccountsClosed(tripId, closed) {
+    state.budgets = state.budgets.map((b) => (b.trip_id === tripId ? { ...b, closed_at: closed ? now() : null, closed_by: closed ? DEMO_USER_ID : null } : b))
+    save()
+  },
+  async listExpenseHistory(tripId) {
+    return delay(state.history.filter((h) => h.trip_id === tripId))
   },
   async listExpenses(tripId) {
     const key = (e: Expense) => `${e.spent_on ?? '9999'}${e.created_at}`
     return delay(state.expenses.filter((e) => e.trip_id === tripId).sort((a, b) => key(a).localeCompare(key(b))))
   },
   async addExpense(tripId, input) {
+    checkOpen(tripId)
     const e: Expense = { id: uid(), trip_id: tripId, user_id: DEMO_USER_ID, stop_id: null, paid_by: null, description: null, rate: 1, spent_on: null, created_at: now(), ...input }
+    if (e.category === 'settlement') {
+      const to = e.split?.[0]?.k
+      e.payment_status = !to?.startsWith('u:') || to === `u:${DEMO_USER_ID}` ? 'confirmed' : 'pending'
+      e.transfer_kind ??= 'payment'
+    }
     state.expenses.push(e)
+    logChange('insert', null, e)
     save()
     return delay(e)
   },
   async updateExpense(id, patch) {
-    state.expenses = state.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    const before = state.expenses.find((e) => e.id === id)!
+    if (Object.keys(patch).join() !== 'payment_status') checkOpen(before.trip_id)
+    const after = { ...before, ...patch }
+    state.expenses = state.expenses.map((e) => (e.id === id ? after : e))
+    logChange('update', before, after)
     save()
-    return delay(state.expenses.find((e) => e.id === id)!)
+    return delay(after)
   },
   async deleteExpense(id) {
-    const path = state.expenses.find((e) => e.id === id)?.receipt_path
+    const gone = state.expenses.find((e) => e.id === id)
+    if (!gone) return
+    checkOpen(gone.trip_id)
+    logChange('delete', gone, null)
+    const path = gone.receipt_path
     if (path) delete state.receipts[path]
     state.expenses = state.expenses.filter((e) => e.id !== id)
     save()
@@ -545,7 +576,15 @@ export const demoApi: Api = {
   },
   async deletePushSubscription() {},
   async getNotificationPrefs() {
-    return { travel: true, lodging: true, passport: true, social: true, memories: true }
+    return ALL_NOTIFICATIONS
+  },
+  // Sin servidor no hay avisos ni cambios de otros.
+  async listNotifications() {
+    return []
+  },
+  async markNotificationsRead() {},
+  watch() {
+    return () => {}
   },
   async setNotificationPrefs() {},
   // El calendario se sirve desde el servidor: en el modo demo (todo en el navegador) no hay de dónde leerlo.

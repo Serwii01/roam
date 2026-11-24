@@ -4,10 +4,13 @@ import { Icon } from './Icon'
 import { ErrorNote } from './ui'
 import { api } from '../lib/api'
 import type { NotificationPrefs } from '../lib/api/types'
-import { currentSubscription, pushSupport, sendTestPush, subscribePush, unsubscribePush, type PushSupport } from '../lib/push'
+import { currentSubscription, enablePush, pushSupport, sendTestPush, setPushOff, unsubscribePush, type PushSupport } from '../lib/push'
 
 const KINDS: { id: keyof NotificationPrefs; label: string; hint: string }[] = [
-  { id: 'travel', label: 'Vuelos y trenes', hint: 'El día antes: a qué hora sales, compañía y reserva.' },
+  { id: 'expenses', label: 'Gastos', hint: 'Al momento: cuando un compañero apunta, cambia o borra un gasto que te toca.' },
+  { id: 'payments', label: 'Pagos', hint: 'Al momento: cuando te pagan, te confirman un pago o se cierran las cuentas.' },
+  { id: 'reminders', label: 'Recordatorios', hint: 'Deudas al acabar el viaje, pagos por confirmar y gastos de ayer sin apuntar.' },
+  { id: 'travel', label: 'Vuelos y trenes', hint: 'El día antes: a qué hora sales, compañía, reserva y el check-in.' },
   { id: 'lodging', label: 'Alojamiento', hint: 'El día de entrada: desde qué hora, dirección y reserva.' },
   { id: 'passport', label: 'Pasaporte', hint: 'A 60, 30 y 7 días de un viaje, si te falta o caduca pronto.' },
   { id: 'social', label: 'Compañeros', hint: 'Cuando alguien se une a uno de tus viajes o un viaje compartido pasa a realizado.' },
@@ -34,12 +37,17 @@ export function NotificationsCard() {
 
   const prefs = useQuery({ queryKey: ['notification-prefs'], queryFn: () => api.getNotificationPrefs() })
   const enable = useMutation({
-    mutationFn: async () => api.savePushSubscription(await subscribePush()),
+    mutationFn: async () => {
+      setPushOff(false)
+      await enablePush()
+    },
     onSuccess: () => setSubscribed(true),
     onSettled: () => void pushSupport().then(setSupport),
   })
   const disable = useMutation({
     mutationFn: async () => {
+      // Que no se vuelvan a activar solos en este móvil.
+      setPushOff(true)
       const endpoint = await unsubscribePush()
       if (endpoint) await api.deletePushSubscription(endpoint)
     },
@@ -61,7 +69,7 @@ export function NotificationsCard() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="font-display font-semibold">Avisos en el móvil</div>
-          <p className="text-sm text-ink-soft">Cada mañana, lo que te toca: el vuelo o el tren de mañana, la entrada al alojamiento y el pasaporte antes de un viaje.</p>
+          <p className="text-sm text-ink-soft">Al momento, los gastos y pagos de tus compañeros. Cada mañana, los vuelos, el alojamiento y los recordatorios.</p>
         </div>
         <span className={`label-code flex items-center gap-1 ${subscribed ? 'text-accent-deep' : 'text-ink-soft'}`}>
           <Icon name={subscribed ? 'notifications_active' : 'notifications_off'} size={14} /> {subscribed ? 'Activados' : 'Desactivados'}
@@ -90,7 +98,7 @@ export function NotificationsCard() {
                   </span>
                 </label>
               ))}
-              <p className="text-xs text-ink-soft">Llegan hacia las 9:00 (hora de España). Lo que elijas vale para todos tus móviles.</p>
+              <p className="text-xs text-ink-soft">Los de cada mañana llegan hacia las 9:00 (hora de España). Todos están activados por defecto y lo que elijas vale para todos tus móviles.</p>
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">

@@ -38,7 +38,7 @@ export function CountriesPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <Eyebrow>Registro territorial // ISO 3166</Eyebrow>
+          <Eyebrow>Lo que has visitado</Eyebrow>
           <h1 className="display-hero mt-3">
             {stats.countries.length} <span className="text-outline">/ {UN_COUNTRY_COUNT} países</span>
           </h1>

@@ -388,7 +388,7 @@ export function WorldMap({
       {telemetry && (
         <div className="card pointer-events-none absolute left-4 top-4 hidden items-center gap-4 px-4 py-2.5 sm:flex">
           <div>
-            <div className="label-stamp text-ink-soft">Sistema telemetría</div>
+            <div className="label-stamp text-ink-soft">Coordenadas</div>
             <Telemetry mapRef={mapRef} fallback={pinCenter} />
           </div>
         </div>

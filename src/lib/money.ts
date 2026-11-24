@@ -1,6 +1,7 @@
 // Dinero del viaje: monedas, moneda de cada país, tipos de cambio y formato.
 // Tipos de cambio: currency-api de Fawaz Ahmed (datos CC0, gratis y sin clave, servidos por jsDelivr), con
 // histórico diario: https://github.com/fawazahmed0/exchange-api
+import { isSettlement } from './balances.js'
 import type { Expense, ExpenseCategory } from './db'
 
 export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string; icon: string; color: string }> = {
@@ -54,8 +55,9 @@ export function formatMoney(amount: number, currency: string, opts: { compact?: 
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency,
-      maximumFractionDigits: opts.compact || Math.abs(amount) >= 1000 ? 0 : 2,
-      minimumFractionDigits: 0,
+      // Los céntimos se ven siempre (también por encima de 1000): son cuentas entre personas.
+      maximumFractionDigits: opts.compact ? 0 : 2,
+      minimumFractionDigits: opts.compact || Math.round(amount * 100) % 100 === 0 ? 0 : 2,
     }).format(amount)
   } catch {
     return `${amount.toLocaleString('es-ES')} ${currency}`
@@ -102,66 +104,8 @@ export function exchangeRate(from: string, to: string, date?: string | null): Pr
   return rates.get(key)!
 }
 
-/**
- * Lo que le toca a cada persona de un gasto, en la moneda del viaje. `people`: todas las del viaje.
- * Sin reparto guardado (gastos de antes de poder elegirlo) se divide entre quienes tienen cuenta, como entonces:
- * así, añadir después a un compañero sin cuenta no cambia lo que ya estaba repartido.
- */
-export function sharesOf(e: Pick<Expense, 'amount' | 'rate' | 'split_mode' | 'split'>, people: string[]): Map<string, number> {
-  const total = e.amount * e.rate
-  const out = new Map<string, number>()
-  const split = (e.split ?? []).filter((x) => x.v > 0)
-  const mode = e.split_mode ?? 'equal'
-  if (!split.length || mode === 'equal') {
-    const members = people.filter((k) => k.startsWith('u:'))
-    const who = split.length ? split.map((x) => x.k) : members.length ? members : people
-    for (const k of who) out.set(k, total / Math.max(1, who.length))
-  } else if (mode === 'percent') {
-    for (const x of split) out.set(x.k, (total * x.v) / 100)
-  } else if (mode === 'amount') {
-    for (const x of split) out.set(x.k, x.v * e.rate)
-  } else {
-    const sum = split.reduce((a, x) => a + x.v, 0)
-    for (const x of split) out.set(x.k, (total * x.v) / sum)
-  }
-  return out
-}
+// Las cuentas van en balances.js: las comparte la función de Vercel que recuerda las deudas.
+export { balancesOf, isSettlement, netBalances, settleBalances, sharesOf } from './balances.js'
 
-/** ¿Es un pago para saldar cuentas («Julia te ha pagado 45 €») y no un gasto? */
-export const isSettlement = (e: Pick<Expense, 'category'>) => e.category === 'settlement'
-/** Lo gastado de verdad (sin los pagos para saldar cuentas), en la moneda del viaje. */
+/** Lo gastado de verdad (sin los pagos entre personas), en la moneda del viaje. */
 export const totalSpent = (list: Pick<Expense, 'category' | 'amount' | 'rate'>[]) => list.reduce((a, e) => (isSettlement(e) ? a : a + e.amount * e.rate), 0)
-
-/** Saldo de cada persona (pagado − lo que le toca): positivo = le deben, negativo = debe. */
-export function balancesOf(expenses: Expense[], people: string[]) {
-  const paid = new Map<string, number>(people.map((p) => [p, 0]))
-  const owed = new Map<string, number>(people.map((p) => [p, 0]))
-  for (const e of expenses) {
-    const payer = e.payer_key ?? (e.paid_by ? `u:${e.paid_by}` : null)
-    if (!payer) continue // sin «pagó» no entra en las cuentas
-    paid.set(payer, (paid.get(payer) ?? 0) + e.amount * e.rate)
-    for (const [k, v] of sharesOf(e, people)) owed.set(k, (owed.get(k) ?? 0) + v)
-  }
-  return { paid, owed }
-}
-
-/** Quién paga a quién para quedar en paz, con el mínimo de pagos (de mayor deudor a mayor acreedor). */
-export function settleBalances(paid: Map<string, number>, owed: Map<string, number>): { from: string; to: string; amount: number }[] {
-  const keys = [...new Set([...paid.keys(), ...owed.keys()])]
-  const balance = keys.map((p) => ({ p, v: (paid.get(p) ?? 0) - (owed.get(p) ?? 0) }))
-  const debtors = balance.filter((b) => b.v < -0.005).sort((a, b) => a.v - b.v)
-  const creditors = balance.filter((b) => b.v > 0.005).sort((a, b) => b.v - a.v)
-  const out: { from: string; to: string; amount: number }[] = []
-  for (const d of debtors) {
-    let owe = -d.v
-    for (const c of creditors) {
-      if (owe < 0.005) break
-      if (c.v < 0.005) continue
-      const x = Math.min(owe, c.v)
-      out.push({ from: d.p, to: c.p, amount: x })
-      owe -= x
-      c.v -= x
-    }
-  }
-  return out
-}

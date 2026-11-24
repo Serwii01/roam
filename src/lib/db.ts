@@ -155,6 +155,9 @@ export interface TripBudget {
   currency: string
   amount: number | null
   updated_at: string
+  /** Cuentas cerradas: los gastos no se pueden cambiar hasta reabrirlas. */
+  closed_at?: string | null
+  closed_by?: string | null
 }
 
 /** Gasto de un viaje. `rate`: unidades de la moneda del viaje por cada unidad de `currency`. */
@@ -178,7 +181,35 @@ export interface Expense {
   split?: { k: string; v: number }[] | null
   /** Foto del ticket, en el bucket privado trip-docs. */
   receipt_path?: string | null
+  /** Solo en los pagos: lo confirma quien lo recibe (sin valor, confirmado). Los rechazados no cuentan. */
+  payment_status?: 'pending' | 'confirmed' | 'rejected' | null
+  /** Solo en los pagos: pago de una deuda o cambio de efectivo. */
+  transfer_kind?: 'payment' | 'cash' | null
   created_at: string
+}
+
+/** Cambio de un gasto (lo escribe la base de datos). */
+export interface ExpenseChange {
+  id: number
+  trip_id: string
+  expense_id: string
+  actor_id: string | null
+  action: 'insert' | 'update' | 'delete'
+  before: Expense | null
+  after: Expense | null
+  created_at: string
+}
+
+/** Aviso de la bandeja de la app (los mismos que llegan al móvil). */
+export interface AppNotification {
+  id: string
+  trip_id: string | null
+  kind: 'expenses' | 'payments' | 'reminders' | 'travel' | 'lodging' | 'passport' | 'social' | 'memories'
+  title: string
+  body: string
+  url: string
+  created_at: string
+  read_at: string | null
 }
 
 export type PackingCategory = 'docs' | 'clothes' | 'toiletries' | 'electronics' | 'health' | 'other'

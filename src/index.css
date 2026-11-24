@@ -113,9 +113,16 @@ body {
   background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 22px;
+  /* En rem: si en el móvil se pone la letra más grande, la app la respeta. */
+  font-size: 0.875rem;
+  line-height: 1.375rem;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Con el teclado se ve siempre dónde está el foco. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -127,9 +134,9 @@ body {
   /* Etiquetas técnicas del diseño: TELEMETRY PROTOCOL // 01-EXP */
   .label-stamp {
     font-family: var(--font-display);
-    font-size: 10px;
-    line-height: 12px;
-    letter-spacing: 0.18em;
+    font-size: 0.6875rem;
+    line-height: 0.875rem;
+    letter-spacing: 0.12em;
     font-weight: 700;
     text-transform: uppercase;
   }
@@ -147,8 +154,9 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: -0.04em;
-    font-size: 40px;
-    line-height: 44px;
+    font-size: 32px;
+    line-height: 36px;
+    overflow-wrap: break-word;
   }
   @media (min-width: 768px) {
     .display-hero {
@@ -291,6 +299,36 @@ body {
     text-transform: uppercase;
   }
 
+  /* Filas de chips: en el móvil se deslizan en una línea (hasta el borde de la pantalla); en grande, saltan de línea. */
+  .chip-row {
+    display: flex;
+    gap: 0.375rem;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .chip-row > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  @media (min-width: 768px) {
+    .chip-row {
+      flex-wrap: wrap;
+      margin-inline: 0;
+      padding-inline: 0;
+      overflow: visible;
+    }
+  }
+  /* Con el dedo, todo lo que se toca mide al menos 40 px de alto. */
+  @media (pointer: coarse) {
+    .chip,
+    .btn {
+      min-height: 40px;
+    }
+  }
+
   /* Fondo punteado de los mapas del diseño. */
   .dot-grid {
     background-color: var(--color-dot);
@@ -330,6 +368,21 @@ body {
   color: inherit;
 }
 
+/* Informe de gastos (ExpenseReport): al imprimir o guardar como PDF sale solo el informe, entero. */
+@media print {
+  body.print-report {
+    overflow: visible !important;
+    background: #fff;
+  }
+  body.print-report > *:not(#expense-report) {
+    display: none !important;
+  }
+  body.print-report #expense-report {
+    position: static;
+    overflow: visible;
+  }
+}
+
 /* Sello que cae (al llegar a un país y en «Revive tu viaje») y fotos de la repetición del viaje. */
 @keyframes stamp-drop {
   0% { opacity: 0; transform: scale(3.2) rotate(-14deg); }
@@ -350,4 +403,5 @@ body {
 .replay-photo { animation: replay-photo 480ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .stamp-drop, .replay-fade, .replay-photo { animation: none; }
+  *, ::before, ::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }

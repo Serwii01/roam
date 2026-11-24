@@ -1,5 +1,5 @@
 import type { DocumentKind, LegDetail, Lodging, PackingItem, TripDocument } from '../db'
-import type { Airport, Country, Expense, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
+import type { Airport, AppNotification, Country, Expense, ExpenseChange, InvitePreview, Passport, Photo, Profile, PublicProfile, SharedTrip, Sight, Stop, Subdivision, Trip, TripBudget, TripInvite, TripMember, TripWithStops, Wish } from '../db'
 
 export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
   Partial<Omit<Stop, 'id' | 'user_id' | 'trip_id' | 'position' | 'name' | 'country_code' | 'lat' | 'lon'>>
@@ -7,7 +7,7 @@ export type NewStop = Pick<Stop, 'name' | 'country_code' | 'lat' | 'lon'> &
 export type NewSight = Pick<Sight, 'name'> & Partial<Pick<Sight, 'lat' | 'lon' | 'wiki_url' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'kind'>>
 
 export type NewExpense = Pick<Expense, 'category' | 'amount' | 'currency'> &
-  Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split' | 'receipt_path'>>
+  Partial<Pick<Expense, 'stop_id' | 'paid_by' | 'description' | 'rate' | 'spent_on' | 'payer_key' | 'split_mode' | 'split' | 'receipt_path' | 'payment_status' | 'transfer_kind'>>
 
 export type NewLodging = Pick<Lodging, 'name'> & Partial<Omit<Lodging, 'id' | 'trip_id' | 'user_id' | 'created_at' | 'name'>>
 export type LegPatch = Partial<Omit<LegDetail, 'stop_id' | 'trip_id' | 'updated_at'>>
@@ -22,14 +22,18 @@ export interface PushSubscriptionRow {
   user_agent?: string | null
 }
 
-/** Qué avisos quiere el usuario: vuelos y trenes de mañana, entradas al alojamiento, pasaporte, compañeros y recuerdos. */
+/** Qué avisos quiere el usuario (todos activados mientras no diga lo contrario). */
 export interface NotificationPrefs {
   travel: boolean
   lodging: boolean
   passport: boolean
   social: boolean
   memories: boolean
+  expenses: boolean
+  payments: boolean
+  reminders: boolean
 }
+export const ALL_NOTIFICATIONS: NotificationPrefs = { travel: true, lodging: true, passport: true, social: true, memories: true, expenses: true, payments: true, reminders: true }
 
 export interface Visited {
   countries: { code: string; source: 'trip' | 'manual' }[]
@@ -84,7 +88,7 @@ export interface Api {
   // Sitios de cada parada
   addSight(stopId: string, sight: NewSight): Promise<Sight>
   /** Cambiar `stop_id` mueve el sitio a otra parada (otro día en otra ciudad). */
-  updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'stop_id'>>): Promise<Sight>
+  updateSight(id: string, patch: Partial<Pick<Sight, 'name' | 'done' | 'position' | 'day' | 'time' | 'notes' | 'stop_id' | 'lat' | 'lon' | 'wiki_url'>>): Promise<Sight>
   deleteSight(id: string): Promise<void>
 
   // Perfil público, enlaces y amigos
@@ -127,6 +131,10 @@ export interface Api {
   // Presupuesto y gastos (solo participantes)
   getBudget(tripId: string): Promise<TripBudget | null>
   setBudget(tripId: string, budget: Pick<TripBudget, 'currency' | 'amount'>): Promise<TripBudget>
+  /** Cierra las cuentas del viaje (los gastos quedan bloqueados) o las reabre. */
+  setAccountsClosed(tripId: string, closed: boolean): Promise<void>
+  /** Últimos cambios de los gastos, incluidos los borrados. */
+  listExpenseHistory(tripId: string): Promise<ExpenseChange[]>
   listExpenses(tripId: string): Promise<Expense[]>
   addExpense(tripId: string, expense: NewExpense): Promise<Expense>
   updateExpense(id: string, patch: Partial<NewExpense>): Promise<Expense>
@@ -160,6 +168,10 @@ export interface Api {
   /** Guarda (o actualiza) la suscripción de este móvil o navegador. */
   savePushSubscription(sub: PushSubscriptionRow): Promise<void>
   deletePushSubscription(endpoint: string): Promise<void>
+  listNotifications(): Promise<AppNotification[]>
+  markNotificationsRead(): Promise<void>
+  /** Avisa de los cambios de los gastos, las cuentas y los avisos mientras la pantalla está abierta. Devuelve cómo parar. */
+  watch(target: { tripId?: string; userId?: string }, onChange: () => void): () => void
   getNotificationPrefs(): Promise<NotificationPrefs>
   setNotificationPrefs(prefs: NotificationPrefs): Promise<void>
 

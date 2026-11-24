@@ -38,7 +38,7 @@ export function ExplorerPage() {
     }
   }, [done, filter, airports])
 
-  if (loading) return <Spinner label="Sincronizando telemetría" />
+  if (loading) return <Spinner label="Cargando tus viajes" />
 
   const last = stats.lastStop
   const lastCountry = last ? countries.byCode.get(last.stop.country_code) : undefined
@@ -94,28 +94,27 @@ export function ExplorerPage() {
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <Eyebrow>Telemetry protocol // 01-EXP</Eyebrow>
-            <span className="label-code text-ink-soft">/ Sincronización GPS: activa</span>
+            <Eyebrow>Tu mapa</Eyebrow>
           </div>
           <h1 className="display-hero mt-3">Tu huella global</h1>
           <p className="mt-3 text-lg">
             {stats.countries.length} Países • {stats.cities} Ciudades •{' '}
-            <span className="font-semibold text-accent">{formatKm(stats.totalKm)} KM</span> registrados en órbita terrestre.
+            <span className="font-semibold text-accent">{formatKm(stats.totalKm)} KM</span> recorridos.
           </p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-3">
-          <HeadTile icon="public" label="Territorio" value={`${pct.toFixed(1)}%`} />
+          <HeadTile icon="public" label="Del mundo" value={`${pct.toFixed(1)}%`} />
           <HeadTile
             icon="explore"
-            label="Sector activo"
+            label="Último país"
             value={lastCountry ? `${CONTINENT_NAMES[lastCountry.continent].split(' ')[0]} / ${lastCountry.code}` : '—'}
           />
-          <HeadTile className="col-span-2 sm:col-span-1" icon="location_on" label="Último pin" value={last ? `${last.stop.name}, ${countries.name(last.stop.country_code)}` : '—'} dark />
+          <HeadTile className="col-span-2 sm:col-span-1" icon="location_on" label="Último sitio" value={last ? `${last.stop.name}, ${countries.name(last.stop.country_code)}` : '—'} dark />
         </div>
       </div>
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="chip-row w-[calc(100%+2rem)] md:w-auto">
           <button className="chip" aria-pressed={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
             Todos los años
           </button>
@@ -136,9 +135,6 @@ export function ExplorerPage() {
             <Icon name="route" size={15} /> Rutas épicas
           </button>
         </div>
-        <span className="label-code text-ink-soft">
-          Proyección mercator kinetic · <span className="text-accent-deep">v.1.0</span>
-        </span>
       </div>
 
       <WorldMap
@@ -151,7 +147,7 @@ export function ExplorerPage() {
           last && shown.some((t) => t.id === last.trip.id)
             ? {
                 stop: last.stop,
-                title: 'Registro vivo',
+                title: 'Último viaje',
                 body: (
                   <>
                     <div className="font-semibold">

@@ -32,6 +32,7 @@ export default defineConfig({
         categories: ['travel', 'lifestyle', 'navigation'],
         shortcuts: [
           { name: 'Hoy en tu viaje', short_name: 'Hoy', url: '/app/hoy' },
+          { name: 'Apuntar un gasto', short_name: 'Gasto', url: '/app/gasto' },
           { name: 'Registrar viaje', short_name: 'Nuevo viaje', url: '/app/viajes/nuevo' },
           { name: 'Bitácora', short_name: 'Viajes', url: '/app/bitacora' },
           { name: 'Pasaporte', url: '/app/pasaporte' },

@@ -38,7 +38,7 @@ export function PassportPage() {
   const [allBadges, setAllBadges] = useState(false)
   const months = useMemo(() => kmByMonth(trips, chartYear, airports), [trips, chartYear, airports])
 
-  if (loading || profile.isLoading) return <Spinner label="Leyendo chip biométrico" />
+  if (loading || profile.isLoading) return <Spinner label="Cargando tu pasaporte" />
 
   const p = profile.data!
   const level = levelFor(stats.countries.length)
@@ -70,9 +70,9 @@ export function PassportPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <Eyebrow>Expedition archive // livestream telemetry</Eyebrow>
+          <Eyebrow>Tus países y sellos</Eyebrow>
           <h1 className="display-hero mt-3">Pasaporte & badges</h1>
-          <p className="mt-3 max-w-xl text-ink-soft">Registro biométrico, sellos de control fronterizo y certificaciones de expedición continental.</p>
+          <p className="mt-3 max-w-xl text-ink-soft">Los países que has pisado, el sello de cada llegada y las insignias que has ganado.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-accent" onClick={() => setSharing(true)}>
@@ -93,7 +93,7 @@ export function PassportPage() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="card p-6 md:p-8">
+        <div className="card p-4 sm:p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex min-w-0 gap-5">
               <div className="relative grid h-28 w-24 shrink-0 place-items-center overflow-hidden rounded-sm bg-surface-low">
@@ -101,7 +101,7 @@ export function PassportPage() {
                 <span className="label-stamp absolute bottom-1 right-1 bg-card px-1 text-[8px] text-ink">Valid</span>
               </div>
               <div className="min-w-0">
-                <div className="label-stamp text-accent-deep">Specimen ID-{p.id.replace(/-/g, '').slice(0, 5).toUpperCase()} · Chip biométrico 64-bit</div>
+                <div className="label-stamp text-accent-deep">Pasaporte n.º {p.id.replace(/-/g, '').slice(0, 5).toUpperCase()}</div>
                 <div className="headline-md mt-2 uppercase">{name}</div>
                 <div className="label-stamp mt-1 text-ink-soft">Ciudadanía: {citizenship}</div>
                 <div className="label-stamp mt-1 text-ink-soft">
@@ -109,7 +109,7 @@ export function PassportPage() {
                 </div>
               </div>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <div className="label-stamp text-ink-soft">Pasaporte digital ROAM</div>
               <div className="label-stamp mt-1 inline-block bg-surface-container px-2 py-1">Serie nomad-{thisYear}</div>
               <div className="label-stamp mt-1 text-accent-deep">@{p.username}</div>
@@ -197,7 +197,7 @@ export function PassportPage() {
       <section className="mt-14">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="label-stamp mb-1.5 text-accent-deep">Archivo aduanero // sellos vinculados</div>
+            <div className="label-stamp mb-1.5 text-accent-deep">Tus sellos</div>
             <h2 className="headline-lg">Sellos digitales de inmigración</h2>
           </div>
           <div className="flex flex-wrap items-center gap-1">
@@ -247,7 +247,7 @@ export function PassportPage() {
       <section className="mt-14">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="label-stamp mb-1.5 text-accent-deep">Sistema de méritos // medallas expedicionarias</div>
+            <div className="label-stamp mb-1.5 text-accent-deep">Tus insignias</div>
             <h2 className="headline-lg">Insignias & hitos alcanzados</h2>
           </div>
           <span className="label-code text-ink-soft">

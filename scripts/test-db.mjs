@@ -475,6 +475,102 @@ assert.ok(!(await due('2030-12-03')).some((r) => r.kind === 'passport'), 'solo a
 await as(A, () => db.query(`update notification_prefs set travel = false`))
 assert.ok(!(await due('2025-03-29')).some((r) => r.kind === 'travel'), 'sin avisos de viaje si los desactiva')
 
+// ── Pagos, historial, cierre de cuentas y avisos al momento ──
+// Viaje de Ana con Berto; Carla no participa.
+const shareTrip = await as(A, async () => (await one(`insert into trips (title) values ('Cuentas') returning id`)).id)
+await db.query(`insert into trip_members (trip_id, user_id) values ($1, $2)`, [shareTrip, B])
+await as(A, () => db.query(`insert into trip_budgets (trip_id, currency) values ($1, 'EUR')`, [shareTrip]))
+const pay = (from, to, amount, extra = {}) =>
+  one(
+    `insert into expenses (trip_id, category, amount, currency, paid_by, payer_key, split_mode, split, payment_status) values ($1, 'settlement', $2, 'EUR', $3, $4, 'amount', $5, $6) returning *`,
+    [shareTrip, amount, from, `u:${from}`, JSON.stringify([{ k: `u:${to}`, v: amount }]), extra.status ?? null],
+  )
+const inbox = async (u) => as(u, async () => (await db.query('select * from notifications where trip_id = $1 order by created_at, id', [shareTrip])).rows)
+const clearInbox = () => db.query('delete from notifications')
+const both = JSON.stringify([{ k: `u:${A}`, v: 1 }, { k: `u:${B}`, v: 1 }])
+
+const dinner = await as(A, () => one(`insert into expenses (trip_id, category, description, amount, currency, paid_by, payer_key, split) values ($1, 'food', 'Cena', 30, 'EUR', $2, $3, $4) returning *`, [shareTrip, A, `u:${A}`, both]))
+assert.equal(dinner.payment_status, null, 'un gasto no tiene estado de pago')
+let note = (await inbox(B)).at(-1)
+assert.ok(/ha apuntado Cena · 30,00 €$/.test(note.title) && /Tu parte: 15,00 €/.test(note.body), `aviso del gasto: ${JSON.stringify(note)}`)
+assert.equal((await inbox(A)).length, 0, 'quien apunta el gasto no recibe su propio aviso')
+assert.equal((await inbox(C)).length, 0, 'quien no participa no recibe nada')
+await clearInbox()
+await as(A, () => db.query(`insert into expenses (trip_id, category, amount, currency, paid_by, payer_key, split) values ($1, 'food', 5, 'EUR', $2, $3, $4)`, [shareTrip, A, `u:${A}`, JSON.stringify([{ k: `u:${A}`, v: 1 }])]))
+assert.equal((await inbox(B)).length, 0, 'un gasto que no te toca no avisa')
+
+// Pagos: el estado lo decide el servidor, no quien lo apunta.
+const p1 = await as(B, () => pay(B, A, 15, { status: 'confirmed' }))
+assert.equal(p1.payment_status, 'pending', 'quien paga no puede confirmarse a sí mismo')
+assert.ok(/dice que te ha pagado 15,00 €/.test((await inbox(A)).at(-1).title))
+await as(B, () => assert.rejects(db.query(`update expenses set payment_status = 'confirmed' where id = $1`, [p1.id]), /Solo quien recibe/))
+await as(A, () => db.query(`update expenses set payment_status = 'confirmed' where id = $1`, [p1.id]))
+assert.ok(/ha confirmado tu pago/.test((await inbox(B)).at(-1).title))
+await as(B, () => db.query(`update expenses set amount = 20, split = $2 where id = $1`, [p1.id, JSON.stringify([{ k: `u:${A}`, v: 20 }])]))
+assert.equal((await one('select payment_status s from expenses where id = $1', [p1.id])).s, 'pending', 'cambiar el importe obliga a confirmarlo otra vez')
+await as(A, () => db.query(`update expenses set payment_status = 'rejected' where id = $1`, [p1.id]))
+assert.ok(/no ha recibido los 20,00 €/.test((await inbox(B)).at(-1).title))
+assert.equal((await as(A, () => pay(B, A, 7))).payment_status, 'confirmed', 'si lo apunta quien lo recibe, ya está confirmado')
+
+// Historial: lo ven los participantes, no se puede escribir a mano y guarda lo borrado.
+await as(B, () => db.query('delete from expenses where id = $1', [dinner.id]))
+await as(A, async () => {
+  const gone = await one(`select * from expense_history where expense_id = $1 and action = 'delete'`, [dinner.id])
+  assert.ok(gone.before.description === 'Cena' && gone.actor_id === B, 'el borrado queda guardado con quién lo hizo')
+  await assert.rejects(db.query(`insert into expense_history (trip_id, expense_id, action) values ($1, $1, 'insert')`, [shareTrip]), /row-level security/)
+})
+await as(C, async () => assert.equal(await count('select count(*) n from expense_history where trip_id = $1', [shareTrip]), 0, 'historial privado'))
+await as(A, () => assert.rejects(db.query('update expenses set trip_id = $1 where id = $2', [tripId, p1.id]), /otro viaje/))
+
+// Bandeja: cada uno la suya y sin poder inventar avisos para otros; enviarlos, solo con la clave de servicio.
+await as(A, async () => {
+  await assert.rejects(db.query(`insert into notifications (user_id, kind, title) values ($1, 'payments', 'falso')`, [B]), /row-level security/)
+  assert.equal((await db.query(`update notifications set title = 'x'`)).affectedRows, 0, 'no se pueden editar')
+  await assert.rejects(db.query('select * from claim_notifications()'), /permission denied/)
+  await db.query('select mark_notifications_read()')
+  assert.equal(await count('select count(*) n from notifications where read_at is null'), 0)
+})
+assert.ok((await inbox(B)).some((n) => !n.read_at), 'marcar los tuyos no toca los de otros')
+const claim = async (actor = null) => {
+  await db.exec('set role service_role')
+  try {
+    return (await db.query('select * from claim_notifications($1)', [actor])).rows
+  } finally {
+    await db.exec('reset role')
+  }
+}
+const mineOnly = await claim(A)
+assert.ok(mineOnly.length && mineOnly.every((n) => n.user_id === B), 'con actor, solo lo que provocó')
+assert.equal((await claim(A)).length, 0, 'no se envían dos veces')
+await as(A, () => db.query('update notification_prefs set payments = false'))
+assert.ok(!(await claim()).some((n) => n.user_id === A && n.kind === 'payments'), 'respeta lo desactivado')
+await as(B, async () => assert.equal(await count('select count(*) n from notification_prefs'), 0))
+await as(B, () => pay(B, A, 1))
+await as(A, () => db.query('update notification_prefs set payments = true'))
+await as(A, () => pay(A, B, 1))
+assert.ok((await claim()).some((n) => n.user_id === B), 'sin preferencias guardadas, todos los avisos están activados')
+
+// Cuentas cerradas: no se toca nada, salvo confirmar pagos; y no se falsea quién las cerró.
+await clearInbox()
+const waiting = await as(B, () => pay(B, A, 3))
+await as(A, () => db.query(`update trip_budgets set closed_at = '2000-01-01', closed_by = $2 where trip_id = $1`, [shareTrip, B]))
+const closed = await one('select closed_by, closed_at from trip_budgets where trip_id = $1', [shareTrip])
+assert.ok(closed.closed_by === A && closed.closed_at.getFullYear() > 2020, 'quién y cuándo lo pone el servidor')
+assert.ok(/ha cerrado las cuentas/.test((await inbox(B)).at(-1).title))
+await as(B, async () => {
+  await assert.rejects(pay(B, A, 2), /cerradas/)
+  await assert.rejects(db.query('update expenses set amount = 99 where id = $1', [p1.id]), /cerradas/)
+  await assert.rejects(db.query('delete from expenses where id = $1', [p1.id]), /cerradas/)
+})
+await as(A, () => db.query(`update expenses set payment_status = 'confirmed' where id = $1`, [waiting.id]))
+await as(C, async () => assert.equal((await db.query('update trip_budgets set closed_at = null where trip_id = $1', [shareTrip])).affectedRows, 0, 'quien no participa no las reabre'))
+await as(B, () => db.query('update trip_budgets set closed_at = null where trip_id = $1', [shareTrip]))
+await as(B, () => pay(B, A, 2))
+// Borrar el viaje con las cuentas cerradas no se queda a medias.
+await as(A, () => db.query('update trip_budgets set closed_at = now() where trip_id = $1', [shareTrip]))
+await as(A, () => db.query('delete from trips where id = $1', [shareTrip]))
+assert.equal(await count('select count(*) n from expense_history where trip_id = $1', [shareTrip]), 0)
+
 // Derecho de supresión: Ana borra su cuenta y desaparece todo lo suyo; Berto sigue intacto.
 await as(A, () => db.query('select public.delete_my_account()'))
 assert.equal(await count('select count(*) n from auth.users where id = $1', [A]), 0)

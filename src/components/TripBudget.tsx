@@ -1,89 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ask } from './ConfirmDialog'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Avatar } from './Avatar'
-import { DateField, daysBetween, formatDay } from './DatePicker'
-import { DocViewer } from './DocViewer'
+import { BudgetForm } from './BudgetForm'
+import { ask } from './ConfirmDialog'
+import { daysBetween, formatDay } from './DatePicker'
+import { ExpenseForm } from './ExpenseForm'
+import { ExpenseHistory } from './ExpenseHistory'
+import { ExpenseReport } from './ExpenseReport'
 import { Icon } from './Icon'
+import { ReceiptButton } from './ReceiptButton'
+import { TripBalances, type Payment, type Transfer } from './TripBalances'
 import { ErrorNote } from './ui'
+import { today } from '../lib/amount'
 import { api } from '../lib/api'
-import type { NewExpense } from '../lib/api/types'
 import { useUser } from '../lib/auth'
-import { uid } from '../lib/id'
-import { IMAGE_ACCEPT, looksLikeImage } from '../lib/images'
+import type { Expense, ExpenseCategory, TripWithStops } from '../lib/db'
+import { fold } from '../lib/exonyms'
+import { expenseRows, expensesCsv, saveCsv } from '../lib/expenseExport'
 import { localeCountry } from '../lib/geocode'
 import { useProfile } from '../lib/hooks'
-import type { Expense, ExpenseCategory, SplitMode, TripMember, TripWithStops } from '../lib/db'
-import { CATEGORY_ORDER, CURRENCIES, EXPENSE_CATEGORIES, balancesOf, currencyForCountry, currencyName, exchangeRate, formatMoney, isSettlement, settleBalances, sharesOf, totalSpent } from '../lib/money'
+import { useTripLive } from '../lib/live'
+import { CATEGORY_ORDER, EXPENSE_CATEGORIES, balancesOf, currencyForCountry, formatMoney, isSettlement, netBalances, settleBalances, sharesOf, totalSpent } from '../lib/money'
+import { payerOf, tripPeople } from '../lib/tripPeople'
 
-const parseAmount = (s: string) => {
-  const n = Number(s.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'))
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null
-}
-const today = () => new Date().toISOString().slice(0, 10)
-const parseNum = (s: string) => {
-  const n = Number(s.replace(/\s/g, '').replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : null
-}
-const fmtNum = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',')
-
-/** Abre la foto del ticket de un gasto. */
-function ReceiptButton({ path, label, className = '' }: { path: string; label: string; className?: string }) {
-  const [blob, setBlob] = useState<Blob | null>(null)
-  const close = useCallback(() => setBlob(null), [])
-  const open = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(await api.receiptUrl(path))
-      if (!res.ok) throw new Error('No se ha podido abrir el ticket')
-      setBlob(await res.blob())
-    },
-  })
-  return (
-    <>
-      <button type="button" aria-label={label} title={open.isError ? 'No se ha podido abrir: necesita conexión' : label} className={className} disabled={open.isPending} onClick={() => open.mutate()}>
-        <Icon name={open.isError ? 'cloud_off' : 'receipt_long'} size={18} />
-      </button>
-      {blob && <DocViewer blob={blob} name="Ticket.jpg" onClose={close} />}
-    </>
-  )
-}
-
-/** Una persona del reparto: con cuenta ('u:<id>') o compañero añadido a mano ('g:<nombre>'). */
-export interface Person {
-  key: string
-  name: string
-  me: boolean
-  guest: boolean
-  avatar: { id: string; avatar_url: string | null; display_name?: string | null; username?: string }
-}
-
-/** Participantes con cuenta más los compañeros sin cuenta (sin repetir a quien ya está por nombre). */
-export function tripPeople(members: TripMember[], companions: string[], me: string): Person[] {
-  const out: Person[] = members.map((m) => ({
-    key: `u:${m.user_id}`,
-    name: m.user_id === me ? 'Tú' : m.display_name || m.username,
-    me: m.user_id === me,
-    guest: false,
-    avatar: { id: m.user_id, avatar_url: m.avatar_url, display_name: m.display_name, username: m.username },
-  }))
-  const taken = new Set(members.flatMap((m) => [m.display_name, m.username].filter(Boolean).map((n) => n!.trim().toLowerCase())))
-  for (const raw of companions) {
-    const name = raw.trim().slice(0, 80)
-    if (!name || taken.has(name.toLowerCase())) continue
-    taken.add(name.toLowerCase())
-    out.push({ key: `g:${name}`, name, me: false, guest: true, avatar: { id: `g:${name}`, avatar_url: null, display_name: name } })
-  }
-  return out
-}
-const payerOf = (e: Expense) => e.payer_key ?? (e.paid_by ? `u:${e.paid_by}` : null)
-
-const MODES: { id: SplitMode; label: string; hint: string }[] = [
-  { id: 'equal', label: 'Igual', hint: 'A partes iguales entre los marcados' },
-  { id: 'percent', label: '%', hint: 'Cada uno un porcentaje (tiene que sumar 100 %)' },
-  { id: 'amount', label: 'Importe', hint: 'Cuánto le toca exactamente a cada uno' },
-  { id: 'shares', label: 'Partes', hint: 'Por partes: quien tiene 2 paga el doble que quien tiene 1' },
-]
-
+/** Por dónde se abre: un formulario o los saldos. */
+export type BudgetStart = 'budget' | 'expense' | 'balances'
 type BudgetTab = 'gastos' | 'saldos' | 'resumen'
 
 /**
@@ -91,15 +32,22 @@ type BudgetTab = 'gastos' | 'saldos' | 'resumen'
  * enseña a nadie más). Arriba, tu saldo; debajo, tres pestañas: la lista de gastos, quién debe a quién (con
  * «Marcar como pagado») y el resumen del presupuesto y las categorías.
  */
-export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir directamente el formulario. */ start?: 'budget' | 'expense' }) {
+export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir directamente el formulario. */ start?: BudgetStart }) {
   const user = useUser()
   const qc = useQueryClient()
+  useTripLive(trip.id)
   const budget = useQuery({ queryKey: ['budget', trip.id], queryFn: () => api.getBudget(trip.id) })
   const expenses = useQuery({ queryKey: ['expenses', trip.id], queryFn: () => api.listExpenses(trip.id) })
   const members = useQuery({ queryKey: ['members', trip.id], queryFn: () => api.listTripMembers(trip.id) })
   const [form, setForm] = useState<Expense | 'new' | null>(start === 'expense' ? 'new' : null)
   const [editBudget, setEditBudget] = useState(start === 'budget')
-  const [tab, setTab] = useState<BudgetTab>(start === 'budget' ? 'resumen' : 'gastos')
+  const [tab, setTab] = useState<BudgetTab>(start === 'budget' ? 'resumen' : start === 'balances' ? 'saldos' : 'gastos')
+  const [report, setReport] = useState(false)
+  const closeReport = useCallback(() => setReport(false), [])
+  const [query, setQuery] = useState('')
+  const [only, setOnly] = useState<'all' | 'mine' | 'paid'>('all')
+  const [tipHidden, hideTip] = useDismissed(`roam-tip-deudas-${trip.id}`)
+  const [copied, setCopied] = useState(false)
   const editingId = form && form !== 'new' ? form.id : null
 
   const profile = useProfile()
@@ -112,10 +60,11 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   const keys = people.map((p) => p.key)
   const meKey = `u:${user.id}`
   const group = people.length > 1
-  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['expenses', trip.id] }), qc.invalidateQueries({ queryKey: ['budget', trip.id] })])
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['expenses', trip.id] }), qc.invalidateQueries({ queryKey: ['expense-history', trip.id] }), qc.invalidateQueries({ queryKey: ['budget', trip.id] })])
 
   const total = totalSpent(list)
   const byCat = CATEGORY_ORDER.map((c) => ({ c, v: spending.filter((e) => e.category === c).reduce((a, e) => a + e.amount * e.rate, 0) })).filter((x) => x.v > 0)
+  const perPerson = people.map((p) => ({ p, v: spending.reduce((a, e) => a + (sharesOf(e, keys).get(p.key) ?? 0), 0) })).sort((a, b) => b.v - a.v)
   const days = trip.start_date && trip.end_date ? daysBetween(trip.start_date, trip.end_date) : null
   const limit = budget.data?.amount ?? null
   const pct = limit ? total / limit : null
@@ -125,11 +74,16 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   const { paid, owed } = balancesOf(list, keys)
   const transfers = settleBalances(paid, owed)
   const who = (k: string | null) => people.find((p) => p.key === k)
-  const balanceOf = (k: string) => {
-    const raw = (paid.get(k) ?? 0) - (owed.get(k) ?? 0)
-    return Math.abs(raw) < 0.005 ? 0 : raw
+  const net = netBalances(paid, owed)
+  const payers = new Map(list.map((e) => [e.id, payerOf(e)]))
+  // Nombre de verdad (no «Tú»): el informe y el CSV los lee cualquiera.
+  const fullName = (k: string) => {
+    const p = who(k)
+    return p ? p.avatar.display_name || p.avatar.username || p.name : k.startsWith('g:') ? k.slice(2) : 'Antiguo participante'
   }
-  const myBalance = balanceOf(meKey)
+  const rows = expenseRows(list, keys, fullName)
+  const finished = trip.end_date ? today() >= trip.end_date : trip.status === 'done'
+  const myBalance = net.get(meKey) ?? 0
   const myShare = spending.reduce((a, e) => a + (sharesOf(e, keys).get(meKey) ?? 0), 0)
   const hasAccounts = group && list.some((e) => payerOf(e))
   const nameOf = (k: string | null, as: 'subject' | 'object' = 'subject') => {
@@ -138,42 +92,100 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   }
 
   const settle = useMutation({
-    mutationFn: (t: { from: string; to: string; amount: number }) =>
+    mutationFn: (t: Transfer & Partial<Payment>) =>
       api.addExpense(trip.id, {
         category: 'settlement',
         amount: Math.round(t.amount * 100) / 100,
         currency,
         rate: 1,
-        spent_on: today(),
+        spent_on: t.date === undefined ? today() : t.date,
+        description: t.note ?? null,
         payer_key: t.from,
         paid_by: t.from.startsWith('u:') ? t.from.slice(2) : null,
+        transfer_kind: t.kind ?? 'payment',
         split_mode: 'amount',
         split: [{ k: t.to, v: Math.round(t.amount * 100) / 100 }],
       }),
     onSuccess: refresh,
   })
+  const closed = !!budget.data?.closed_at
+  const closing = useMutation({ mutationFn: (on: boolean) => api.setAccountsClosed(trip.id, on), onSuccess: refresh })
+  const answer = useMutation({ mutationFn: (x: { id: string; status: 'confirmed' | 'rejected' }) => api.updateExpense(x.id, { payment_status: x.status }), onSuccess: refresh })
+  async function askClose() {
+    const pending = list.filter((e) => e.payment_status === 'pending').length
+    const ok = await ask({
+      title: '¿Cerrar las cuentas del viaje?',
+      body: [
+        transfers.length ? `Aún ${transfers.length === 1 ? 'queda 1 pago' : `quedan ${transfers.length} pagos`} por hacer.` : null,
+        pending ? `Hay ${pending === 1 ? '1 pago' : `${pending} pagos`} sin confirmar.` : null,
+        'Nadie podrá añadir, cambiar ni borrar gastos hasta que alguien las reabra.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      confirm: 'Cerrar cuentas',
+      icon: 'lock',
+    })
+    if (ok) closing.mutate(true)
+  }
+  async function askReopen() {
+    if (await ask({ title: '¿Reabrir las cuentas?', body: 'Todos podrán volver a cambiar los gastos. Se avisará al grupo.', confirm: 'Reabrir', icon: 'lock_open' })) closing.mutate(false)
+  }
+  async function askReject(e: Expense) {
+    const ok = await ask({ title: '¿No has recibido este pago?', body: 'Deja de contar en los saldos y se avisa a quien lo apuntó.', confirm: 'No lo he recibido', danger: true, icon: 'close' })
+    if (ok) answer.mutate({ id: e.id, status: 'rejected' })
+  }
+  const toConfirm = list.filter((e) => isSettlement(e) && e.payment_status === 'pending' && e.split?.[0]?.k === meKey)
   const undo = useMutation({ mutationFn: (id: string) => api.deleteExpense(id), onSuccess: refresh })
+
+  async function askSettle(t: Transfer) {
+    const ok = await ask({
+      title: `¿${fullName(t.from)} ya ha pagado ${formatMoney(t.amount, currency)} a ${fullName(t.to)}?`,
+      body: finished
+        ? 'Se apunta como pagado para todos. Se puede deshacer en «Pagos hechos».'
+        : 'El viaje no ha terminado: es mejor zanjar todo al final. Si ya se ha hecho el pago, apúntalo para que las cuentas no se descuadren.',
+      confirm: 'Sí, está pagado',
+      icon: 'handshake',
+    })
+    if (ok) settle.mutate(t)
+  }
+  async function askUndo(e: Expense) {
+    if (await ask({ title: '¿Deshacer este pago?', body: 'La deuda volverá a aparecer en los saldos de todos.', confirm: 'Deshacer', danger: true, icon: 'undo' })) undo.mutate(e.id)
+  }
+  const exportCsv = () => saveCsv(trip.title, expensesCsv(list, keys, fullName, currency))
 
   async function shareAccounts() {
     const lines = [
       `Cuentas de «${trip.title}» (${formatMoney(total, currency)} en total)`,
-      ...(transfers.length ? transfers.map((t) => `• ${nameOf(t.from)} → ${nameOf(t.to, 'object')}: ${formatMoney(t.amount, currency)}`) : ['Estamos en paz.']),
+      ...(transfers.length ? transfers.map((t) => `• ${fullName(t.from)} → ${fullName(t.to)}: ${formatMoney(t.amount, currency)}`) : ['Estamos en paz.']),
     ]
-    const text = lines.join('\n')
+    await shareText(lines.join('\n'))
+  }
+  const askFor = (t: Transfer) => shareText(`¡Hola, ${fullName(t.from)}! Según las cuentas de «${trip.title}», me debes ${formatMoney(t.amount, currency)}. Cuando lo pagues, márcalo en ROAM («Gastos» → «Saldos»).`)
+  async function shareText(text: string) {
     if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ text }).catch(() => {})
-    else await navigator.clipboard?.writeText(text)
+    else {
+      await navigator.clipboard?.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    }
   }
 
   const groups = useMemo(() => {
     const g = new Map<string, Expense[]>()
-    for (const e of list) g.set(e.spent_on ?? '', [...(g.get(e.spent_on ?? '') ?? []), e])
+    const q = fold(query.trim())
+    const shown = list.filter(
+      (e) =>
+        (!q || fold(`${e.description ?? ''} ${isSettlement(e) ? 'pago' : EXPENSE_CATEGORIES[e.category as ExpenseCategory].label}`).includes(q)) &&
+        (only === 'all' || (only === 'paid' ? payerOf(e) === meKey : payerOf(e) === meKey || (e.split?.length ? e.split.some((x) => x.k === meKey && x.v > 0) : true))),
+    )
+    for (const e of shown) g.set(e.spent_on ?? '', [...(g.get(e.spent_on ?? '') ?? []), e])
     return [...g]
-  }, [list])
+  }, [list, query, only, meKey])
 
   if (budget.isLoading || expenses.isLoading) return <div className="card h-40 animate-pulse p-4" />
 
-  const newExpense = (
-    <button type="button" className="btn btn-accent" onClick={() => (setTab('gastos'), setForm('new'))}>
+  const newExpense = closed ? null : (
+    <button type="button" className="btn btn-accent min-h-11 flex-1 px-2! sm:px-4! sm:flex-none" onClick={() => (setTab('gastos'), setForm('new'))}>
       <Icon name="add" size={18} /> Apuntar gasto
     </button>
   )
@@ -186,12 +198,49 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
   return (
     <div className="card p-4" id="gastos">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="headline-sm uppercase">{planned ? 'Presupuesto' : 'Presupuesto y gastos'}</h3>
-        <span className="label-code flex items-center gap-1 text-ink-soft" title="Solo lo ven los participantes del viaje">
-          <Icon name="lock" size={14} /> Privado
+        <h3 className="headline-sm uppercase">{planned ? 'Presupuesto' : 'Gastos'}</h3>
+        <span className="flex items-center gap-2">
+          <span className="label-code hidden items-center gap-1 text-ink-soft sm:flex" title="Solo lo ven los participantes del viaje">
+            <Icon name="lock" size={14} /> Privado
+          </span>
+          {list.length > 0 && (
+            <button type="button" className="btn btn-ghost px-3! py-1.5! text-sm" onClick={() => setReport(true)}>
+              <Icon name="download" size={18} /> Exportar
+            </button>
+          )}
         </span>
       </div>
-      <ErrorNote error={budget.error ?? expenses.error ?? settle.error ?? undo.error} />
+      <ErrorNote error={budget.error ?? expenses.error ?? settle.error ?? undo.error ?? closing.error ?? answer.error} />
+
+      {closed && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md bg-surface-low p-3 text-sm" role="note">
+          <Icon name="lock" size={20} className="shrink-0 text-accent" />
+          <p className="min-w-0 flex-1">
+            <b>Cuentas cerradas</b>
+            {budget.data?.closed_by && who(`u:${budget.data.closed_by}`) ? (who(`u:${budget.data.closed_by}`)!.me ? ' por ti' : ` por ${who(`u:${budget.data.closed_by}`)!.name}`) : ''}
+            {budget.data?.closed_at ? ` el ${formatDay(budget.data.closed_at.slice(0, 10))}` : ''}. Los gastos no se pueden cambiar.
+          </p>
+          <button type="button" className="btn btn-ghost min-h-11" disabled={closing.isPending} onClick={askReopen}>
+            <Icon name="lock_open" size={18} /> Reabrir
+          </button>
+        </div>
+      )}
+      {toConfirm.map((e) => (
+        <div key={e.id} className="mb-3 rounded-md bg-accent-soft p-3 text-sm text-accent-ink" role="note">
+          <p>
+            <b>{who(payerOf(e))?.name ?? 'Alguien'}</b> {e.transfer_kind === 'cash' ? 'te dio' : 'te ha pagado'} <b>{formatMoney(e.amount * e.rate, currency)}</b>
+            {e.description ? ` (${e.description})` : ''}. ¿Lo has recibido?
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className="btn btn-dark min-h-11 flex-1" disabled={answer.isPending} onClick={() => answer.mutate({ id: e.id, status: 'confirmed' })}>
+              <Icon name="check" size={18} /> Sí, recibido
+            </button>
+            <button type="button" className="btn btn-ghost min-h-11" disabled={answer.isPending} onClick={() => askReject(e)}>
+              No
+            </button>
+          </div>
+        </div>
+      ))}
 
       {!list.length && !limit && !editBudget && form === null ? (
         <div className="rounded-sm bg-surface-low p-4 text-sm">
@@ -227,15 +276,38 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                 {limit ? <div className="mt-1 text-sm text-ink-soft">de {formatMoney(limit, currency)} de presupuesto</div> : null}
               </>
             )}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className={`mt-3 gap-2 sm:flex ${!closed && hasAccounts && transfers.length ? 'grid grid-cols-2' : 'flex'}`}>
               {newExpense}
               {hasAccounts && transfers.length > 0 && (
-                <button type="button" className="btn btn-ghost" onClick={() => setTab('saldos')}>
-                  <Icon name="handshake" size={18} /> Saldar cuentas
+                <button type="button" className="btn btn-ghost min-h-11 flex-1 px-2! sm:px-4! sm:flex-none" onClick={() => setTab('saldos')}>
+                  <Icon name="handshake" size={18} /> Saldar<span className="hidden sm:inline"> cuentas</span>
                 </button>
               )}
             </div>
           </div>
+
+          {/* Consejo: zanjar al final y, si se paga antes, apuntarlo. */}
+          {group && !closed && !planned && hasAccounts && transfers.length > 0 && (finished || !tipHidden) && (
+            <div className="mt-3 flex items-start gap-3 rounded-md bg-accent-soft p-3 text-sm text-accent-ink" role="note">
+              <Icon name={finished ? 'handshake' : 'lightbulb'} size={20} className="mt-0.5 shrink-0" />
+              <p className="min-w-0 flex-1">
+                {finished ? (
+                  <>
+                    <b>El viaje ha terminado: toca zanjar las deudas.</b> {transfers.length === 1 ? 'Queda 1 pago' : `Quedan ${transfers.length} pagos`}. Marca cada uno como pagado cuando se haga.
+                  </>
+                ) : (
+                  <>
+                    <b>Mejor zanjad todo al final del viaje.</b> Si alguien tiene que pagar antes, que lo apunte en «Saldos» como pagado: si no, las cuentas se descuadran.
+                  </>
+                )}
+              </p>
+              {!finished && (
+                <button type="button" className="-m-1 grid h-9 w-9 shrink-0 place-items-center rounded-full" aria-label="Ocultar el consejo" onClick={hideTip}>
+                  <Icon name="close" size={18} />
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 flex gap-1 rounded-md bg-surface-low p-1" role="tablist" aria-label="Gastos">
             {TABS.map((x) => (
@@ -257,9 +329,32 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
 
       {tab === 'gastos' && (
         <>
-          {form === 'new' && (
+          {form === 'new' && !closed && (
             <div className="mt-4">
-              <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} me={user.id} editing={null} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
+              <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} list={list} me={user.id} editing={null} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
+            </div>
+          )}
+          {list.length > 5 && (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-sm bg-surface-low px-3 ring-1 ring-outline-soft focus-within:ring-2 focus-within:ring-ink">
+                <Icon name="search" size={18} className="text-ink-soft" />
+                <input aria-label="Buscar gasto" className="w-full bg-transparent py-2.5 text-sm outline-none" placeholder="Buscar gasto" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
+              {group && (
+                <div className="flex rounded-md bg-surface-low p-1" role="radiogroup" aria-label="Qué gastos">
+                  {(
+                    [
+                      ['all', 'Todos'],
+                      ['mine', 'Me tocan'],
+                      ['paid', 'Pagué yo'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={only === id} onClick={() => setOnly(id)} className={`min-h-9 flex-1 whitespace-nowrap rounded-sm px-3 text-xs font-semibold ${only === id ? 'bg-ink text-paper' : 'text-ink-soft'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {groups.length > 0 ? (
@@ -283,10 +378,12 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                               <span className="block truncate font-semibold">
                                 {nameOf(payerOf(e))} {who(payerOf(e))?.me ? 'has pagado' : 'ha pagado'} a {nameOf(to, 'object')}
                               </span>
-                              <span className="block text-xs text-ink-soft">Para saldar cuentas · no cuenta como gasto</span>
+                              <span className="block text-xs text-ink-soft">
+                                {e.payment_status === 'rejected' ? 'Rechazado: no cuenta en los saldos' : e.payment_status === 'pending' ? 'Sin confirmar · no es un gasto' : e.transfer_kind === 'cash' ? 'Cambio de efectivo · no es un gasto' : 'Para saldar cuentas · no es un gasto'}
+                              </span>
                             </span>
                             <span className="shrink-0 font-display font-semibold">{formatMoney(e.amount * e.rate, currency)}</span>
-                            <button type="button" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label="Deshacer el pago" title="Deshacer" disabled={undo.isPending} onClick={() => undo.mutate(e.id)}>
+                            <button type="button" hidden={closed} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-surface-container hover:text-ink" aria-label="Deshacer el pago" title="Deshacer" disabled={undo.isPending} onClick={() => askUndo(e)}>
                               <Icon name="undo" size={16} />
                             </button>
                           </li>
@@ -300,17 +397,17 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                       // Lo que este gasto mueve en tu saldo, como en Tricount: + lo que te deben si pagaste tú, − tu parte si pagó otro.
                       const delta = !group || !payer ? null : payer.me ? amount - mine : -mine
                       const deltaLabel = delta === null ? null : Math.abs(delta) < 0.005 ? 'no te toca' : `${delta > 0 ? '+' : '−'}${formatMoney(Math.abs(delta), currency)}`
-                      if (editingId === e.id)
+                      if (editingId === e.id && !closed)
                         return (
                           <li key={e.id}>
-                            <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} me={user.id} editing={e} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
+                            <ExpenseForm trip={trip} currency={currency} hasBudget={!!budget.data} people={people} list={list} me={user.id} editing={e} history={<ExpenseHistory tripId={trip.id} expenseId={e.id} list={list} nameOf={fullName} locked={closed} onRestored={refresh} />} onDone={() => (setForm(null), refresh())} onCancel={() => setForm(null)} />
                           </li>
                         )
                       return (
                         <li key={e.id} className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => setForm(e)}
+                            onClick={() => (closed ? askReopen() : setForm(e))}
                             aria-label={`Editar ${e.description || cat.label}`}
                             className="group flex min-w-0 flex-1 items-center gap-3 rounded-sm bg-surface-low px-3 py-2 text-left text-sm transition hover:bg-surface-container"
                           >
@@ -347,64 +444,37 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
               ))}
             </div>
           ) : (
-            form === null && (list.length > 0 || limit) && <p className="mt-4 text-sm text-ink-soft">Aún no hay gastos apuntados.</p>
+            form === null && (list.length > 0 || limit) && <p className="mt-4 text-sm text-ink-soft">{list.length ? 'Ningún gasto coincide.' : 'Aún no hay gastos apuntados.'}</p>
           )}
         </>
       )}
 
       {tab === 'saldos' && group && (
-        <div className="mt-4 space-y-4" id="cuentas">
-          <div>
-            <div className="label-stamp mb-2 text-ink-soft">Para quedar en paz</div>
-            {transfers.length ? (
-              <ul className="space-y-2">
-                {transfers.map((t) => (
-                  <li key={`${t.from}${t.to}`} className="flex flex-wrap items-center gap-2 rounded-sm bg-surface-low p-3 text-sm">
-                    <Avatar profile={who(t.from)!.avatar} className="h-7 w-7" />
-                    <span className="min-w-0 flex-1">
-                      <b>{nameOf(t.from)}</b> {who(t.from)?.me ? 'debes' : 'debe'} <b className="font-display">{formatMoney(t.amount, currency)}</b> a <b>{nameOf(t.to, 'object')}</b>
-                    </span>
-                    <button type="button" className="btn btn-dark px-3! py-1.5!" disabled={settle.isPending} onClick={() => settle.mutate(t)}>
-                      <Icon name="check" size={16} /> Marcar como pagado
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="rounded-sm bg-surface-low p-3 text-sm">Estáis en paz: nadie debe nada a nadie.</p>
-            )}
-            <button type="button" className="btn btn-ghost mt-2" onClick={shareAccounts}>
-              <Icon name="ios_share" size={18} /> Compartir cuentas
-            </button>
-          </div>
-          <div>
-            <div className="label-stamp mb-2 text-ink-soft">Saldo de cada uno</div>
-            <ul className="space-y-1.5 text-sm">
-              {people.map((p) => {
-                const bal = balanceOf(p.key)
-                return (
-                  <li key={p.key} className="flex items-center gap-2">
-                    <Avatar profile={p.avatar} className="h-6 w-6" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">
-                        {p.name}
-                        {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
-                      </span>
-                      <span className="block text-xs text-ink-soft">
-                        pagó {formatMoney(paid.get(p.key) ?? 0, currency)} · le toca {formatMoney(owed.get(p.key) ?? 0, currency)}
-                      </span>
-                    </span>
-                    <span className={`font-display font-semibold ${bal > 0 ? 'text-emerald-700' : bal < 0 ? 'text-red-700' : 'text-ink-soft'}`}>
-                      {bal > 0 ? '+' : ''}
-                      {formatMoney(bal, currency)}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-            <p className="mt-2 text-xs text-ink-soft">En verde, a quién le deben; en rojo, quién debe. Cada gasto se reparte como se apuntó; los que no dicen quién pagó no cuentan aquí.</p>
-          </div>
-        </div>
+        <TripBalances
+          people={people}
+          currency={currency}
+          rows={rows}
+          payers={payers}
+          paid={paid}
+          owed={owed}
+          net={net}
+          transfers={transfers}
+          payments={list.filter(isSettlement)}
+          finished={finished}
+          closed={closed}
+          onClose={askClose}
+          busy={settle.isPending || undo.isPending}
+          error={null}
+          onSettle={askSettle}
+          onPayment={async (p) => {
+            await settle.mutateAsync(p)
+            // Efectivo ya devuelto: se apuntan las dos partes y el saldo queda igual.
+            if (p.returned) await settle.mutateAsync({ ...p, from: p.to, to: p.from, note: p.note ? `Devolución: ${p.note}` : 'Devolución' })
+          }}
+          onUndo={askUndo}
+          onShare={shareAccounts}
+          onAsk={askFor}
+        />
       )}
 
       {tab === 'resumen' && (
@@ -448,11 +518,36 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
                 )}
                 {group && total > 0 && (
                   <div className="rounded-sm bg-surface-low px-3 py-2">
-                    <div className="label-stamp text-ink-soft">Por persona</div>
+                    <div className="label-stamp text-ink-soft">Media por persona</div>
                     <div className="font-display font-semibold">{formatMoney(total / people.length, currency)}</div>
                   </div>
                 )}
               </div>
+              {group && perPerson.some((x) => x.v > 0) && (
+                <div className="mt-4">
+                  <h4 className="label-stamp mb-2 text-ink-soft">Lo que ha gastado cada uno</h4>
+                  <ul className="space-y-2 text-sm">
+                    {perPerson.map(({ p, v }) => (
+                      <li key={p.key} className="flex items-center gap-2">
+                        <Avatar profile={p.avatar} className="h-6 w-6 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex justify-between gap-2">
+                            <span className="truncate">{p.name}</span>
+                            <b className="shrink-0 font-display tabular-nums">{formatMoney(v, currency)}</b>
+                          </span>
+                          <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden>
+                            <span className="block h-full rounded-full bg-accent" style={{ width: `${(v / perPerson[0].v) * 100}%` }} />
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-ink-soft">Su parte de los gastos, la haya pagado quien la haya pagado.</p>
+                </div>
+              )}
+              {byCat.length > 0 && (
+                <h4 className="label-stamp mt-4 text-ink-soft">Por categoría</h4>
+              )}
               {byCat.length > 0 && (
                 <div className="mt-4">
                   <div className="flex h-3 overflow-hidden rounded-full" aria-hidden>
@@ -478,485 +573,59 @@ export function TripBudget({ trip, start }: { trip: TripWithStops; /** Abrir dir
           )}
         </div>
       )}
+      {tab === 'resumen' && (
+        <details className="mt-5 border-t border-surface-highest pt-3">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold">
+            <Icon name="history" size={20} className="text-accent" /> Historial de cambios
+          </summary>
+          <ExpenseHistory tripId={trip.id} list={list} nameOf={fullName} locked={closed} onRestored={refresh} />
+        </details>
+      )}
+      {copied && (
+        <p role="status" className="mt-3 text-sm font-semibold text-emerald-700">
+          Texto copiado: pégalo donde quieras.
+        </p>
+      )}
+      {report && (
+        <ExpenseReport
+          title={trip.title}
+          start={trip.start_date}
+          end={trip.end_date}
+          currency={currency}
+          total={total}
+          rows={rows}
+          people={keys}
+          nameOf={fullName}
+          paid={paid}
+          owed={owed}
+          net={net}
+          transfers={transfers}
+          onCsv={exportCsv}
+          onClose={closeReport}
+        />
+      )}
     </div>
   )
 }
 
-function CurrencySelect({ value, onChange, label }: { value: string; onChange: (c: string) => void; label: string }) {
-  const options = CURRENCIES.includes(value) ? CURRENCIES : [value, ...CURRENCIES]
-  return (
-    <select aria-label={label} className="field w-28 shrink-0 px-2! py-2.5!" value={value} onChange={(e) => onChange(e.target.value)}>
-      {options.map((c) => (
-        <option key={c} value={c}>
-          {c} · {currencyName(c)}
-        </option>
-      ))}
-    </select>
-  )
-}
-
-function BudgetForm({
-  trip,
-  current,
-  fallbackCurrency,
-  expenses,
-  onDone,
-  onCancel,
-}: {
-  trip: TripWithStops
-  current: { currency: string; amount: number | null } | null
-  fallbackCurrency: string
-  expenses: Expense[]
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const [currency, setCurrency] = useState(current?.currency ?? fallbackCurrency)
-  const [amount, setAmount] = useState(current?.amount ? String(current.amount).replace('.', ',') : '')
-  const save = useMutation({
-    mutationFn: async () => {
-      // Si cambia la moneda del viaje, se recalcula el cambio de cada gasto a la nueva.
-      if ((current?.currency ?? fallbackCurrency) !== currency) {
-        for (const e of expenses) {
-          const rate = await exchangeRate(e.currency, currency, e.spent_on)
-          await api.updateExpense(e.id, { rate })
-        }
-      }
-      return api.setBudget(trip.id, { currency, amount: amount.trim() ? parseAmount(amount) : null })
-    },
-    onSuccess: onDone,
-  })
-  return (
-    <form
-      className="rounded-sm bg-surface-low p-3"
-      onSubmit={(e) => {
-        e.preventDefault()
-        save.mutate()
-      }}
-    >
-      <label className="label-stamp mb-1 block text-ink-soft" htmlFor="budget-amount">
-        Presupuesto total (opcional)
-      </label>
-      <div className="flex gap-2">
-        <input id="budget-amount" className="field min-w-0 flex-1 py-2.5!" inputMode="decimal" placeholder="2.000" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
-        <CurrencySelect value={currency} onChange={setCurrency} label="Moneda del viaje" />
-      </div>
-      <p className="mt-1 text-xs text-ink-soft">Los gastos en otras monedas se suman en {currency}.</p>
-      <ErrorNote error={save.error} />
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>
-          Cancelar
-        </button>
-        <button type="submit" className="btn btn-dark" disabled={save.isPending}>
-          {save.isPending ? 'Guardando…' : 'Guardar'}
-        </button>
-      </div>
-    </form>
-  )
-}
-
-function ExpenseForm({
-  trip,
-  currency: tripCurrency,
-  hasBudget,
-  people,
-  me,
-  editing,
-  onDone,
-  onCancel,
-}: {
-  trip: TripWithStops
-  currency: string
-  hasBudget: boolean
-  people: Person[]
-  me: string
-  editing: Expense | null
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const inTrip = !trip.start_date || (today() >= trip.start_date && today() <= (trip.end_date ?? trip.start_date))
-  // Parada por defecto: la del día de hoy si se está de viaje.
-  const todayStop = [...trip.stops].reverse().find((s) => s.arrived_on && s.arrived_on <= today())
-  const [category, setCategory] = useState<ExpenseCategory>(editing && editing.category !== 'settlement' ? editing.category : 'food')
-  const [amount, setAmount] = useState(editing ? String(editing.amount).replace('.', ',') : '')
-  const [stopId, setStopId] = useState<string | null>(editing ? editing.stop_id : inTrip ? (todayStop?.id ?? null) : null)
-  const [currency, setCurrency] = useState(editing?.currency ?? currencyForCountry(trip.stops.find((s) => s.id === stopId)?.country_code) ?? tripCurrency)
-  const [touchedCurrency, setTouchedCurrency] = useState(!!editing)
-  const [description, setDescription] = useState(editing?.description ?? '')
-  const [receipt, setReceipt] = useState<File | null>(null)
-  const [dropReceipt, setDropReceipt] = useState(false)
-  const oldReceipt = editing?.receipt_path ?? null
-  const [date, setDate] = useState<string | null>(editing ? editing.spent_on : inTrip ? today() : (trip.start_date ?? null))
-  const [payer, setPayer] = useState<string | null>(editing ? payerOf(editing) : `u:${me}`)
-  const initial = editing?.split?.length ? editing.split : null
-  const [mode, setMode] = useState<SplitMode>(initial ? (editing?.split_mode ?? 'equal') : 'equal')
-  // Un gasto nuevo es de todos; uno antiguo sin reparto, de quienes tienen cuenta (como se calculaba).
-  const [included, setIncluded] = useState<Set<string>>(
-    () => new Set(initial ? initial.filter((x) => x.v > 0).map((x) => x.k) : people.filter((p) => !editing || !p.guest).map((p) => p.key)),
-  )
-  // Los importes propuestos se recalculan con el total mientras nadie los toque a mano.
-  const [autoFill, setAutoFill] = useState(false)
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    initial && editing?.split_mode !== 'equal' ? Object.fromEntries(initial.map((x) => [x.k, fmtNum(x.v)])) : {},
-  )
-  const [rate, setRate] = useState<number | null>(editing && editing.currency === currency ? editing.rate : null)
-  const [rateError, setRateError] = useState(false)
-  const [manualRate, setManualRate] = useState('')
-
-  // Tipo de cambio del día del gasto.
-  useEffect(() => {
-    if (currency === tripCurrency) {
-      setRate(1)
-      return
+/** Aviso que se oculta en este dispositivo (si no hay almacenamiento, vuelve a salir). */
+function useDismissed(key: string): [boolean, () => void] {
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
     }
-    let alive = true
-    setRate(null)
-    setRateError(false)
-    exchangeRate(currency, tripCurrency, date)
-      .then((r) => alive && setRate(r))
-      .catch(() => alive && setRateError(true))
-    return () => {
-      alive = false
-    }
-  }, [currency, tripCurrency, date])
-
-  const value = parseAmount(amount)
-  const effectiveRate = rate ?? (manualRate ? parseAmount(manualRate) : null)
-
-  // Reparto: personas marcadas y el valor de cada una según el modo.
-  const chosen = people.filter((p) => included.has(p.key))
-  const num = (k: string) => parseNum(values[k] ?? '') ?? 0
-  const sum = chosen.reduce((a, p) => a + num(p.key), 0)
-  const splitError =
-    people.length < 2
-      ? null
-      : !chosen.length
-        ? 'Marca al menos a una persona'
-        : mode === 'percent' && Math.abs(sum - 100) > 0.01
-          ? `Los porcentajes suman ${fmtNum(sum)} % (${sum < 100 ? 'faltan' : 'sobran'} ${fmtNum(Math.abs(100 - sum))} %)`
-          : mode === 'amount' && value && Math.abs(sum - value) > 0.009
-            ? `Los importes suman ${formatMoney(sum, currency)} de ${formatMoney(value, currency)}`
-            : mode === 'shares' && sum <= 0
-              ? 'Pon al menos una parte'
-              : null
-  // Se guarda siempre quién entra, para que añadir a alguien más tarde no cambie los gastos ya repartidos.
-  const split =
-    people.length < 2
-      ? null
-      : chosen.map((p) => ({ k: p.key, v: mode === 'equal' ? 1 : Math.round(num(p.key) * 100) / 100 })).filter((x) => x.v > 0)
-  const preview = value && !splitError ? sharesOf({ amount: value, rate: 1, split_mode: split ? mode : 'equal', split }, people.map((p) => p.key)) : null
-
-  /** Reparte `total` en `n` trozos de céntimo, con el resto en el último. */
-  const even = (total: number, n: number) => {
-    const part = Math.floor((total * 100) / n) / 100
-    return Array.from({ length: n }, (_, i) => (i === n - 1 ? Math.round((total - part * (n - 1)) * 100) / 100 : part))
-  }
-  /** Al cambiar de modo se rellenan valores a partes iguales para los marcados. */
-  const switchMode = (m: SplitMode) => {
-    setMode(m)
-    const parts = m === 'percent' ? even(100, chosen.length || 1) : m === 'amount' && value ? even(value, chosen.length || 1) : null
-    setAutoFill(true)
-    if (parts) setValues(Object.fromEntries(chosen.map((p, i) => [p.key, fmtNum(parts[i])])))
-    else if (m === 'shares') setValues(Object.fromEntries(chosen.map((p) => [p.key, '1'])))
-  }
-  const toggle = (k: string) => {
-    const next = new Set(included)
-    if (next.has(k)) next.delete(k)
-    else next.add(k)
-    setIncluded(next)
-    // Se vuelve a repartir a partes iguales entre los marcados (lo más habitual al quitar o poner a alguien).
-    const list = people.filter((p) => next.has(p.key))
-    if (mode === 'percent' && list.length) setValues(Object.fromEntries(list.map((p, i) => [p.key, fmtNum(even(100, list.length)[i])])))
-    else if (mode === 'amount' && value && list.length) setValues(Object.fromEntries(list.map((p, i) => [p.key, fmtNum(even(value, list.length)[i])])))
-    else if (mode === 'shares' && !values[k]) setValues({ ...values, [k]: '1' })
-  }
-  const save = useMutation({
-    mutationFn: async () => {
-      // La moneda del viaje se fija con el primer gasto: los cambios guardados se refieren a ella.
-      if (!hasBudget) await api.setBudget(trip.id, { currency: tripCurrency, amount: null })
-      const body: NewExpense = {
-        category,
-        amount: value!,
-        currency,
-        rate: effectiveRate ?? 1,
-        stop_id: stopId,
-        paid_by: payer?.startsWith('u:') ? payer.slice(2) : null,
-        payer_key: payer,
-        split_mode: split ? mode : 'equal',
-        split,
-        description: description.trim() || null,
-        spent_on: date,
-      }
-      // Solo se toca la columna si cambia el ticket. El archivo va antes: el gasto no debe apuntar a algo que no existe.
-      if (receipt) {
-        body.receipt_path = `${trip.id}/${uid()}.jpg`
-        await api.uploadReceipt(trip.id, receipt, body.receipt_path)
-      } else if (dropReceipt) body.receipt_path = null
-      const result = await (editing ? api.updateExpense(editing.id, body) : api.addExpense(trip.id, body))
-      if (oldReceipt && (receipt || dropReceipt)) await api.deleteReceipt(oldReceipt)
-      return result
-    },
-    onSuccess: onDone,
   })
-  const remove = useMutation({ mutationFn: () => api.deleteExpense(editing!.id), onSuccess: onDone })
-
-  const formRef = useRef<HTMLFormElement>(null)
-  useEffect(() => {
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [])
-
-  return (
-    <form
-      ref={formRef}
-      className={`${editing ? 'my-2 ring-2 ring-accent' : 'mt-4'} rounded-sm bg-surface-low p-3`}
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (value && effectiveRate && !splitError) save.mutate()
-      }}
-    >
-      <div className="mb-2 font-display font-semibold">{editing ? 'Editar gasto' : 'Nuevo gasto'}</div>
-      <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Categoría">
-        {CATEGORY_ORDER.map((c) => {
-          const cat = EXPENSE_CATEGORIES[c]
-          const on = c === category
-          return (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              onClick={() => setCategory(c)}
-              className={`flex flex-col items-center gap-1 rounded-sm px-1 py-2 text-[11px] leading-tight transition ${on ? 'text-white' : 'bg-card hover:bg-surface-container'}`}
-              style={on ? { background: cat.color } : undefined}
-            >
-              <Icon name={cat.icon} size={20} />
-              {cat.label}
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="mt-3 flex gap-2">
-        <input
-          aria-label="Importe"
-          className="field min-w-0 flex-1 py-2.5! font-display text-lg"
-          inputMode="decimal"
-          placeholder="0,00"
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value)
-            // En «Importe», si aún no se ha repartido nada, se propone a partes iguales.
-            const v = parseAmount(e.target.value)
-            if (mode === 'amount' && v && chosen.length && (autoFill || chosen.every((p) => !num(p.key)))) {
-              setAutoFill(true)
-              setValues(Object.fromEntries(chosen.map((p, i) => [p.key, fmtNum(even(v, chosen.length)[i])])))
-            }
-          }}
-          autoFocus
-        />
-        <CurrencySelect
-          value={currency}
-          onChange={(c) => {
-            setCurrency(c)
-            setTouchedCurrency(true)
-          }}
-          label="Moneda del gasto"
-        />
-      </div>
-      {currency !== tripCurrency && (
-        <div className="mt-1 text-sm text-ink-soft">
-          {rateError ? (
-            <span className="flex flex-wrap items-center gap-2">
-              Sin conexión con el cambio. 1 {currency} =
-              <input aria-label="Tipo de cambio" className="w-24 rounded-xs bg-card px-2 py-1 ring-1 ring-outline-soft" inputMode="decimal" value={manualRate} onChange={(e) => setManualRate(e.target.value)} placeholder="0,0062" />
-              {tripCurrency}
-            </span>
-          ) : rate === null ? (
-            'Consultando el cambio…'
-          ) : value ? (
-            <>
-              ≈ <b className="text-ink">{formatMoney(value * rate, tripCurrency)}</b> · 1 {currency} = {rate.toLocaleString('es-ES', { maximumSignificantDigits: 4 })} {tripCurrency}
-            </>
-          ) : (
-            <>
-              1 {currency} = {rate.toLocaleString('es-ES', { maximumSignificantDigits: 4 })} {tripCurrency}
-            </>
-          )}
-        </div>
-      )}
-
-      <input
-        aria-label="Descripción"
-        className="field mt-3 py-2.5!"
-        maxLength={160}
-        placeholder={category === 'lodging' ? 'Hotel, 3 noches' : category === 'transport' ? 'Tren a Kioto' : category === 'food' ? 'Cena en…' : 'Descripción (opcional)'}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-        {oldReceipt && !dropReceipt && !receipt ? (
-          <>
-            <ReceiptButton path={oldReceipt} label="Ver el ticket" className="grid h-8 w-8 place-items-center rounded-full bg-card text-accent ring-1 ring-outline-soft" />
-            <span className="text-ink-soft">Ticket guardado</span>
-          </>
-        ) : receipt ? (
-          <span className="flex min-w-0 items-center gap-1 text-ink-soft">
-            <Icon name="receipt_long" size={18} className="text-accent" /> <span className="truncate">{receipt.name}</span>
-          </span>
-        ) : null}
-        <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-full bg-card px-3 text-xs font-semibold ring-1 ring-outline-soft">
-          <Icon name="add_a_photo" size={16} /> {receipt || (oldReceipt && !dropReceipt) ? 'Cambiar ticket' : 'Foto del ticket'}
-          <input
-            type="file"
-            accept={IMAGE_ACCEPT}
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file && looksLikeImage(file)) setReceipt(file)
-            }}
-          />
-        </label>
-        {(receipt || (oldReceipt && !dropReceipt)) && (
-          <button
-            type="button"
-            className="text-xs font-semibold text-ink-soft underline"
-            onClick={() => {
-              setReceipt(null)
-              setDropReceipt(!!oldReceipt)
-            }}
-          >
-            Quitar
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <DateField value={date} min={trip.start_date} max={trip.end_date} onChange={setDate} placeholder="Fecha" label="Fecha del gasto" />
-        {trip.stops.length > 0 && (
-          <select
-            aria-label="Parada"
-            className="h-8 rounded-full bg-card px-3 text-xs font-semibold ring-1 ring-outline-soft"
-            value={stopId ?? ''}
-            onChange={(e) => {
-              const id = e.target.value || null
-              setStopId(id)
-              // La moneda sigue a la parada mientras no se haya elegido a mano.
-              const cur = currencyForCountry(trip.stops.find((s) => s.id === id)?.country_code)
-              if (!touchedCurrency && cur) setCurrency(cur)
-            }}
-          >
-            <option value="">Sin parada</option>
-            {trip.stops.map((s, i) => (
-              <option key={s.id} value={s.id}>
-                {i + 1}. {s.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {people.length > 1 && (
-        <div className="mt-4 rounded-sm bg-card p-3 ring-1 ring-outline-soft">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="label-stamp w-20 shrink-0 text-ink-soft">Pagó</span>
-            <select aria-label="Pagó" className="field min-w-0 flex-1 py-2!" value={payer ?? ''} onChange={(e) => setPayer(e.target.value || null)}>
-              {people.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.me ? 'Yo' : p.name}
-                  {p.guest ? ' (sin cuenta)' : ''}
-                </option>
-              ))}
-              <option value="">No lo sé / no cuenta</option>
-            </select>
-          </label>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="label-stamp text-ink-soft">Para quién</span>
-            <div className="flex rounded-full bg-surface-low p-0.5" role="radiogroup" aria-label="Cómo se reparte">
-              {MODES.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === m.id}
-                  title={m.hint}
-                  onClick={() => switchMode(m.id)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === m.id ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-ink-soft">{MODES.find((m) => m.id === mode)!.hint}</p>
-          <ul className="mt-2 space-y-0.5">
-            {people.map((p) => {
-              const on = included.has(p.key)
-              const share = on ? preview?.get(p.key) : undefined
-              return (
-                <li key={p.key} className={`flex min-h-9 items-center gap-2 rounded-sm px-1 ${on ? '' : 'opacity-55'}`}>
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={on}
-                    aria-label={`Incluir a ${p.me ? 'mí' : p.name}`}
-                    onClick={() => toggle(p.key)}
-                    className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-sm"
-                  >
-                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-xs ring-1 ${on ? 'bg-accent text-white ring-accent' : 'bg-card ring-outline-soft'}`}>
-                      {on && <Icon name="check" size={14} />}
-                    </span>
-                    <Avatar profile={p.avatar} className="h-6 w-6 shrink-0" />
-                    <span className="min-w-0 truncate">
-                      {p.me ? 'Yo' : p.name}
-                      {p.guest && <span className="ml-1 text-xs text-ink-soft">(sin cuenta)</span>}
-                    </span>
-                  </button>
-                  {mode !== 'equal' && on && (
-                    <span className="flex shrink-0 items-center gap-1">
-                      <input
-                        aria-label={`${mode === 'percent' ? 'Porcentaje' : mode === 'amount' ? 'Importe' : 'Partes'} de ${p.me ? 'mí' : p.name}`}
-                        className="w-16 rounded-xs bg-surface-low px-2 py-1 text-right text-sm ring-1 ring-outline-soft outline-none focus:ring-accent"
-                        inputMode="decimal"
-                        value={values[p.key] ?? ''}
-                        placeholder="0"
-                        onChange={(e) => {
-                          setAutoFill(false)
-                          setValues({ ...values, [p.key]: e.target.value })
-                        }}
-                      />
-                      <span className="w-7 text-xs text-ink-soft">{mode === 'percent' ? '%' : mode === 'amount' ? currency : '×'}</span>
-                    </span>
-                  )}
-                  {/* En «Importe» el valor ya es el importe: no se repite. */}
-                  {mode !== 'amount' && <span className="w-16 shrink-0 text-right text-xs font-semibold">{share !== undefined ? formatMoney(share, currency) : ''}</span>}
-                </li>
-              )
-            })}
-          </ul>
-          {splitError && value ? <p className="mt-2 text-xs font-semibold text-red-700">{splitError}</p> : null}
-        </div>
-      )}
-
-      <ErrorNote error={save.error ?? remove.error} />
-      <div className="mt-4 flex items-center justify-between gap-2">
-        {editing ? (
-          <button type="button" className="btn text-red-700 hover:bg-red-50" disabled={remove.isPending} onClick={async () => (await ask({ title: '¿Borrar este gasto?', body: description.trim() || EXPENSE_CATEGORIES[category].label, confirm: 'Borrar', danger: true })) && remove.mutate()}>
-            <Icon name="delete" size={18} />
-          </button>
-        ) : (
-          <span />
-        )}
-        <span className="flex gap-2">
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn btn-accent" disabled={!value || !effectiveRate || !!splitError || save.isPending}>
-            {save.isPending ? 'Guardando…' : editing ? 'Guardar' : 'Añadir'}
-          </button>
-        </span>
-      </div>
-    </form>
-  )
+  return [
+    hidden,
+    () => {
+      setHidden(true)
+      try {
+        localStorage.setItem(key, '1')
+      } catch {
+        /* sin almacenamiento */
+      }
+    },
+  ]
 }

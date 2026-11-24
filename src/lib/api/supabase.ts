@@ -1,11 +1,11 @@
 // Implementación real sobre Supabase. Las consultas de usuario dependen de RLS: Supabase solo
 // devuelve las filas del usuario con sesión (o de perfiles públicos).
-import type { Airport, Expense, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
+import type { Airport, AppNotification, Expense, ExpenseChange, InvitePreview, Photo, PublicProfile, SharedTrip, Stop, TripMember, TripWithStops } from '../db'
 import { prepareImage, THUMB_MAX } from '../images'
 import { photoLinksChanged } from '../photoLinks'
-import { notifyJoin } from '../push'
+import { flushNotifications, notifyJoin, setSaveSubscription } from '../push'
 import { must, supabase } from '../supabase'
-import type { Api, NotificationPrefs } from './types'
+import { ALL_NOTIFICATIONS, type Api, type NotificationPrefs } from './types'
 
 const BUCKET = 'trip-photos'
 const DOCS = 'trip-docs'
@@ -188,8 +188,10 @@ export const supabaseApi: Api = {
         nullsFirst: true,
       }),
     ) as TripRow[]
-    await signPhotos(rows.flatMap((t) => (t.photos ?? []).map((p) => p.path)))
-    return rows.map(sortTrip)
+    const trips = rows.map(sortTrip)
+    // Solo las portadas: el resto se firma al abrir el viaje o cuando una foto sale en pantalla (PhotoImg).
+    await signPhotos(trips.flatMap((t) => t.photos.slice(0, 1).map((p) => p.path)))
+    return trips
   },
   async getTrip(id) {
     const row = must(await supabase.from('trips').select(TRIP_SELECT).eq('id', id).maybeSingle()) as TripRow | null
@@ -394,21 +396,34 @@ export const supabaseApi: Api = {
   async setBudget(tripId, budget) {
     return must(await supabase.from('trip_budgets').upsert({ trip_id: tripId, ...budget, updated_at: new Date().toISOString() }).select().single())
   },
+  async setAccountsClosed(tripId, closed) {
+    must(await supabase.from('trip_budgets').update({ closed_at: closed ? new Date().toISOString() : null }).eq('trip_id', tripId))
+    flushNotifications()
+  },
+  async listExpenseHistory(tripId) {
+    return must(await supabase.from('expense_history').select('*').eq('trip_id', tripId).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200)) as ExpenseChange[]
+  },
   async listExpenses(tripId) {
     const rows = must(await supabase.from('expenses').select('*').eq('trip_id', tripId).order('spent_on', { ascending: true, nullsFirst: false }).order('created_at')) as Expense[]
     // numeric llega como número o texto según el tamaño: se normaliza.
     return rows.map((e) => ({ ...e, amount: Number(e.amount), rate: Number(e.rate) }))
   },
   async addExpense(tripId, expense) {
-    return must(await supabase.from('expenses').insert({ ...expense, trip_id: tripId }).select().single())
+    const row = must(await supabase.from('expenses').insert({ ...expense, trip_id: tripId }).select().single()) as Expense
+    flushNotifications()
+    return row
   },
   async updateExpense(id, patch) {
-    return must(await supabase.from('expenses').update(patch).eq('id', id).select().single())
+    const row = must(await supabase.from('expenses').update(patch).eq('id', id).select().single()) as Expense
+    flushNotifications()
+    return row
   },
   async deleteExpense(id) {
+    // El ticket, después: si el gasto no se puede borrar (cuentas cerradas), no se pierde.
     const row = must(await supabase.from('expenses').select('receipt_path').eq('id', id).maybeSingle()) as { receipt_path: string | null } | null
-    if (row?.receipt_path) await supabase.storage.from(DOCS).remove([row.receipt_path])
     must(await supabase.from('expenses').delete().eq('id', id))
+    if (row?.receipt_path) await supabase.storage.from(DOCS).remove([row.receipt_path])
+    flushNotifications()
   },
   async uploadReceipt(_tripId, file, path) {
     const image = await prepareImage(file)
@@ -494,9 +509,29 @@ export const supabaseApi: Api = {
   async deletePushSubscription(endpoint) {
     must(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
   },
+  async listNotifications() {
+    return must(
+      await supabase.from('notifications').select('id, trip_id, kind, title, body, url, created_at, read_at').order('created_at', { ascending: false }).limit(60),
+    ) as AppNotification[]
+  },
+  async markNotificationsRead() {
+    must(await supabase.rpc('mark_notifications_read'))
+  },
+  watch({ tripId, userId }, onChange) {
+    const channel = supabase.channel(`${tripId ? `trip-${tripId}` : `user-${userId}`}-${crypto.randomUUID()}`)
+    if (tripId) {
+      channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'expense_history', filter: `trip_id=eq.${tripId}` }, onChange)
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trip_budgets', filter: `trip_id=eq.${tripId}` }, onChange)
+    }
+    if (userId) channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, onChange)
+    channel.subscribe()
+    return () => void supabase.removeChannel(channel)
+  },
   async getNotificationPrefs() {
-    const row = must(await supabase.from('notification_prefs').select('travel, lodging, passport, social, memories').maybeSingle()) as NotificationPrefs | null
-    return row ?? { travel: true, lodging: true, passport: true, social: true, memories: true }
+    const row = must(await supabase.from('notification_prefs').select('*').maybeSingle()) as (NotificationPrefs & { user_id?: string }) | null
+    const prefs = { ...ALL_NOTIFICATIONS, ...row }
+    delete (prefs as { user_id?: string }).user_id
+    return prefs
   },
   async setNotificationPrefs(prefs) {
     const uid = (await supabase.auth.getSession()).data.session?.user.id
@@ -565,3 +600,5 @@ export const supabaseApi: Api = {
     )
   },
 }
+
+setSaveSubscription((sub) => supabaseApi.savePushSubscription(sub))

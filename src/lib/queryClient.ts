@@ -34,7 +34,7 @@ export const persister = createAsyncStoragePersister({
 })
 
 /** Búsquedas y vistas de otros que no merece la pena guardar en el móvil. */
-const NOT_PERSISTED = new Set(['search-people', 'invite', 'shared', 'public-profile', 'public-trip'])
+const NOT_PERSISTED = new Set(['search-people', 'invite', 'shared', 'public-profile', 'public-trip', 'locate'])
 
 export const persistOptions = {
   persister,

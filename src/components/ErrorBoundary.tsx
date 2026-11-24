@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: u
     if (!this.state.error) return this.props.children
     return (
       <div className="mx-auto max-w-lg px-6 py-24 text-center">
-        <div className="label-code text-accent-deep">Error de telemetría</div>
+        <div className="label-code text-accent-deep">Error</div>
         <h1 className="headline-lg mt-3">Algo ha fallado</h1>
         <p className="mt-3 text-ink-soft">
           {isChunkError(this.state.error) ? 'Hay una versión nueva de la app. Recarga la página para usarla.' : 'Esta pantalla no se ha podido mostrar. Tus datos están a salvo.'}

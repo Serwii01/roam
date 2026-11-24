@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Provider } from '@supabase/supabase-js'
-import { DEMO_MODE } from './api'
+import { api, DEMO_MODE } from './api'
 import { DEMO_USER_ID } from './api/demo-data'
 import { isNetworkError, setOutboxUser } from './outbox'
+import { unsubscribePush } from './push'
 import { clearLocalData } from './queryClient'
 import { supabase } from './supabase'
 
@@ -161,6 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(null)
         return
+      }
+      // Este móvil deja de recibir los avisos de la cuenta que sale (podría entrar otra persona).
+      try {
+        const endpoint = await unsubscribePush()
+        if (endpoint) await api.deletePushSubscription(endpoint)
+      } catch {
+        /* sin red: la suscripción ya no existe en el navegador y el servidor la borrará al fallar el envío */
       }
       await supabase.auth.signOut()
     },

@@ -54,7 +54,7 @@ export function FriendsPage() {
 
   return (
     <div>
-      <Eyebrow>Comunidad // viajeros</Eyebrow>
+      <Eyebrow>Viajeros que sigues</Eyebrow>
       <h1 className="display-hero mt-3">Amigos</h1>
       <p className="mt-3 max-w-2xl text-lg text-ink-soft">Sigue a otros viajeros para ver sus viajes y comparar vuestros mapas.</p>
       <ErrorNote error={toggle.error ?? makePublic.error} />

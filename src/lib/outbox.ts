@@ -336,6 +336,11 @@ export function withOffline(api: Api): Api {
         return full
       })
     },
+    setAccountsClosed(tripId, closed) {
+      return write('setAccountsClosed', [tripId, closed], closed ? 'Cerrar las cuentas' : 'Reabrir las cuentas', () => {
+        qc.setQueryData<TripBudget | null>(['budget', tripId], (b) => (b ? { ...b, closed_at: closed ? now() : null } : b))
+      })
+    },
     addExpense(tripId, expense) {
       const e = { ...expense, id: (expense as { id?: string }).id ?? uid() }
       return write('addExpense', [tripId, e], `Añadir un gasto${expense.description ? ` (${expense.description})` : ''}`, () => {
@@ -353,6 +358,9 @@ export function withOffline(api: Api): Api {
           created_at: now(),
           ...e,
         }
+        // Como hará el servidor: el pago queda a la espera de quien lo recibe.
+        const to = full.split?.[0]?.k
+        if (full.category === 'settlement') full.payment_status = to?.startsWith('u:') && to !== `u:${userId}` ? 'pending' : 'confirmed'
         mapList<Expense>('expenses', upsertById(full), tripId)
         return full
       })
@@ -511,6 +519,18 @@ export function useOutbox() {
   )
 }
 
+/**
+ * Al volver a la app se recarga lo que cambian los demás (gastos, cuentas, avisos y el viaje abierto), después de enviar
+ * lo pendiente. Sin cambios en cola: si los hay, la pantalla ya enseña lo local y el servidor aún no lo sabe.
+ */
+let lastReturn = 0
+function refreshOnReturn() {
+  if (!navigator.onLine || mine().length || Date.now() - lastReturn < 10_000) return
+  lastReturn = Date.now()
+  const shared = new Set(['expenses', 'budget', 'expense-history', 'notifications', 'trip', 'members'])
+  void qc.invalidateQueries({ predicate: (q) => shared.has(String(q.queryKey[0])) })
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     emit({ online: true })
@@ -518,7 +538,7 @@ if (typeof window !== 'undefined') {
     void sync().then(() => qc.invalidateQueries())
   })
   window.addEventListener('offline', () => emit({ online: false }))
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void sync())
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void sync().then(refreshOnReturn))
   // Por si el móvil dice que hay red pero no llega nada (cobertura mala): se reintenta cada medio minuto.
   setInterval(() => state.pending && void sync(), 30_000)
 }

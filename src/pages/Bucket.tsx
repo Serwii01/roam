@@ -25,7 +25,7 @@ export function BucketPage() {
 
   return (
     <div>
-      <Eyebrow>Próximas coordenadas // wishlist</Eyebrow>
+      <Eyebrow>Los países que quieres visitar</Eyebrow>
       <h1 className="display-hero mt-3">Bucket list</h1>
       <p className="mt-3 text-lg text-ink-soft">
         {plural(wishes.length, 'país pendiente', 'países pendientes')} · {plural(planned.length, 'expedición planificada', 'expediciones planificadas')} · te quedan {195 - stats.countries.length} países por descubrir

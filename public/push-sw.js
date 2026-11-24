@@ -8,15 +8,20 @@ self.addEventListener('push', (event) => {
   } catch {
     data = { body: event.data && event.data.text() }
   }
+  // La app abierta se pone al día aunque el tiempo real no haya llegado.
+  const tell = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => wins.forEach((w) => w.postMessage({ type: 'roam-push' })))
+  // Punto en el icono de la app instalada; la app pone el número al abrirla.
+  if (self.navigator.setAppBadge) self.navigator.setAppBadge().catch(() => {})
   event.waitUntil(
-    self.registration.showNotification(data.title || 'ROAM', {
+    Promise.all([tell, self.registration.showNotification(data.title || 'ROAM', {
       body: data.body || '',
       tag: data.tag,
       icon: '/pwa-192x192.png',
       badge: '/pwa-64x64.png',
       lang: 'es',
+      renotify: !!data.tag,
       data: { url: data.url || '/app' },
-    }),
+    })]),
   )
 })
 
