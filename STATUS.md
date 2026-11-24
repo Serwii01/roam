@@ -3,7 +3,7 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y-movil` (328cc10, en GitHub), que sale de `feat/viaje-sin-conexion-y-reservas` y la incluye. Suma gastos en grupo rehechos, avisos por defecto, rutas exactas y mejoras en móvil. Ya incluye `main` (3 commits del 4 nov) y con él pasa tsc, lint, 231 tests, test:db y build; su migración NO está aplicada y el usuario no quiere publicarla todavía.
+Producción sirve `main` (dc1241a, 24 nov) con todo: documentos sin conexión, reservas, gastos en grupo, avisos por defecto, rutas exactas y la landing completa. Las 19 migraciones están aplicadas, incluida `20261124000000_expense_activity.sql`. CI en verde. Publicado sin probar en móviles reales.
 
 ## Siguientes pasos
 - [x] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
@@ -14,14 +14,14 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 - [ ] Borrar las ramas `docs/claude-status` y `feat/revive-recuerdos-sello`, aquí y en GitHub
 - [ ] Probar en un móvil real la rama `feat/viaje-sin-conexion-y-reservas`: visor de PDF en modo avión, tickets sin conexión y reservas con correos reales
 - [ ] Revisar los datos de `src/lib/countryFacts.ts` (sobre todo los teléfonos de emergencia) y el enlace a Exteriores, que no se pudo comprobar
-- [ ] Fusionar `feat/viaje-sin-conexion-y-reservas` en `main` tras la prueba (la migración ya está en producción)
+- [x] Fusionar `feat/viaje-sin-conexion-y-reservas` en `main` tras la prueba (la migración ya está en producción)
 - [ ] Comprobar en Vercel las variables de avisos: `VITE_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
 - [ ] Decidir si se reenvían correos a una dirección de la app: necesita dominio y servicio de correo entrante
 - [ ] Probar la lectura real del GPS del sello al llegar en un país del viaje
-- [ ] Comprobar en GitHub Actions que la CI de `feat/viaje-sin-conexion-y-reservas` pasa (gh no está instalado en este equipo)
+- [x] Comprobar en GitHub Actions que la CI de `feat/viaje-sin-conexion-y-reservas` pasa (gh no está instalado en este equipo)
 - [ ] En el móvil: portadas de la bitácora tras horas sin abrir la app, foto recién subida sin recargar, resumen del tiempo e ideas por zonas del día a día
 - [x] Traer `main` a `feat/gastos-rutas-y-movil`: 3 commits del 4 nov (tests de saldos y cola, CI, fotos de Wikipedia en el día a día) que chocan en `DayPlan.tsx`, `outbox.test.ts`, `money.test.ts`, `hooks.ts`, `package.json`, `package-lock.json`, `vitest.config.ts`, CI y CLAUDE.md
-- [ ] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
+- [x] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
 - [ ] Probar en móviles reales `feat/gastos-rutas-y-movil`: avisos de gastos y pagos entre dos cuentas, tiempo real, PDF y CSV compartidos, y rutas abiertas en Google Maps
 - [ ] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
 - [ ] Mirar si Vercel crea vistas previas de las ramas con las variables de producción y si la CI de `feat/gastos-rutas-y-movil` pasa
@@ -29,6 +29,8 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 ## Última sesión
 
 ### 2026-11-24
+- Publicado en `main` (dc1241a). Migración `20261124000000` aplicada y registrada en el historial desde el editor SQL, en una transacción: el Control de aplicaciones de Windows bloquea `supabase.exe` (3.4.0) en este equipo. Verificados RLS, disparadores, permisos y tiempo real; 26 gastos intactos y 1 pago marcado como confirmado
+- Vercel sí crea vistas previas de las ramas; falta saber con qué variables
 - `main` fusionado en `feat/gastos-rutas-y-movil`: se conservan los tests de ambos lados (los de `main`, en `money.cuentas.test.ts` y `outbox.idb.test.ts`). Pasan tsc, lint, 231 tests, test:db y build (Node 24)
 - Landing renovada (`Landing.tsx`, `LandingPanels.tsx`): antes, durante, después y juntos con muestras de la app, y catálogo con buscador de 87 funciones en 11 temas (`FeatureCatalog.tsx`, datos en `featureCatalog.ts`: actualizarlo al añadir funciones). Los sellos ya no llevan borde blanco en oscuro. Probada en modo demo a 1280, 768 y 375 px; no en móvil real
 - Día a día probado en modo demo tras la fusión (fotos, ideas por zonas y ubicación manual, también a 375 px). Corregido: ubicar un sitio con otro lugar ya no le pone el artículo y la foto de ese otro (`locatePatch`). Sin probar: móvil real, fotos sin conexión, arrastrar y abrir las rutas
