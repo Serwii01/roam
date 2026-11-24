@@ -31,3 +31,7 @@ scripts/.cache
 supabase/.temp
 supabase/.branches
 .env
+
+# Playwright
+test-results
+playwright-report

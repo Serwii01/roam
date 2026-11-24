@@ -30,6 +30,8 @@ npm run dev        # sin .env.local arranca en modo demo
 npm run build      # iconos + tsc + vite build
 npm run lint       # oxlint
 npm test           # Vitest: lógica de src/lib (outbox, saldos, días)
+npm run dev:demo   # modo demo en el puerto 5199, sin acceso a producción (.env.demo)
+npm run test:e2e   # Playwright en modo demo (e2e/); no va en la CI. La primera vez: npx playwright install --only-shell chromium
 npm run test:db    # migraciones, seed y RLS en PGlite
 npm run preview    # tras build; el service worker no se activa con dev
 npx supabase migration list --remote   # historial de migraciones del proyecto enlazado
