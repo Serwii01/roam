@@ -3,7 +3,7 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y-movil` (328cc10, en GitHub), que sale de `feat/viaje-sin-conexion-y-reservas` y la incluye. Suma gastos en grupo rehechos, avisos por defecto, rutas exactas y mejoras en móvil. Pasa tsc, lint, 178 tests y test:db; su migración NO está aplicada y el usuario no quiere publicarla todavía.
+Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y-movil` (328cc10, en GitHub), que sale de `feat/viaje-sin-conexion-y-reservas` y la incluye. Suma gastos en grupo rehechos, avisos por defecto, rutas exactas y mejoras en móvil. Ya incluye `main` (3 commits del 4 nov) y con él pasa tsc, lint, 231 tests, test:db y build; su migración NO está aplicada y el usuario no quiere publicarla todavía.
 
 ## Siguientes pasos
 - [x] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
@@ -20,7 +20,7 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 - [ ] Probar la lectura real del GPS del sello al llegar en un país del viaje
 - [ ] Comprobar en GitHub Actions que la CI de `feat/viaje-sin-conexion-y-reservas` pasa (gh no está instalado en este equipo)
 - [ ] En el móvil: portadas de la bitácora tras horas sin abrir la app, foto recién subida sin recargar, resumen del tiempo e ideas por zonas del día a día
-- [ ] Traer `main` a `feat/gastos-rutas-y-movil`: 3 commits del 4 nov (tests de saldos y cola, CI, fotos de Wikipedia en el día a día) que chocan en `DayPlan.tsx`, `outbox.test.ts`, `money.test.ts`, `hooks.ts`, `package.json`, `package-lock.json`, `vitest.config.ts`, CI y CLAUDE.md
+- [x] Traer `main` a `feat/gastos-rutas-y-movil`: 3 commits del 4 nov (tests de saldos y cola, CI, fotos de Wikipedia en el día a día) que chocan en `DayPlan.tsx`, `outbox.test.ts`, `money.test.ts`, `hooks.ts`, `package.json`, `package-lock.json`, `vitest.config.ts`, CI y CLAUDE.md
 - [ ] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
 - [ ] Probar en móviles reales `feat/gastos-rutas-y-movil`: avisos de gastos y pagos entre dos cuentas, tiempo real, PDF y CSV compartidos, y rutas abiertas en Google Maps
 - [ ] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
@@ -29,6 +29,7 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 ## Última sesión
 
 ### 2026-11-24
+- `main` fusionado en `feat/gastos-rutas-y-movil`: se conservan los tests de ambos lados (los de `main`, en `money.cuentas.test.ts` y `outbox.idb.test.ts`). Pasan tsc, lint, 231 tests, test:db y build (Node 24); sin probar a mano el día a día con fotos e ideas por zonas juntas
 - Gastos: exportar (CSV e informe PDF), saldos con detalle y al céntimo, registrar cualquier pago o cambio de efectivo, confirmación por quien cobra, historial con recuperación, cierre de cuentas, gasto rápido y categoría automática
 - Avisos: la base de datos crea los de gastos y pagos con disparadores y `/api/push?action=flush` los envía; recordatorios diarios, bandeja en la app y todos activados por defecto (se propone el permiso al entrar)
 - Cambios en vivo de gastos y cuentas (tiempo real sobre `expense_history`) y refresco al volver a la app
@@ -43,6 +44,11 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 - Fotos rotas o en blanco en la bitácora: enlaces firmados caducados en caché sin repintar; ahora se repintan y se vuelven a firmar al fallar (`PhotoImg`, `refreshPhotos`)
 - Resumen del tiempo de todo el viaje y por parada en el resumen del viaje (sustituye a la lista del día de llegada)
 - Lint de 61 a 52 avisos; `useCountries().name` estable
+
+### 2026-11-04 (en `main`)
+- 9ac2787: tests de saldos y de la cola, CI; la cola ya no descarta cambios si la sesión ha caducado y envía en la misma pasada lo apuntado mientras se vacía
+- 13a15a9: foto de Wikipedia en cada sitio del día a día, con autor y licencia y disponible sin conexión
+- 85787e7: foto también en sitios sin artículo enlazado, por nombre y ubicación en Wikipedia y Commons
 
 ## Decisiones
 - La ubicación del sello al llegar se resuelve en el móvil contra `public/geo`: no sale del dispositivo. Es opcional y se activa en Hoy.
