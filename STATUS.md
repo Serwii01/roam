@@ -3,7 +3,7 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al llegar. La rama `feat/viaje-sin-conexion-y-reservas` (83f5cb3, subida a GitHub por primera vez el 2026-11-16, sin fusionar) suma documentos sin conexión, reservas desde un correo, ficha del país, foto del ticket, tests con Vitest y CI, sello en costas e islas, ideas por zonas, arreglo de fotos y resumen del tiempo. Pasa tsc, lint, 126 tests y test:db; falta probarla en un móvil real antes de fusionar.
+Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y-movil` (328cc10, en GitHub), que sale de `feat/viaje-sin-conexion-y-reservas` y la incluye. Suma gastos en grupo rehechos, avisos por defecto, rutas exactas y mejoras en móvil. Pasa tsc, lint, 178 tests y test:db; su migración NO está aplicada y el usuario no quiere publicarla todavía.
 
 ## Siguientes pasos
 - [x] Vídeo vertical de «Revive tu viaje» para stories: falta una prueba de grabar el mapa; el audio de Spotify no entraría
@@ -20,9 +20,21 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - [ ] Probar la lectura real del GPS del sello al llegar en un país del viaje
 - [ ] Comprobar en GitHub Actions que la CI de `feat/viaje-sin-conexion-y-reservas` pasa (gh no está instalado en este equipo)
 - [ ] En el móvil: portadas de la bitácora tras horas sin abrir la app, foto recién subida sin recargar, resumen del tiempo e ideas por zonas del día a día
-- [ ] Aviso push para hacer el check-in 24 h antes de un vuelo (hay cron, push y datos del vuelo)
+- [ ] Traer `main` a `feat/gastos-rutas-y-movil`: 3 commits del 4 nov (tests de saldos y cola, CI, fotos de Wikipedia en el día a día) que chocan en `DayPlan.tsx`, `outbox.test.ts`, `money.test.ts`, `hooks.ts`, `package.json`, `package-lock.json`, `vitest.config.ts`, CI y CLAUDE.md
+- [ ] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
+- [ ] Probar en móviles reales `feat/gastos-rutas-y-movil`: avisos de gastos y pagos entre dos cuentas, tiempo real, PDF y CSV compartidos, y rutas abiertas en Google Maps
+- [ ] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
+- [ ] Mirar si Vercel crea vistas previas de las ramas con las variables de producción y si la CI de `feat/gastos-rutas-y-movil` pasa
 
 ## Última sesión
+
+### 2026-11-24
+- Gastos: exportar (CSV e informe PDF), saldos con detalle y al céntimo, registrar cualquier pago o cambio de efectivo, confirmación por quien cobra, historial con recuperación, cierre de cuentas, gasto rápido y categoría automática
+- Avisos: la base de datos crea los de gastos y pagos con disparadores y `/api/push?action=flush` los envía; recordatorios diarios, bandeja en la app y todos activados por defecto (se propone el permiso al entrar)
+- Cambios en vivo de gastos y cuentas (tiempo real sobre `expense_history`) y refresco al volver a la app
+- Google Maps: coordenadas en vez de nombres, 5 puntos por ruta en móvil y sin notas; ordenar el día por cercanía y ubicar sitios escritos a mano
+- Móvil: cabecera compacta, botón + según pantalla, accesibilidad y textos claros; `TripLog`, `TripEditor` y `TripBudget` divididos; pruebas de pantallas con jsdom
+- Probado en modo demo a 375 px; no en móvil real, ni el envío real de avisos, ni el tiempo real, ni abriendo las rutas en Google Maps
 
 ### 2026-11-16
 - Vitest (`npm test`, 126 tests: saldos, cola sin conexión, días, sello, ideas, fotos, tiempo) y CI en GitHub Actions (tsc, lint, tests, test:db)
@@ -31,18 +43,6 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - Fotos rotas o en blanco en la bitácora: enlaces firmados caducados en caché sin repintar; ahora se repintan y se vuelven a firmar al fallar (`PhotoImg`, `refreshPhotos`)
 - Resumen del tiempo de todo el viaje y por parada en el resumen del viaje (sustituye a la lista del día de llegada)
 - Lint de 61 a 52 avisos; `useCountries().name` estable
-
-### 2026-11-04
-- Subido a `main` (5ac35e8): «Revive tu viaje», recuerdos y sello al llegar
-- Aplicada y verificada en producción `20261030000000_memories.sql`; `due_notifications` sigue cerrada para `anon` y `authenticated`
-- Probado en modo demo y con coordenadas reales; corregida la detección de país en costas e islas con la parada más cercana
-- No comprobado: despliegue en Vercel, móvil real, lectura real del GPS y recepción de un aviso real
-- Probado en móvil real por el usuario: «Revive tu viaje», recuerdos y sello al llegar, sin incidencias (la lectura real del GPS en otro país no se confirmó por separado)
-- Comprobado que producción sirve `4531d96` y que incluye las tres funciones
-- En la rama `feat/viaje-sin-conexion-y-reservas` (56eea96, subida a GitHub, sin fusionar): documentos sin conexión con visor pdf.js, reservas desde un correo (pegar texto o .eml), ficha del país en Hoy y foto del ticket en gastos
-- Migración `20261031000000_expense_receipts.sql` aplicada en producción desde el editor SQL y registrada con `migration repair`; las 18 coinciden y `db push` está al día
-- Pasan `tsc`, `lint` (0 errores), `test:db` y build. Probado en modo demo: ficha del país, guardado de documentos, tickets y reservas
-- No comprobado: visor de PDF dentro de la app (el panel oculto para requestAnimationFrame; la lectura del PDF guardado sí se probó aparte), modo avión real, cola sin conexión de tickets y correos reales
 
 ## Decisiones
 - La ubicación del sello al llegar se resuelve en el móvil contra `public/geo`: no sale del dispositivo. Es opcional y se activa en Hoy.
@@ -61,11 +61,15 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - Ficha del país: datos escritos a mano para unos 70 destinos, marcados como orientativos; sin ficha no se enseña nada.
 - No se rehace `world.json` (simplificar menos cambia el mapa y su peso): la detección del país al llegar se compensa en `arrivalCountry`
 - Las fotos se pintan con `<PhotoImg path>`, no con `api.photoUrl` en un `<img>`: así se repintan y reintentan cuando caduca el enlace
+- Los avisos de gastos los crean disparadores en la base de datos, no el cliente: funcionan con la cola sin conexión y no se pueden falsificar
+- Pagos: los pendientes de confirmar cuentan en los saldos y los rechazados no; solo los confirma quien los recibe (lo impone la base de datos)
+- El cambio de efectivo es un `settlement` con `transfer_kind = 'cash'` y lo borrado se recupera del historial (sin papelera): así las versiones antiguas de la app siguen funcionando
+- El tiempo real escucha `expense_history` y no `expenses`: así también llegan los borrados
+- Google Maps recibe coordenadas: exacto, aunque enseñe un punto en vez de la ficha del sitio
 
 ## Problemas conocidos
 - `.env.local` no tiene `VITE_VAPID_PUBLIC_KEY` ni `VITE_OAUTH_PROVIDERS`: en local no se pueden probar los avisos ni el botón de Google.
 - 52 avisos de `oxlint`: `setState` en efectos (22), `only-export-components` (19, solo afecta a la recarga en caliente), `Date` durante el render y dos falsos positivos de refs en el arrastre. No bloquean.
-- Sin tests de componentes: hay tests de la lógica de `outbox.ts`, `money.ts` (saldos) y `days.ts` (fechas y orden del plan).
 - `version` sigue en `0.0.0` en `package.json`.
 - `public/geo/world.json` está simplificado (`-simplify 22%`): recorta la costa unos km (21 de 36 ciudades de costa o isla probadas caían «en el mar»), se come islas como Ibiza, Santorini o Azores y deja el aeropuerto de Ginebra en Francia. `arrivalCountry` lo suple: borde más cercano a ≤ 15 km, parada del viaje a ≤ 100 km fuera de las siluetas y a ≤ 30 km si la silueta da un país que no es del viaje (ver `welcome.test.ts`). Una isla perdida sin parada del viaje cerca sigue sin detectarse; arreglarlo de raíz es simplificar menos en `build-data.mjs` (cambia el mapa y el peso del archivo).
 - `.env.local` apunta a la base de producción: `npm run dev` con él trabaja con datos reales. Para probar sin tocarlos, usar modo demo.
@@ -74,3 +78,5 @@ Producción (`main`, 4531d96) tiene «Revive tu viaje», recuerdos y sello al ll
 - En PowerShell de este equipo los scripts están bloqueados: `npx` no funciona y hay que usar `npx.cmd`.
 - `db push` y `migration repair` sobre producción piden confirmación; en modo agente hacen falta `--yes` y el visto bueno del usuario.
 - Ninguna de las mejoras de esta sesión se ha visto en el navegador: la vista previa de Claude abre el `launch.json` de EstudiosCriticos (en roam hay `.claude/launch.json` con `demo`, sin commit)
+- `settleBalances` da como mucho N−1 pagos, pero no siempre el mínimo exacto (el comentario dice «el mínimo»)
+- `cuentas-estambul.pdf` (datos privados) está en la carpeta, excluido solo en este equipo con `.git/info/exclude`: no subirlo

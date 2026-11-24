@@ -37,13 +37,14 @@ npx supabase db push --remote          # aplica las pendientes a PRODUCCIÓN (si
 ```
 Ojo: `.env.local` apunta a la base de **producción**. Para probar sin tocar datos reales, usa el modo demo (`VITE_DEMO=1`). `?fecha=AAAA-MM-DD` cambia el día en el inicio y en Hoy, y `?sello=TR` fuerza el sello al llegar.
 
-La CI de GitHub Actions (`.github/workflows/ci.yml`) pasa `npx tsc -b --noEmit`, `npm run lint`, `npm test` y `npm run test:db` en cada push. No hay tests de componentes; los de `src/lib` corren en Node (sin IndexedDB) con `*.test.ts` junto al módulo.
+La CI de GitHub Actions (`.github/workflows/ci.yml`) pasa `npx tsc -b --noEmit`, `npm run lint`, `npm test` y `npm run test:db` en cada push. Los `*.test.ts` corren en Node (sin IndexedDB) y los `*.test.tsx`, en jsdom con Testing Library; van junto a lo que prueban.
 
 ## Convenciones
 - Un método nuevo de datos va en `Api` (`types.ts`) y en **las dos** implementaciones, `supabase.ts` y `demo.ts`. Si es una escritura de viaje, también en `outbox.ts` para que funcione sin red.
 - Los registros nuevos llevan el id generado en el navegador (`src/lib/id.ts`): así reenviar una alta no la duplica.
 - Cada cambio de esquema es una migración nueva con su RLS; `test:db` comprueba el aislamiento entre usuarios.
-- Las funciones de `api/` y lo que comparten con ellas (`src/lib/calendar.js`) van en JavaScript para que Vercel no tenga que compilarlas. `@vercel/og` está fijado en 0.11.1 (ver `STATUS.md`).
+- Los avisos se guardan en `notifications` (los de gastos, con disparadores) y `api/push.js` los envía: no se mandan desde el cliente.
+- Las funciones de `api/` y lo que comparten con ellas (`calendar.js`, `balances.js`, `reminders.js`, `notifyGroup.js` en `src/lib`) van en JavaScript para que Vercel no tenga que compilarlas. `@vercel/og` está fijado en 0.11.1 (ver `STATUS.md`).
 - Fotos del viaje con `<PhotoImg path>` (`src/components/PhotoImg.tsx`), no `<img src={api.photoUrl(...)}>`: los enlaces firmados caducan y solo así se repintan y se vuelven a firmar. Una lista que guarde enlaces en `useMemo` depende de `usePhotoLinks()`.
 - Colores con variables CSS de `src/index.css`. El modo oscuro solo cambia sus valores: sobre `bg-ink` usa `text-paper`, no `text-white`.
 - En los mapas, `MAP_COLORS` en vez de colores sueltos.
