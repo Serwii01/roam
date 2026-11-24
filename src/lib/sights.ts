@@ -248,6 +248,15 @@ const placeName = (s: string) =>
     .replace(/ı/g, 'i')
     .trim()
 
+/**
+ * Cambios al ubicar un sitio con un resultado de la búsqueda. El nombre no cambia, así que el artículo (y con él la foto)
+ * solo se enlaza si es el del mismo sitio: se puede elegir otro lugar solo porque está al lado.
+ */
+export function locatePatch(name: string, x: Pick<SightSuggestion, 'title' | 'lat' | 'lon' | 'url'>): { lat: number; lon: number; wiki_url?: string } {
+  const same = placeName(name) !== '' && placeName(name) === placeName(x.title)
+  return { lat: x.lat, lon: x.lon, ...(x.url && same ? { wiki_url: x.url } : {}) }
+}
+
 // De una en una y con pausa: Wikimedia responde 429 a las ráfagas, y un viaje puede tener decenas de sitios sin artículo.
 const GUESS_PAUSE = 300
 let guessTurn: Promise<unknown> = Promise.resolve()

@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../components/AppShell'
 import { Icon } from '../components/Icon'
+import { FeatureCatalog } from '../components/FeatureCatalog'
+import { GroupPanel, MemoryPanel, PlanPanel, TripPanel } from '../components/LandingPanels'
 import { WorldMap } from '../components/LazyWorldMap'
 import { demoState } from '../lib/api/demo-data'
 import type { TripWithStops } from '../lib/db'
@@ -9,25 +11,46 @@ import { useAuth } from '../lib/auth'
 import { useAirportMap } from '../lib/hooks'
 import { promptInstall, useInstall } from '../lib/pwa'
 
-const FEATURES = [
-  { icon: 'public', title: 'Mapa del mundo interactivo', text: 'Vista plana o globo 3D. Los países que has pisado se colorean solos y los pines se agrupan al alejar.' },
-  { icon: 'map', title: 'Regiones y provincias', text: 'Cada lugar guarda su región y provincia ISO 3166-2. Marca las que te falten tocando el mapa de cada país.' },
-  { icon: 'route', title: 'Rutas con arcos', text: 'Vuelos en arco ortodrómico, trenes, ferris y carretera entre destinos, con la distancia real de cada tramo.' },
-  { icon: 'local_airport', title: 'Aeropuertos reales', text: 'Más de 5.000 aeropuertos con código IATA. Te proponemos el más cercano y buscas tu vuelo por su número.' },
-  { icon: 'calendar_month', title: 'Planificador día a día', text: 'Itinerario por días, el tiempo previsto, lista de equipaje, documentos y aviso si tu pasaporte caduca.' },
-  { icon: 'payments', title: 'Gastos compartidos', text: 'Presupuesto por viaje y gastos al estilo Tricount, con categorías, cambio de moneda y quién debe a quién.' },
-  { icon: 'group', title: 'Viajes con amigos', text: 'Invita a tus compañeros a un viaje, sigue a otros viajeros y compara los países que lleváis.' },
-  { icon: 'photo_library', title: 'Importa lo que ya tienes', text: 'Crea viajes a partir de las fotos del móvil o de tu historial de Google Maps, sin teclear nada.' },
-  { icon: 'edit_note', title: 'Bitácora por días', text: 'Notas, valoraciones, etiquetas, fotos y la canción de cada parada. Tu diario de viaje, ordenado en el tiempo.' },
-  { icon: 'approval', title: 'Pasaporte de sellos', text: 'Un sello de inmigración por cada país al que llegas, con su aeropuerto y su fecha.' },
-  { icon: 'military_tech', title: 'Insignias y resumen del año', text: 'De Turista a Leyenda: 44 hitos por continentes, kilómetros, trenes e islas, y tu año viajero en una imagen.' },
-  { icon: 'bookmark_heart', title: 'Bucket list y compartir', text: 'Guarda los destinos pendientes y comparte un viaje o tu perfil con un enlace que se ve bien en WhatsApp.' },
+/** El recorrido de un viaje, con una muestra de la app en cada momento. */
+const MOMENTS = [
+  {
+    id: 'antes',
+    when: 'Antes',
+    title: 'Planifica sin hojas de cálculo',
+    text: 'Pon las ciudades y las fechas, y reparte los sitios por días. ROAM calcula los trayectos y te avisa si las horas no dan.',
+    points: ['Ideas cerca de cada parada, agrupadas por zonas para ir andando', 'Pega el correo de la reserva y rellena el vuelo o el hotel', 'Equipaje, presupuesto, documentos y caducidad del pasaporte'],
+    Panel: PlanPanel,
+  },
+  {
+    id: 'durante',
+    when: 'Durante',
+    title: 'Lo siguiente, siempre a mano',
+    text: '«Hoy» te dice qué toca ahora y cómo llegar. Apunta gastos, marca sitios y sube fotos aunque no haya cobertura.',
+    points: ['La ruta del día abierta en Google Maps', 'Gastos de grupo: quién debe a quién, con avisos y pagos confirmados', 'Tus reservas y entradas en PDF, guardadas en el móvil'],
+    Panel: TripPanel,
+  },
+  {
+    id: 'despues',
+    when: 'Después',
+    title: 'El viaje no se queda en el carrete',
+    text: 'Cada país al que llegas deja su sello. Vuelve a recorrer la ruta en el globo, con tus fotos y la música del viaje.',
+    points: ['Repetición animada de la ruta, parada a parada', 'Recuerdos el día que se cumplen años de una llegada', 'Pasaporte, más de 40 insignias y resumen del año'],
+    Panel: MemoryPanel,
+  },
+  {
+    id: 'juntos',
+    when: 'Juntos',
+    title: 'Un plan, todos los que viajáis',
+    text: 'Invita con un enlace y editad el mismo viaje. Lo que uno apunta le llega a los demás, y al volver cada uno lo tiene en su mapa.',
+    points: ['Avisos al momento de gastos y pagos', 'Sigue a tus amigos y comparad los países que lleváis', 'Enlaces públicos e imágenes para tus redes'],
+    Panel: GroupPanel,
+  },
 ]
 
 /** Lo que cambia al usar ROAM instalada en el móvil. */
 const APP_PERKS = [
   { icon: 'touch_app', title: 'Un toque desde tu pantalla de inicio', text: 'Con su propio icono y a pantalla completa, sin barras del navegador.' },
-  { icon: 'cloud_off', title: 'Funciona sin conexión', text: 'Abre tus viajes, tu pasaporte y los mapas que ya has visto aunque estés en modo avión.' },
+  { icon: 'cloud_off', title: 'Funciona sin conexión', text: 'Consulta tus viajes en modo avión y sigue apuntando: los cambios se envían solos al volver la red.' },
   { icon: 'system_update', title: 'Siempre al día', text: 'Te avisa cuando hay una versión nueva y se actualiza con un toque. Sin tiendas de apps y casi sin ocupar espacio.' },
 ]
 
@@ -38,7 +61,11 @@ const INSTALL = [
 
 const FAQ = [
   { q: '¿Cuánto cuesta?', a: 'Nada. ROAM es gratis y no necesita tarjeta.' },
-  { q: '¿Quién ve mis viajes?', a: 'Solo tú, salvo que hagas público tu perfil o compartas un viaje con un enlace. Tus pasaportes siempre son privados.' },
+  { q: '¿Quién ve mis viajes?', a: 'Tú y quienes viajan contigo, salvo que hagas público tu perfil o compartas un viaje con un enlace. Tus pasaportes siempre son privados.' },
+  { q: '¿Y si me quedo sin cobertura?', a: 'Puedes ver tus viajes y seguir apuntando paradas, gastos, fotos y equipaje. Las invitaciones, los enlaces públicos y los amigos sí necesitan internet.' },
+  { q: '¿Tengo que meter a mano mis viajes antiguos?', a: 'No. Puedes crearlos a partir de las fotos del móvil o de tu historial de Google Maps.' },
+  { q: '¿Mis compañeros necesitan cuenta?', a: 'Para editar el viaje, sí. Para entrar en el reparto de gastos o ver un viaje con enlace público, no.' },
+  { q: '¿Puedo llevarme mis datos?', a: 'Sí: una copia completa en JSON, tus rutas en KML, los gastos en CSV o PDF y el pasaporte en PDF.' },
   { q: '¿Dónde se guardan mis datos?', a: 'En servidores de la Unión Europea. Puedes descargar una copia de todo o borrar tu cuenta cuando quieras desde los ajustes.' },
   { q: '¿Tengo que bajarla de la App Store o Google Play?', a: 'No. Se instala desde el navegador en un par de toques y ocupa mucho menos que una app normal. También puedes usarla en el ordenador.' },
 ]
@@ -67,8 +94,11 @@ export function LandingPage() {
       <header className="sticky top-0 z-40 bg-surface/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-4 md:px-12">
           <Logo />
-          <nav className="hidden items-center gap-6 text-ink-soft md:flex">
+          <nav className="hidden items-center gap-6 whitespace-nowrap text-ink-soft lg:flex">
             <a href="#funciones" className="hover:text-ink">
+              Qué hace
+            </a>
+            <a href="#todo" className="hover:text-ink">
               Funciones
             </a>
             <a href="#como-funciona" className="hover:text-ink">
@@ -99,13 +129,13 @@ export function LandingPage() {
           <div className="label-code flex flex-wrap items-center gap-2 text-accent-deep">
             <span className="h-2 w-2 rounded-full bg-accent" /> N°01 · 35.6762° N · 139.6503° E
           </div>
-          <h1 className="mt-5 font-display text-[clamp(36px,10.5vw,88px)] font-bold uppercase leading-[0.95] tracking-[-0.045em] lg:text-[clamp(48px,5.6vw,88px)]">
+          <h1 className="mt-5 font-display text-[clamp(36px,10.5vw,88px)] font-bold uppercase leading-[0.95] tracking-[-0.045em] lg:text-[clamp(44px,4.9vw,72px)]">
             Tus viajes,
             <br />
             <span className="text-accent">cartografiados.</span>
           </h1>
           <p className="mt-6 max-w-lg text-lg text-ink-soft">
-            Marca los países, regiones y provincias que has pisado, planifica el próximo viaje, traza cada ruta en avión, tren o carretera y colecciona un pasaporte de sellos. Gratis.
+            Marca los países, regiones y provincias que has pisado, planifica el próximo viaje día a día, reparte los gastos y colecciona un pasaporte de sellos. Gratis.
           </p>
           <a href="#app" className="label-code mt-5 inline-flex items-center gap-2 rounded-full bg-surface-low px-3 py-1.5 text-ink-soft hover:text-ink">
             <Icon name="install_mobile" size={16} className="text-accent" /> También como app para Android e iPhone
@@ -115,7 +145,7 @@ export function LandingPage() {
               <Icon name="add_location_alt" size={20} /> {cta.label}
             </Link>
             <a href="#funciones" className="btn btn-ghost px-6! py-3! text-base!">
-              Ver funciones
+              Ver qué hace
             </a>
           </div>
           <div className="mt-10 grid max-w-md grid-cols-3 gap-4 border-t border-surface-highest pt-6">
@@ -156,21 +186,29 @@ export function LandingPage() {
       <div className="label-code mx-auto max-w-[1400px] px-4 py-6 text-center text-outline md:px-12">N°02 · 64.1466° N · 21.9426° W — Reikiavik</div>
 
       <section id="funciones" className="mx-auto max-w-[1400px] px-4 py-16 md:px-12">
-        <div className="label-stamp text-accent-deep">Funciones</div>
-        <h2 className="headline-lg mt-2 max-w-2xl">Todo lo que has viajado, y lo que vas a viajar, en un solo mapa</h2>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map((f, i) => (
-            <div key={f.title} className="card p-6">
-              <div className="flex items-start justify-between">
-                <Icon name={f.icon} size={28} className="text-accent" />
-                <span className="label-code text-outline">{String(i + 1).padStart(2, '0')}</span>
+        <h2 className="headline-lg max-w-3xl">El viaje que preparas, el que vives, el que recuerdas y el que compartes</h2>
+        <div className="mt-12 space-y-16 lg:space-y-24">
+          {MOMENTS.map(({ id, when, title, text, points, Panel }, i) => (
+            <article key={id} className="grid grid-cols-[minmax(0,1fr)] items-center gap-8 lg:grid-cols-2 lg:gap-16">
+              <div className={i % 2 ? 'lg:order-2' : ''}>
+                <div className="font-display text-5xl font-bold uppercase tracking-tight text-accent md:text-6xl">{when}</div>
+                <h3 className="headline-md mt-4">{title}</h3>
+                <p className="mt-3 max-w-lg text-base text-ink-soft">{text}</p>
+                <ul className="mt-6 max-w-lg space-y-3">
+                  {points.map((p) => (
+                    <li key={p} className="flex gap-3">
+                      <Icon name="check" size={20} className="shrink-0 text-accent" /> {p}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <h3 className="headline-sm mt-6">{f.title}</h3>
-              <p className="mt-2 text-sm text-ink-soft">{f.text}</p>
-            </div>
+              <Panel />
+            </article>
           ))}
         </div>
       </section>
+
+      <FeatureCatalog />
 
       <section id="app" className="mx-auto max-w-[1400px] px-4 pb-16 md:px-12">
         <div className="card grid gap-10 p-6 md:p-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">

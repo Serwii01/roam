@@ -17,7 +17,7 @@ import { googleMapsDayLinks } from '../lib/googleMaps'
 import { dayTotals, distance, minutes, type Hop } from '../lib/hops'
 import { nearOrder } from '../lib/nearOrder'
 import { findTaken, ideaZones } from '../lib/ideas'
-import { searchSights, suggestSights, type SightPhoto, type SightSuggestion } from '../lib/sights'
+import { locatePatch, searchSights, suggestSights, type SightPhoto, type SightSuggestion } from '../lib/sights'
 
 /** Un sitio ya puesto en el viaje y el número de su día (0 si queda fuera de los días del viaje). */
 type PlannedSight = Sight & { dayN: number }
@@ -380,7 +380,7 @@ function DayCard({
               onMove={(dir) => reorder(i, i + dir)}
               onDay={(d) => toDay(s, d)}
               onRemove={() => ops.remove(s.id)}
-              onLocate={(x) => ops.update(s.id, { lat: x.lat, lon: x.lon, ...(x.url ? { wiki_url: x.url } : {}) })}
+              onLocate={(x) => ops.update(s.id, locatePatch(s.name, x))}
             />
           ))}
         </ol>

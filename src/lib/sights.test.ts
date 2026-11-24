@@ -1,7 +1,7 @@
 // Fotos de los sitios: la respuesta de Wikipedia lleva títulos normalizados y redirecciones, y hay que devolver
 // cada foto con el título que se pidió.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { guessSightPhoto, sightPhotos, wikiTitle, wikiUrl } from './sights'
+import { guessSightPhoto, locatePatch, sightPhotos, wikiTitle, wikiUrl } from './sights'
 
 const respond = (handler: (params: URLSearchParams) => unknown) =>
   vi.stubGlobal('fetch', async (url: string) => {
@@ -106,5 +106,22 @@ describe('guessSightPhoto', () => {
   it('un nombre demasiado corto no se busca', async () => {
     answer({ es: [page('Ab')] })
     expect(await guess('Ab')).toBeNull()
+  })
+})
+
+describe('locatePatch', () => {
+  const kennin = { title: 'Kennin-ji', lat: 35, lon: 135.8, url: 'https://es.wikipedia.org/wiki/Kennin-ji' }
+
+  it('enlaza el artículo si es el mismo sitio, sin mirar tildes, mayúsculas ni lo que va entre paréntesis', () => {
+    expect(locatePatch('kennin-ji', kennin)).toEqual({ lat: 35, lon: 135.8, wiki_url: kennin.url })
+    expect(locatePatch('Catedral de San Jose', { ...kennin, title: 'Catedral de San José (Kioto)' }).wiki_url).toBe(kennin.url)
+  })
+
+  it('con otro nombre solo guarda la ubicación: no se lleva la foto de otro sitio', () => {
+    expect(locatePatch('Tofuku-ji', kennin)).toEqual({ lat: 35, lon: 135.8 })
+  })
+
+  it('un resultado sin artículo no borra el que ya tenga', () => {
+    expect(locatePatch('Kennin-ji', { ...kennin, url: undefined })).toEqual({ lat: 35, lon: 135.8 })
   })
 })

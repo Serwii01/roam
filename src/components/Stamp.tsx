@@ -40,7 +40,7 @@ export function Stamp({
   return (
     <div
       className={`inline-flex flex-col items-center gap-1 border-2 bg-card text-center ${color} ${round ? 'rounded-[28px]' : 'rounded-md'} ${pad}`}
-      style={{ transform: `rotate(${rotate}deg)`, boxShadow: 'inset 0 0 0 3px #fff, inset 0 0 0 4px currentColor' }}
+      style={{ transform: `rotate(${rotate}deg)`, boxShadow: 'inset 0 0 0 3px var(--color-card), inset 0 0 0 4px currentColor' }}
     >
       <span className="label-stamp text-[8px] opacity-80">{domestic ? (h % 2 ? 'Aeropuerto nacional' : 'Domestic arrival') : HEADERS[h % HEADERS.length]}</span>
       <span className={`font-display font-bold uppercase leading-none tracking-tight ${size === 'sm' ? 'text-base' : 'text-xl'}`}>

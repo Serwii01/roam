@@ -29,7 +29,9 @@ Producción sirve `main` (85787e7 en GitHub). Sin fusionar: `feat/gastos-rutas-y
 ## Última sesión
 
 ### 2026-11-24
-- `main` fusionado en `feat/gastos-rutas-y-movil`: se conservan los tests de ambos lados (los de `main`, en `money.cuentas.test.ts` y `outbox.idb.test.ts`). Pasan tsc, lint, 231 tests, test:db y build (Node 24); sin probar a mano el día a día con fotos e ideas por zonas juntas
+- `main` fusionado en `feat/gastos-rutas-y-movil`: se conservan los tests de ambos lados (los de `main`, en `money.cuentas.test.ts` y `outbox.idb.test.ts`). Pasan tsc, lint, 231 tests, test:db y build (Node 24)
+- Landing renovada (`Landing.tsx`, `LandingPanels.tsx`): antes, durante, después y juntos con muestras de la app, y catálogo con buscador de 87 funciones en 11 temas (`FeatureCatalog.tsx`, datos en `featureCatalog.ts`: actualizarlo al añadir funciones). Los sellos ya no llevan borde blanco en oscuro. Probada en modo demo a 1280, 768 y 375 px; no en móvil real
+- Día a día probado en modo demo tras la fusión (fotos, ideas por zonas y ubicación manual, también a 375 px). Corregido: ubicar un sitio con otro lugar ya no le pone el artículo y la foto de ese otro (`locatePatch`). Sin probar: móvil real, fotos sin conexión, arrastrar y abrir las rutas
 - Gastos: exportar (CSV e informe PDF), saldos con detalle y al céntimo, registrar cualquier pago o cambio de efectivo, confirmación por quien cobra, historial con recuperación, cierre de cuentas, gasto rápido y categoría automática
 - Avisos: la base de datos crea los de gastos y pagos con disparadores y `/api/push?action=flush` los envía; recordatorios diarios, bandeja en la app y todos activados por defecto (se propone el permiso al entrar)
 - Cambios en vivo de gastos y cuentas (tiempo real sobre `expense_history`) y refresco al volver a la app
