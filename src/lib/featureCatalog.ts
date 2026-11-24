@@ -180,7 +180,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       ['Desde Google Maps', 'Tu cronología se procesa en el navegador: no se sube.'],
       ['Fotos sin ubicación', 'Se les quitan los datos GPS antes de subirlas.'],
       ['Privado por defecto', 'Tú decides qué viajes o qué perfil se ven.'],
-      ['Descarga tus datos', 'Una copia completa en JSON cuando quieras.'],
+      ['Descarga tus datos', 'Una copia en JSON cuando quieras.'],
       ['Borra tu cuenta', 'Con tus viajes y tus fotos, desde los ajustes.'],
     ],
   },

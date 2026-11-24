@@ -10,6 +10,7 @@ const EMAIL = env.VITE_LEGAL_EMAIL
 const NIF = env.VITE_LEGAL_NIF
 const ADDRESS = env.VITE_LEGAL_ADDRESS
 const UPDATED = '15 de octubre de 2026'
+const PRIVACY_UPDATED = '24 de noviembre de 2026'
 const complete = Boolean(OWNER && EMAIL)
 
 /** Dato del titular, o un marcador visible si falta configurarlo. */
@@ -17,7 +18,7 @@ function V({ value, label }: { value?: string; label: string }) {
   return value ? <>{value}</> : <mark className="rounded-xs bg-accent-soft px-1 font-semibold text-accent-ink">[{label}]</mark>
 }
 
-function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
+function LegalLayout({ title, updated = UPDATED, children }: { title: string; updated?: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-surface">
       <header className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
@@ -32,7 +33,7 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
             <b>Plantilla sin completar.</b> Define VITE_LEGAL_NAME y VITE_LEGAL_EMAIL (y si procede VITE_LEGAL_NIF y VITE_LEGAL_ADDRESS) antes de publicar.
           </div>
         )}
-        <div className="label-stamp text-accent-deep">Última actualización: {UPDATED}</div>
+        <div className="label-stamp text-accent-deep">Última actualización: {updated}</div>
         <h1 className="headline-lg mt-2">{title}</h1>
         <article className="mt-8 space-y-6 leading-relaxed [&_a]:text-accent-deep [&_a]:underline [&_h2]:headline-sm [&_h2]:mt-8 [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1.5">
           {children}
@@ -56,7 +57,7 @@ export function LegalFooter() {
 
 export function PrivacyPage() {
   return (
-    <LegalLayout title="Política de privacidad">
+    <LegalLayout title="Política de privacidad" updated={PRIVACY_UPDATED}>
       <h2>1. Responsable</h2>
       <p>
         <V value={OWNER} label="NOMBRE O RAZÓN SOCIAL" />
@@ -81,6 +82,14 @@ export function PrivacyPage() {
           <b>Pasaportes:</b> solo país emisor y fechas de expedición y caducidad. No pedimos ni guardamos el número de pasaporte.
         </li>
         <li>
+          <b>Gastos:</b> importe, moneda, categoría, descripción, fecha, quién pagó y entre quiénes se reparte (también los nombres de compañeros
+          sin cuenta que escribas), los pagos entre participantes y si están confirmados, la foto del ticket si la añades y el historial de cambios
+          de cada gasto: qué cambió, cuándo y quién lo hizo.
+        </li>
+        <li>
+          <b>Avisos:</b> los que recibes en la bandeja de la app, cuándo los has leído y cuáles quieres recibir.
+        </li>
+        <li>
           <b>Lugares marcados</b> y lista de deseos.
         </li>
       </ul>
@@ -102,9 +111,14 @@ export function PrivacyPage() {
           y sin que salga en buscadores. Puedes quitarlo cuando quieras y deja de funcionar al momento.
         </li>
         <li>
-          Avisos en el móvil, solo si los activas en un móvil o navegador: guardamos la dirección de entrega que da tu navegador para
-          enviarte avisos de tus viajes (vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen, viajes compartidos que pasan a realizados y recuerdos de viajes pasados). Los
-          entrega el servicio de avisos de tu navegador o sistema (Apple, Google o Mozilla), cifrados de forma que no puede leerlos.
+          Bandeja de avisos: la app guarda avisos sobre tus viajes (gastos y pagos que te afectan, cuentas que se cierran o se reabren,
+          recordatorios, vuelos y trenes del día siguiente, entrada al alojamiento, pasaporte, compañeros que se unen, viajes compartidos que pasan
+          a realizados y recuerdos de viajes pasados). Solo los ves tú. Los de un gasto o un pago llevan el nombre de quien lo ha hecho, el importe
+          y el viaje. Es parte del servicio que pides (art. 6.1.b).
+        </li>
+        <li>
+          Avisos en el móvil: la app te propone activarlos, y solo se envían si das permiso en ese móvil o navegador (tu consentimiento, art.
+          6.1.a). Con el permiso dado, todos los tipos empiezan activados. Guardamos la dirección de entrega que da tu navegador. Los entrega el servicio de avisos de tu navegador o sistema (Apple, Google o Mozilla), cifrados de forma que no puede leerlos.
           Puedes elegir cuáles recibir o desactivarlos en Ajustes, o quitar el permiso desde el móvil.
         </li>
         <li>
@@ -127,8 +141,10 @@ export function PrivacyPage() {
           viaje (quitarlo de tu cuenta), quitar a alguien o anular el enlace cuando quieras.
         </li>
         <li>
-          Presupuesto y gastos de un viaje: solo los ven sus participantes, nunca quien mira tu perfil público. Es parte del servicio que pides
-          (art. 6.1.b).
+          Presupuesto, gastos y tickets de un viaje: solo los ven sus participantes, nunca quien mira tu perfil público. Cada vez que alguien
+          apunta, cambia o borra un gasto o un pago, se guarda en el historial del viaje con su nombre y los datos de antes y de después, y pueden
+          verlo todos los participantes: sirve para aclarar las cuentas y recuperar lo borrado. Por eso, un gasto borrado sigue en el historial.
+          Los pagos los confirma o rechaza quien los recibe. Es parte del servicio que pides (art. 6.1.b).
         </li>
         <li>
           Planificador (itinerario, equipaje y documentos como billetes o reservas): solo lo ven sus participantes. Los documentos se guardan
@@ -164,8 +180,17 @@ export function PrivacyPage() {
           <b>Nominatim (Fundación OpenStreetMap)</b>, al elegir un lugar, con sus coordenadas, para saber su región y provincia.
         </li>
         <li>
-          <b>Wikipedia (Fundación Wikimedia, EE. UU.)</b>, solo si pides ideas de sitios o buscas uno en una parada, con las coordenadas de la
-          parada y el texto que escribes. Como cualquier web, Wikipedia recibe tu dirección IP; la app no le envía tu nombre ni tu cuenta.
+          <b>Wikipedia y Wikimedia Commons (Fundación Wikimedia, EE. UU.)</b>, al pedir ideas de sitios o buscar uno en una parada, con las
+          coordenadas de la parada y el texto que escribes; y al abrir el día a día de un viaje, para enseñar la foto de cada sitio, con su
+          artículo o, si no lo tiene, con su nombre y sus coordenadas (o las de la parada). La app no le envía tu nombre ni tu cuenta.
+        </li>
+        <li>
+          <b>routing.openstreetmap.de (FOSSGIS, Alemania)</b>, al ver el plan de un día, con las coordenadas de sus sitios, para calcular cuánto se
+          tarda andando de uno a otro.
+        </li>
+        <li>
+          <b>Google Maps</b>, solo si pulsas «Cómo llegar», la ruta del día o un enlace al mapa, con las coordenadas o el nombre de los sitios. Google los
+          trata según su propia política.
         </li>
         <li>
           <b>jsDelivr / Cloudflare (tipos de cambio de currency-api)</b>, al apuntar un gasto en otra moneda, con las dos monedas y la fecha.
@@ -188,13 +213,27 @@ export function PrivacyPage() {
       </ul>
 
       <h2>5. Cuánto tiempo</h2>
-      <p>Mientras tengas la cuenta. Si la borras, eliminamos tu perfil, tus viajes, tus fotos y el resto de tus datos de forma inmediata.</p>
+      <p>Mientras tengas la cuenta, salvo lo que sigue:</p>
+      <ul>
+        <li>
+          <b>Bandeja de avisos:</b> los avisos se borran a los 60 días.
+        </li>
+        <li>
+          <b>Historial de gastos:</b> mientras exista el viaje. Se borra con él.
+        </li>
+      </ul>
+      <p>
+        Si borras tu cuenta, eliminamos de forma inmediata tu perfil, los viajes que creaste (con sus gastos e historial), tus fotos y tus avisos. En
+        los viajes que creó otra persona, los gastos, sus tickets y su historial se conservan para que las cuentas de los demás sigan cuadrando, pero sin el
+        enlace a tu perfil: quedan identificadores internos en el reparto y el historial, y lo que se hubiera escrito en el texto del gasto. Los avisos que otras
+        personas ya hubieran recibido con tu nombre se borran en el mismo plazo de 60 días. Si quieres que revisemos algo de esto, escríbenos.
+      </p>
 
       <h2>6. Tus derechos</h2>
       <p>
         Puedes acceder, rectificar, suprimir, oponerte, limitar el tratamiento y pedir la portabilidad de tus datos. Desde{' '}
-        <b>Perfil y ajustes → Tus datos</b> puedes descargar una copia completa (JSON) y borrar tu cuenta. Para cualquier otra solicitud, escribe
-        a <V value={EMAIL} label="EMAIL DE CONTACTO" />. Si crees que no hemos atendido bien tu solicitud, puedes reclamar ante la{' '}
+        <b>Perfil y ajustes → Tus datos</b> puedes descargar una copia (JSON) con tu perfil, pasaportes, viajes, gastos, presupuestos, lugares marcados y deseos, y borrar tu
+        cuenta. Para pedir lo que no va en esa copia (como el historial de gastos, los avisos o los archivos) o para cualquier otra solicitud, escribe a <V value={EMAIL} label="EMAIL DE CONTACTO" />. Si crees que no hemos atendido bien tu solicitud, puedes reclamar ante la{' '}
         <a href="https://www.aepd.es" target="_blank" rel="noreferrer">
           Agencia Española de Protección de Datos
         </a>
@@ -203,7 +242,8 @@ export function PrivacyPage() {
 
       <h2>7. Cookies y almacenamiento local</h2>
       <p>
-        Solo usamos almacenamiento técnico imprescindible: la sesión iniciada, tus preferencias y una caché de búsquedas de lugares. No hay
+        Solo usamos almacenamiento técnico imprescindible: la sesión iniciada, tus preferencias y, para que la app funcione sin conexión, una copia en tu
+        dispositivo de tus viajes, los cambios por enviar, los documentos de los viajes próximos y lo ya consultado (lugares, mapas y fotos). No hay
         cookies de análisis ni de publicidad, por lo que no es necesario pedir consentimiento (art. 22.2 LSSI-CE). Las fuentes y los iconos se
         sirven desde la propia aplicación.
       </p>

@@ -65,8 +65,8 @@ const FAQ = [
   { q: '¿Y si me quedo sin cobertura?', a: 'Puedes ver tus viajes y seguir apuntando paradas, gastos, fotos y equipaje. Las invitaciones, los enlaces públicos y los amigos sí necesitan internet.' },
   { q: '¿Tengo que meter a mano mis viajes antiguos?', a: 'No. Puedes crearlos a partir de las fotos del móvil o de tu historial de Google Maps.' },
   { q: '¿Mis compañeros necesitan cuenta?', a: 'Para editar el viaje, sí. Para entrar en el reparto de gastos o ver un viaje con enlace público, no.' },
-  { q: '¿Puedo llevarme mis datos?', a: 'Sí: una copia completa en JSON, tus rutas en KML, los gastos en CSV o PDF y el pasaporte en PDF.' },
-  { q: '¿Dónde se guardan mis datos?', a: 'En servidores de la Unión Europea. Puedes descargar una copia de todo o borrar tu cuenta cuando quieras desde los ajustes.' },
+  { q: '¿Puedo llevarme mis datos?', a: 'Sí: una copia en JSON, tus rutas en KML, los gastos en CSV o PDF y el pasaporte en PDF.' },
+  { q: '¿Dónde se guardan mis datos?', a: 'En servidores de la Unión Europea. Puedes descargar una copia o borrar tu cuenta cuando quieras desde los ajustes.' },
   { q: '¿Tengo que bajarla de la App Store o Google Play?', a: 'No. Se instala desde el navegador en un par de toques y ocupa mucho menos que una app normal. También puedes usarla en el ordenador.' },
 ]
 

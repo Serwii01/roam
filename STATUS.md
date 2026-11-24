@@ -23,12 +23,14 @@ Producción sirve `main` (dc1241a, 24 nov) con todo: documentos sin conexión, r
 - [x] Traer `main` a `feat/gastos-rutas-y-movil`: 3 commits del 4 nov (tests de saldos y cola, CI, fotos de Wikipedia en el día a día) que chocan en `DayPlan.tsx`, `outbox.test.ts`, `money.test.ts`, `hooks.ts`, `package.json`, `package-lock.json`, `vitest.config.ts`, CI y CLAUDE.md
 - [x] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
 - [ ] Probar en móviles reales `feat/gastos-rutas-y-movil`: avisos de gastos y pagos entre dos cuentas, tiempo real, PDF y CSV compartidos, y rutas abiertas en Google Maps
-- [ ] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
+- [x] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
+- [ ] Ampliar `exportMyData` (no lleva historial, avisos, equipaje, alojamientos ni documentos) y borrar al eliminar la cuenta los tickets propios en viajes de otros
 - [ ] Mirar si Vercel crea vistas previas de las ramas con las variables de producción y si la CI de `feat/gastos-rutas-y-movil` pasa
 
 ## Última sesión
 
 ### 2026-11-24
+- Política de privacidad al día (`Legal.tsx`, 24 nov): gastos e historial, bandeja (60 días), fotos de Wikimedia, rutas de FOSSGIS, Google Maps, borrado de cuenta y qué lleva la copia de datos; la landing ya no dice «copia completa»
 - Publicado en `main` (dc1241a). Migración `20261124000000` aplicada y registrada en el historial desde el editor SQL, en una transacción: el Control de aplicaciones de Windows bloquea `supabase.exe` (3.4.0) en este equipo. Verificados RLS, disparadores, permisos y tiempo real; 26 gastos intactos y 1 pago marcado como confirmado
 - Vercel sí crea vistas previas de las ramas; falta saber con qué variables
 - `main` fusionado en `feat/gastos-rutas-y-movil`: se conservan los tests de ambos lados (los de `main`, en `money.cuentas.test.ts` y `outbox.idb.test.ts`). Pasan tsc, lint, 231 tests, test:db y build (Node 24)
