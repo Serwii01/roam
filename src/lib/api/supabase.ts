@@ -5,6 +5,7 @@ import { prepareImage, THUMB_MAX } from '../images'
 import { photoLinksChanged } from '../photoLinks'
 import { flushNotifications, notifyJoin, setSaveSubscription } from '../push'
 import { must, supabase } from '../supabase'
+import { allRows, chunks } from './paging'
 import { ALL_NOTIFICATIONS, type Api, type NotificationPrefs } from './types'
 
 const BUCKET = 'trip-photos'
@@ -553,42 +554,84 @@ export const supabaseApi: Api = {
     must(await supabase.from('calendar_feeds').delete().eq('user_id', uid ?? ''))
   },
   async exportMyData(userId) {
-    const [profile, passports, trips, countries, subdivisions, wishlist] = await Promise.all([
+    // De cada tabla, lo que RLS deja ver: lo propio y lo de los viajes en los que se participa. Sin las claves de los
+    // avisos ni el enlace secreto del calendario: el archivo se guarda y se comparte.
+    const rows = (table: string, key = 'id') => allRows<Record<string, unknown>>((a, b) => supabase.from(table).select('*').order(key).range(a, b))
+    const mine = (table: string, columns = '*') => supabase.from(table).select(columns).eq('user_id', userId)
+    const [profile, passports, trips, wishlist, countries, subdivisions, prefs, devices, calendar, following] = await Promise.all([
       supabaseApi.getProfile(userId),
       supabaseApi.listPassports(),
       supabaseApi.listTrips(userId),
-      supabase.from('user_countries').select('country_code').eq('user_id', userId),
-      supabase.from('user_subdivisions').select('subdivision_code').eq('user_id', userId),
       supabaseApi.listWishlist(),
+      mine('user_countries', 'country_code'),
+      mine('user_subdivisions', 'subdivision_code'),
+      mine('notification_prefs'),
+      mine('push_subscriptions', 'user_agent, created_at'),
+      mine('calendar_feeds', 'created_at'),
+      supabase.from('follows').select('*').eq('follower', userId),
     ])
-    const [expenses, budgets] = await Promise.all([supabase.from('expenses').select('*'), supabase.from('trip_budgets').select('*')])
+    const [expenses, budgets, history, lodgings, legs, packing, documents, itinerary, members, notifications] = await Promise.all([
+      rows('expenses'),
+      rows('trip_budgets', 'trip_id'),
+      rows('expense_history'),
+      rows('lodgings'),
+      rows('leg_details', 'stop_id'),
+      rows('packing_items'),
+      rows('trip_documents'),
+      rows('itinerary_items'),
+      allRows<Record<string, unknown>>((a, b) => supabase.from('trip_members').select('*').order('trip_id').order('user_id').range(a, b)),
+      rows('notifications'),
+    ])
     return {
       profile,
       passports,
       trips,
-      expenses: must(expenses),
-      budgets: must(budgets),
+      trip_members: members,
+      lodgings,
+      leg_details: legs,
+      itinerary,
+      packing_items: packing,
+      // Los datos de cada documento; los archivos se descargan desde el viaje.
+      documents,
+      expenses,
+      budgets,
+      expense_history: history,
+      notifications,
+      notification_prefs: must(prefs),
+      devices: must(devices),
+      calendar_feed: must(calendar),
+      following: must(following),
       marked_countries: must(countries),
       marked_subdivisions: must(subdivisions),
       wishlist,
     }
   },
   async deleteMyAccount(userId) {
-    // Primero los archivos (Storage no se vacía con el borrado en cascada de la base de datos).
-    // Las suyas y las de los viajes que creó (al borrarse la cuenta, esos viajes desaparecen con sus fotos).
-    const owned = (must(await supabase.from('trips').select('id').eq('user_id', userId)) as { id: string }[]).map((t) => t.id)
-    const filter = owned.length ? `user_id.eq.${userId},trip_id.in.(${owned.join(',')})` : `user_id.eq.${userId}`
-    const photos = must(await supabase.from('photos').select('path').or(filter)) as Pick<Photo, 'path'>[]
-    for (let i = 0; i < photos.length; i += 100) {
-      const { error } = await supabase.storage.from(BUCKET).remove(photos.slice(i, i + 100).map((p) => p.path))
-      if (error) throw new Error(error.message)
+    // Primero los archivos (Storage no se vacía con el borrado en cascada de la base de datos). Si alguno no se puede
+    // borrar, se para aquí: con la cuenta borrada ya no habría permiso para reintentarlo.
+    const removeFiles = async (bucket: string, paths: string[]) => {
+      for (const part of chunks([...new Set(paths)])) {
+        const { error } = await supabase.storage.from(bucket).remove(part)
+        if (error) throw new Error(error.message)
+      }
     }
-    if (owned.length) {
-      const docs = must(await supabase.from('trip_documents').select('path').in('trip_id', owned)) as { path: string }[]
-      for (let i = 0; i < docs.length; i += 100) await supabase.storage.from(DOCS).remove(docs.slice(i, i + 100).map((d) => d.path))
-      const receipts = must(await supabase.from('expenses').select('receipt_path').in('trip_id', owned).not('receipt_path', 'is', null)) as { receipt_path: string }[]
-      for (let i = 0; i < receipts.length; i += 100) await supabase.storage.from(DOCS).remove(receipts.slice(i, i + 100).map((r) => r.receipt_path))
+    // Las fotos suyas y las de los viajes que creó (al borrarse la cuenta, esos viajes desaparecen con sus fotos).
+    const owned = (await allRows((a, b) => supabase.from('trips').select('id').eq('user_id', userId).order('id').range(a, b))) as { id: string }[]
+    const ids = owned.map((t) => t.id)
+    const filter = ids.length ? `user_id.eq.${userId},trip_id.in.(${ids.join(',')})` : `user_id.eq.${userId}`
+    const photos = (await allRows((a, b) => supabase.from('photos').select('path').or(filter).order('id').range(a, b))) as Pick<Photo, 'path'>[]
+    await removeFiles(BUCKET, photos.map((p) => p.path))
+    if (ids.length) {
+      const docs = (await allRows((a, b) => supabase.from('trip_documents').select('path').in('trip_id', ids).order('id').range(a, b))) as { path: string }[]
+      const receipts = (await allRows((a, b) => supabase.from('expenses').select('receipt_path').in('trip_id', ids).not('receipt_path', 'is', null).order('id').range(a, b))) as { receipt_path: string }[]
+      await removeFiles(DOCS, [...docs.map((d) => d.path), ...receipts.map((r) => r.receipt_path)])
     }
+    // Los tickets de los gastos que apuntó en viajes de otros: el gasto se queda (cuadra las cuentas), su foto no.
+    const mine = (await allRows((a, b) => supabase.from('expenses').select('id, receipt_path').eq('user_id', userId).not('receipt_path', 'is', null).order('id').range(a, b))) as { id: string; receipt_path: string }[]
+    await removeFiles(DOCS, mine.map((r) => r.receipt_path))
+    // Y el enlace del gasto a esa foto, si se puede: con las cuentas cerradas la base de datos no deja tocarlo, y en un
+    // pago volvería a dejarlo por confirmar.
+    for (const r of mine) await supabase.from('expenses').update({ receipt_path: null }).eq('id', r.id).neq('category', 'settlement')
     must(await supabase.rpc('delete_my_account'))
     await supabase.auth.signOut()
   },

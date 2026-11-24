@@ -224,16 +224,17 @@ export function PrivacyPage() {
       </ul>
       <p>
         Si borras tu cuenta, eliminamos de forma inmediata tu perfil, los viajes que creaste (con sus gastos e historial), tus fotos y tus avisos. En
-        los viajes que creó otra persona, los gastos, sus tickets y su historial se conservan para que las cuentas de los demás sigan cuadrando, pero sin el
-        enlace a tu perfil: quedan identificadores internos en el reparto y el historial, y lo que se hubiera escrito en el texto del gasto. Los avisos que otras
+        los viajes que creó otra persona, los gastos y su historial se conservan para que las cuentas de los demás sigan cuadrando, pero sin el
+        enlace a tu perfil: quedan identificadores internos en el reparto y el historial, y lo que se hubiera escrito en el texto del gasto. Se borran las fotos de los tickets de los gastos que apuntaste; los documentos que subiste a esos viajes
+        se quedan en ellos: bórralos antes si no quieres que sigan ahí. Los avisos que otras
         personas ya hubieran recibido con tu nombre se borran en el mismo plazo de 60 días. Si quieres que revisemos algo de esto, escríbenos.
       </p>
 
       <h2>6. Tus derechos</h2>
       <p>
         Puedes acceder, rectificar, suprimir, oponerte, limitar el tratamiento y pedir la portabilidad de tus datos. Desde{' '}
-        <b>Perfil y ajustes → Tus datos</b> puedes descargar una copia (JSON) con tu perfil, pasaportes, viajes, gastos, presupuestos, lugares marcados y deseos, y borrar tu
-        cuenta. Para pedir lo que no va en esa copia (como el historial de gastos, los avisos o los archivos) o para cualquier otra solicitud, escribe a <V value={EMAIL} label="EMAIL DE CONTACTO" />. Si crees que no hemos atendido bien tu solicitud, puedes reclamar ante la{' '}
+        <b>Perfil y ajustes → Tus datos</b> puedes descargar una copia (JSON) de tus datos: perfil, pasaportes, viajes y su planificación, gastos con su
+        historial, avisos, lugares marcados y deseos; y borrar tu cuenta. Los archivos (fotos, documentos y tickets) se abren desde cada viaje. Para cualquier otra solicitud, escribe a <V value={EMAIL} label="EMAIL DE CONTACTO" />. Si crees que no hemos atendido bien tu solicitud, puedes reclamar ante la{' '}
         <a href="https://www.aepd.es" target="_blank" rel="noreferrer">
           Agencia Española de Protección de Datos
         </a>

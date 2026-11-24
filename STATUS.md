@@ -24,7 +24,7 @@ Producción sirve `main` (dc1241a, 24 nov) con todo: documentos sin conexión, r
 - [x] Cuando el usuario dé el visto bueno, aplicar `20261124000000_expense_activity.sql` en producción ANTES de desplegar `feat/gastos-rutas-y-movil`
 - [ ] Probar en móviles reales `feat/gastos-rutas-y-movil`: avisos de gastos y pagos entre dos cuentas, tiempo real, PDF y CSV compartidos, y rutas abiertas en Google Maps
 - [x] Actualizar la política de privacidad (`src/pages/Legal.tsx`): historial de gastos y bandeja de avisos (60 días)
-- [ ] Ampliar `exportMyData` (no lleva historial, avisos, equipaje, alojamientos ni documentos) y borrar al eliminar la cuenta los tickets propios en viajes de otros
+- [x] Ampliar `exportMyData` y borrar al eliminar la cuenta los tickets propios en viajes de otros (`paging.ts`, `account.test.ts`). Se quedan los documentos subidos a viajes de otros (dicho en la política); en cuentas cerradas y en pagos, el gasto conserva el enlace a un ticket ya borrado
 - [ ] Mirar si Vercel crea vistas previas de las ramas con las variables de producción y si la CI de `feat/gastos-rutas-y-movil` pasa
 
 ## Última sesión
